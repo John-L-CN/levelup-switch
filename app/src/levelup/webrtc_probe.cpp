@@ -1,5 +1,9 @@
 #include "levelup/webrtc_probe.hpp"
 #include "levelup/api_client.hpp"
+#include "levelup/audio_player.hpp"
+#include "levelup/rtc_session.hpp"
+#include "levelup/session_orchestrator.hpp"
+#include "levelup/video_pipeline.hpp"
 #include "levelup/ytcx_client.hpp"
 
 #include <borealis.hpp>
@@ -59,6 +63,19 @@ namespace levelup {
     levelup::ytcx::EdgeLaunchParams launchParams;
     levelup::ytcx::EdgeLaunchResult launchRes;
     (void)levelup::ytcx::edgeLaunch(launchParams, launchRes, &probeErr);
+
+    levelup::net::RtcSession rtcSess(levelup::net::RtcConfig{});
+    (void)rtcSess.start(100, &probeErr);
+    levelup::video::VideoPipeline vpipe;
+    vpipe.start(1280, 720, 60);
+    vpipe.stop();
+    levelup::audio::AudioPlayer aplayer;
+    (void)aplayer.start();
+    aplayer.stop();
+
+    levelup::SessionOrchestrator orch;
+    orch.start(levelup::SessionLaunchConfig{});
+    orch.stop();
 
     return true;
 }
