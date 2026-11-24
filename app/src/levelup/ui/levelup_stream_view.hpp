@@ -42,6 +42,7 @@ class LevelUpStreamView : public brls::Box {
 
   private:
     void startSession();
+    void dismissPauseOverlay(bool requestKeyFrame, bool exitAfter);
     void setBorealisInputsBlocked(bool block);
     void onWindowFocusChanged(bool focused);
     void showFailureDialog(const std::string& stageText, const std::string& errText);
@@ -59,6 +60,7 @@ class LevelUpStreamView : public brls::Box {
 #endif
 
     std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
+    std::shared_ptr<std::atomic<bool>> m_stopping = std::make_shared<std::atomic<bool>>(false);
 
     bool m_inputsBlocked = false;
     bool m_overlayOpen = false;

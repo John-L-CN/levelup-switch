@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 
@@ -1043,9 +1044,14 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     panel->addView(cfgLbl);
 
     auto closed = std::make_shared<std::atomic<bool>>(false);
-    auto closeModal = [closed]() {
+    auto closeModal = [closed](std::function<void()> afterClose = nullptr) {
         if (!closed->exchange(true)) {
-            brls::Application::popActivity(brls::TransitionAnimation::NONE);
+            brls::sync([after = std::move(afterClose)]() {
+                brls::Application::popActivity(brls::TransitionAnimation::NONE);
+                if (after) {
+                    after();
+                }
+            });
         }
     };
 
@@ -1069,15 +1075,20 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     startBtn->setText(m_cfg.cred.sessionKey.empty() ? "扫码登录并启动" : "启动云游戏");
     startBtn->setHeight(48.0f);
     startBtn->setMinWidth(200.0f);
-    startBtn->registerClickAction([this, game, closeModal](brls::View*) {
-        closeModal();
-        if (m_cfg.cred.sessionKey.empty()) {
-            m_pendingLaunchGame = game;
-            brls::Application::notify("请先扫码登录 LevelUp 账号");
-            openQrLoginModal();
-        } else {
-            launchGame(game);
-        }
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
+    startBtn->registerClickAction([this, alive, game, closeModal](brls::View*) {
+        closeModal([this, alive, game]() {
+            if (!alive->load()) {
+                return;
+            }
+            if (m_cfg.cred.sessionKey.empty()) {
+                m_pendingLaunchGame = game;
+                brls::Application::notify("请先扫码登录 LevelUp 账号");
+                openQrLoginModal();
+            } else {
+                launchGame(game);
+            }
+        });
         return true;
     });
     btnRow->addView(startBtn);
@@ -1156,12 +1167,17 @@ void LevelUpLobbyActivity::openQrLoginModal() {
     statusLbl->setMarginBottom(16.0f);
     panel->addView(statusLbl);
 
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
     auto modalOpen = std::make_shared<std::atomic<bool>>(true);
-    auto closeQr = [this, modalOpen]() {
+    auto closeQr = [this, alive, modalOpen]() {
         m_qrCancel.store(true);
         if (modalOpen->exchange(false)) {
-            m_pendingLaunchGame.reset();
-            brls::Application::popActivity(brls::TransitionAnimation::NONE);
+            brls::sync([this, alive]() {
+                brls::Application::popActivity(brls::TransitionAnimation::NONE);
+                if (alive->load()) {
+                    m_pendingLaunchGame.reset();
+                }
+            });
         }
     };
 
@@ -1187,7 +1203,6 @@ void LevelUpLobbyActivity::openQrLoginModal() {
     brls::Application::giveFocus(cancelBtn);
 
     std::string deviceId = m_cfg.deviceId;
-    std::shared_ptr<std::atomic<bool>> alive = m_alive;
 
     m_qrThread = std::thread([this, alive, modalOpen, qrImg, statusLbl, deviceId]() {
         api::Client client(deviceId, {});
@@ -1352,10 +1367,16 @@ void LevelUpLobbyActivity::openAccountModal() {
     infoLbl->setMarginBottom(18.0f);
     panel->addView(infoLbl);
 
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
     auto closed = std::make_shared<std::atomic<bool>>(false);
-    auto closeModal = [closed]() {
+    auto closeModal = [closed](std::function<void()> afterClose = nullptr) {
         if (!closed->exchange(true)) {
-            brls::Application::popActivity(brls::TransitionAnimation::NONE);
+            brls::sync([after = std::move(afterClose)]() {
+                brls::Application::popActivity(brls::TransitionAnimation::NONE);
+                if (after) {
+                    after();
+                }
+            });
         }
     };
 
@@ -1369,33 +1390,43 @@ void LevelUpLobbyActivity::openAccountModal() {
     };
 
     auto* refreshBtn = makeBtn("刷新账号与在线游戏库", &brls::BUTTONSTYLE_PRIMARY);
-    refreshBtn->registerClickAction([this, closeModal](brls::View*) {
-        closeModal();
-        refreshOnlineDataAsync(true);
+    refreshBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+        closeModal([this, alive]() {
+            if (alive->load()) {
+                refreshOnlineDataAsync(true);
+            }
+        });
         return true;
     });
     panel->addView(refreshBtn);
 
     auto* rescanBtn = makeBtn("重新扫码切换账号", &brls::BUTTONSTYLE_DEFAULT);
-    rescanBtn->registerClickAction([this, closeModal](brls::View*) {
-        closeModal();
-        openQrLoginModal();
+    rescanBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+        closeModal([this, alive]() {
+            if (alive->load()) {
+                openQrLoginModal();
+            }
+        });
         return true;
     });
     panel->addView(rescanBtn);
 
     auto* logoutBtn = makeBtn("退出当前账号", &brls::BUTTONSTYLE_DEFAULT);
     logoutBtn->setTextColor(nvgRGB(220, 60, 60));
-    logoutBtn->registerClickAction([this, closeModal](brls::View*) {
-        m_cfg.cred = {};
-        m_hasUserInfo = false;
-        m_userInfo = {};
-        m_store.saveConfig(m_cfg);
-        m_recent = m_store.loadRecent(0);
-        closeModal();
-        updateHeaderUi();
-        rebuildGameGrid();
-        brls::Application::notify("已退出登录");
+    logoutBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+        closeModal([this, alive]() {
+            if (!alive->load()) {
+                return;
+            }
+            m_cfg.cred = {};
+            m_hasUserInfo = false;
+            m_userInfo = {};
+            m_store.saveConfig(m_cfg);
+            m_recent = m_store.loadRecent(0);
+            updateHeaderUi();
+            rebuildGameGrid();
+            brls::Application::notify("已退出登录");
+        });
         return true;
     });
     panel->addView(logoutBtn);
@@ -1511,10 +1542,16 @@ void LevelUpLobbyActivity::openSettingsModal() {
         });
     list->addView(volCell);
 
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
     auto closed = std::make_shared<std::atomic<bool>>(false);
-    auto closeModal = [closed]() {
+    auto closeModal = [closed](std::function<void()> afterClose = nullptr) {
         if (!closed->exchange(true)) {
-            brls::Application::popActivity(brls::TransitionAnimation::NONE);
+            brls::sync([after = std::move(afterClose)]() {
+                brls::Application::popActivity(brls::TransitionAnimation::NONE);
+                if (after) {
+                    after();
+                }
+            });
         }
     };
 
@@ -1528,19 +1565,26 @@ void LevelUpLobbyActivity::openSettingsModal() {
     };
 
     auto* syncLibBtn = makeActionBtn("刷新在线游戏库", &brls::BUTTONSTYLE_DEFAULT);
-    syncLibBtn->registerClickAction([this, closeModal](brls::View*) {
-        closeModal();
-        refreshOnlineDataAsync(true);
+    syncLibBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+        closeModal([this, alive]() {
+            if (alive->load()) {
+                refreshOnlineDataAsync(true);
+            }
+        });
         return true;
     });
     list->addView(syncLibBtn);
 
     auto* clearCacheBtn = makeActionBtn("清除本地封面缓存", &brls::BUTTONSTYLE_DEFAULT);
-    clearCacheBtn->registerClickAction([this, closeModal](brls::View*) {
-        m_store.clearCoversCache();
-        brls::Application::notify("已清除本地封面缓存");
-        closeModal();
-        rebuildGameGrid();
+    clearCacheBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+        closeModal([this, alive]() {
+            if (!alive->load()) {
+                return;
+            }
+            m_store.clearCoversCache();
+            brls::Application::notify("已清除本地封面缓存");
+            rebuildGameGrid();
+        });
         return true;
     });
     list->addView(clearCacheBtn);
@@ -1548,16 +1592,20 @@ void LevelUpLobbyActivity::openSettingsModal() {
     if (!m_cfg.cred.sessionKey.empty()) {
         auto* logoutBtn = makeActionBtn("退出当前账号", &brls::BUTTONSTYLE_DEFAULT);
         logoutBtn->setTextColor(nvgRGB(220, 60, 60));
-        logoutBtn->registerClickAction([this, closeModal](brls::View*) {
-            m_cfg.cred = {};
-            m_hasUserInfo = false;
-            m_userInfo = {};
-            m_store.saveConfig(m_cfg);
-            m_recent = m_store.loadRecent(0);
-            closeModal();
-            updateHeaderUi();
-            rebuildGameGrid();
-            brls::Application::notify("已退出登录");
+        logoutBtn->registerClickAction([this, alive, closeModal](brls::View*) {
+            closeModal([this, alive]() {
+                if (!alive->load()) {
+                    return;
+                }
+                m_cfg.cred = {};
+                m_hasUserInfo = false;
+                m_userInfo = {};
+                m_store.saveConfig(m_cfg);
+                m_recent = m_store.loadRecent(0);
+                updateHeaderUi();
+                rebuildGameGrid();
+                brls::Application::notify("已退出登录");
+            });
             return true;
         });
         list->addView(logoutBtn);

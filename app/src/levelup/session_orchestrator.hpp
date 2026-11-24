@@ -76,6 +76,7 @@ class SessionOrchestrator {
 
     void setPhaseCallback(PhaseCallback cb);
     void setOverlayComboCallback(OverlayComboCallback cb);
+    void setBeforeVideoCodecCloseCallback(video::VideoPipeline::BeforeCodecCloseCallback cb);
 
     void start(const SessionLaunchConfig& cfg);
     void stop();

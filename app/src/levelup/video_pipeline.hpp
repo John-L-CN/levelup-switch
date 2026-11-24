@@ -57,6 +57,7 @@ class VideoPipeline {
     using KeyFrameRequestCallback = std::function<void()>;
     using NackRequestCallback = std::function<void(const std::vector<uint16_t>& missingSeqs)>;
     using FirstFrameCallback = std::function<void()>;
+    using BeforeCodecCloseCallback = std::function<void()>;
 
     VideoPipeline();
     ~VideoPipeline();
@@ -67,6 +68,7 @@ class VideoPipeline {
     void setKeyFrameRequester(KeyFrameRequestCallback cb);
     void setNackRequester(NackRequestCallback cb);
     void setFirstFrameCallback(FirstFrameCallback cb);
+    void setBeforeCodecCloseCallback(BeforeCodecCloseCallback cb);
 
     void start(int initialWidth = 1280, int initialHeight = 720, int targetFps = 60);
     void stop();
@@ -107,6 +109,7 @@ class VideoPipeline {
     KeyFrameRequestCallback m_reqKeyCb;
     NackRequestCallback m_reqNackCb;
     FirstFrameCallback m_firstFrameCb;
+    BeforeCodecCloseCallback m_beforeCodecCloseCb;
 
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_firstFrameFired{false};

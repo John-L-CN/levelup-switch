@@ -104,6 +104,11 @@ void VideoPipeline::setFirstFrameCallback(FirstFrameCallback cb) {
     m_firstFrameCb = std::move(cb);
 }
 
+void VideoPipeline::setBeforeCodecCloseCallback(BeforeCodecCloseCallback cb) {
+    std::lock_guard lock(m_cbMu);
+    m_beforeCodecCloseCb = std::move(cb);
+}
+
 void VideoPipeline::start(int initialWidth, int initialHeight, int targetFps) {
     stop();
 
@@ -399,6 +404,20 @@ void VideoPipeline::decodeLoop() {
 
     auto closeCodec = [&]() {
         if (codecCtx) {
+            if (m_running.load()) {
+                BeforeCodecCloseCallback cb;
+                {
+                    std::lock_guard lock(m_cbMu);
+                    cb = m_beforeCodecCloseCb;
+                }
+                if (cb) {
+                    cb();
+                }
+            } else {
+                // Stopping path: LevelUpStreamView already invalidated/destroyed DKVideoRenderer
+                // and stopped draw(), so cleaning AVFrameHolder here before freeing NVDEC is safe.
+                AVFrameHolder::instance().cleanup();
+            }
             avcodec_free_context(&codecCtx);
             codecCtx = nullptr;
         }
@@ -497,7 +516,9 @@ void VideoPipeline::decodeLoop() {
             m_width.store(initW);
             m_height.store(initH);
         } else if (item.flushBeforeFeed) {
+            logInfo("[NVDEC] flushing buffers before recovery IDR");
             avcodec_flush_buffers(codecCtx);
+            logInfo("[NVDEC] flush buffers done");
             m_decoderResets.fetch_add(1);
         }
 
@@ -583,13 +604,19 @@ void VideoPipeline::decodeLoop() {
             logWarn("[NVDEC] flushing buffers & requesting IDR after no-output/error");
             if (codecCtx) avcodec_flush_buffers(codecCtx);
             m_decoderResets.fetch_add(1);
-            m_depack.markLoss();
+            {
+                std::lock_guard rtpLock(m_rtpMu);
+                m_depack.markLoss();
+            }
             triggerKeyFrameRequest();
         } else if (act == SelfHealPolicy::WatchdogAction::RebuildAndRequestKey) {
             logError("[NVDEC] rebuilding hardware decoder & requesting IDR after repeated failure");
             closeCodec();
             m_decoderResets.fetch_add(1);
-            m_depack.markLoss();
+            {
+                std::lock_guard rtpLock(m_rtpMu);
+                m_depack.markLoss();
+            }
             triggerKeyFrameRequest();
         }
     }

@@ -177,9 +177,9 @@ namespace {
 void initRtcLoggingOnce() {
     static std::once_flag s_once;
     std::call_once(s_once, []() {
-        // Debug level surfaces DTLS handshake / SCTP / Track::open events while the
-        // per-packet spam stays at Verbose.
-        rtc::InitLogger(rtc::LogLevel::Debug, [](rtc::LogLevel level, std::string message) {
+        // Info level preserves ICE/DTLS/SCTP/DataChannel lifecycle logs while avoiding
+        // per-heartbeat Debug spam on Switch SD card.
+        rtc::InitLogger(rtc::LogLevel::Info, [](rtc::LogLevel level, std::string message) {
             while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
                 message.pop_back();
             }

@@ -3,7 +3,10 @@
 #include "levelup/log.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
+#include <mutex>
 #include <utility>
 
 #ifdef __SWITCH__
@@ -76,7 +79,8 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
       m_onConfigChanged(std::move(onConfigChanged)) {
     setFocusable(true);
     setHideHighlight(true);
-    setBackgroundColor(nvgRGB(0, 0, 0));
+    // Keep background transparent: Borealis flushes View::drawBackground() via NanoVG at
+    // nvgEndFrame() AFTER DKVideoRenderer::draw() flushes deko3d, which would cover live video.
 
     brls::Application::getPlatform()->disableScreenDimming(true);
 #ifdef __SWITCH__
@@ -106,6 +110,40 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
         true);
 
     std::shared_ptr<std::atomic<bool>> alive = m_alive;
+    std::shared_ptr<std::atomic<bool>> stopping = m_stopping;
+#if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
+    m_orchestrator.setBeforeVideoCodecCloseCallback([this, alive, stopping]() {
+        if (!alive->load() || stopping->load()) {
+            return;
+        }
+        struct SyncState {
+            std::mutex mu;
+            std::condition_variable cv;
+            bool done = false;
+        };
+        auto st = std::make_shared<SyncState>();
+        brls::sync([this, alive, stopping, st]() {
+            if (alive->load() && !stopping->load()) {
+                if (m_renderer) {
+                    m_renderer->invalidateHardwareResources();
+                }
+                AVFrameHolder::instance().cleanup();
+            }
+            {
+                std::lock_guard lk(st->mu);
+                st->done = true;
+            }
+            st->cv.notify_all();
+        });
+        std::unique_lock lk(st->mu);
+        for (int i = 0; i < 30; ++i) {
+            if (st->done || !alive->load() || stopping->load()) {
+                break;
+            }
+            st->cv.wait_for(lk, std::chrono::milliseconds(10));
+        }
+    });
+#endif
     m_orchestrator.setPhaseCallback([this, alive](SessionPhase phase, const std::string& text) {
         brls::sync([this, alive, phase, text]() {
             if (!alive->load() || m_exiting) {
@@ -139,6 +177,7 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
 LevelUpStreamView::~LevelUpStreamView() {
     m_alive->store(false);
     m_exiting = true;
+    m_stopping->store(true);
 
     brls::Application::getWindowFocusChangedEvent()->unsubscribe(m_windowFocusSub);
     setBorealisInputsBlocked(false);
@@ -148,6 +187,7 @@ LevelUpStreamView::~LevelUpStreamView() {
         m_renderer->invalidateHardwareResources();
         m_renderer.reset();
     }
+    AVFrameHolder::instance().cleanup();
 #endif
 
     m_orchestrator.stop();
@@ -399,16 +439,8 @@ void LevelUpStreamView::openPauseOverlay() {
     subtitle->setMarginBottom(16.0f);
     panel->addView(subtitle);
 
-    auto resumeGame = [this]() {
-        m_overlayOpen = false;
-        brls::Application::popActivity(brls::TransitionAnimation::NONE);
-        if (!m_exiting) {
-            m_orchestrator.setPausedForOverlay(false);
-            if (m_uiPhase == SessionPhase::Streaming && m_windowFocused) {
-                setBorealisInputsBlocked(true);
-            }
-        }
-    };
+    LevelUpStreamView* self = this;
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
 
     auto makeButton = [](const std::string& label, const brls::ButtonStyle* style) {
         auto* btn = new brls::Button();
@@ -420,8 +452,12 @@ void LevelUpStreamView::openPauseOverlay() {
     };
 
     auto* resumeBtn = makeButton("继续游戏", &brls::BUTTONSTYLE_PRIMARY);
-    resumeBtn->registerClickAction([resumeGame](brls::View*) {
-        resumeGame();
+    resumeBtn->registerClickAction([self, alive](brls::View*) {
+        brls::sync([self, alive]() {
+            if (alive->load()) {
+                self->dismissPauseOverlay(false, false);
+            }
+        });
         return true;
     });
     panel->addView(resumeBtn);
@@ -429,22 +465,27 @@ void LevelUpStreamView::openPauseOverlay() {
     auto* hudBtn = makeButton(
         std::string("性能 HUD：") + (m_cfg.showStatsHud ? "开" : "关"),
         &brls::BUTTONSTYLE_DEFAULT);
-    hudBtn->registerClickAction([this, hudBtn](brls::View*) {
-        m_cfg.showStatsHud = !m_cfg.showStatsHud;
-        m_store.saveConfig(m_cfg);
-        if (m_onConfigChanged) {
-            m_onConfigChanged(m_cfg);
+    hudBtn->registerClickAction([self, alive, hudBtn](brls::View*) {
+        if (!alive->load()) {
+            return true;
         }
-        hudBtn->setText(std::string("性能 HUD：") + (m_cfg.showStatsHud ? "开" : "关"));
+        self->m_cfg.showStatsHud = !self->m_cfg.showStatsHud;
+        self->m_store.saveConfig(self->m_cfg);
+        if (self->m_onConfigChanged) {
+            self->m_onConfigChanged(self->m_cfg);
+        }
+        hudBtn->setText(std::string("性能 HUD：") + (self->m_cfg.showStatsHud ? "开" : "关"));
         return true;
     });
     panel->addView(hudBtn);
 
     auto* idrBtn = makeButton("强制刷新关键帧 (PLI+FIR)", &brls::BUTTONSTYLE_DEFAULT);
-    idrBtn->registerClickAction([this, resumeGame](brls::View*) {
-        m_orchestrator.requestKeyFrame();
-        brls::Application::notify("已请求云端发送恢复关键帧");
-        resumeGame();
+    idrBtn->registerClickAction([self, alive](brls::View*) {
+        brls::sync([self, alive]() {
+            if (alive->load()) {
+                self->dismissPauseOverlay(true, false);
+            }
+        });
         return true;
     });
     panel->addView(idrBtn);
@@ -452,39 +493,75 @@ void LevelUpStreamView::openPauseOverlay() {
     auto* rumbleBtn = makeButton(
         std::string("HD 手柄震动：") + (m_cfg.rumbleEnabled ? "开" : "关"),
         &brls::BUTTONSTYLE_DEFAULT);
-    rumbleBtn->registerClickAction([this, rumbleBtn](brls::View*) {
-        m_cfg.rumbleEnabled = !m_cfg.rumbleEnabled;
-        m_orchestrator.setRumbleEnabled(m_cfg.rumbleEnabled);
-        m_store.saveConfig(m_cfg);
-        if (m_onConfigChanged) {
-            m_onConfigChanged(m_cfg);
+    rumbleBtn->registerClickAction([self, alive, rumbleBtn](brls::View*) {
+        if (!alive->load()) {
+            return true;
         }
-        rumbleBtn->setText(std::string("HD 手柄震动：") + (m_cfg.rumbleEnabled ? "开" : "关"));
+        self->m_cfg.rumbleEnabled = !self->m_cfg.rumbleEnabled;
+        self->m_orchestrator.setRumbleEnabled(self->m_cfg.rumbleEnabled);
+        self->m_store.saveConfig(self->m_cfg);
+        if (self->m_onConfigChanged) {
+            self->m_onConfigChanged(self->m_cfg);
+        }
+        rumbleBtn->setText(std::string("HD 手柄震动：") + (self->m_cfg.rumbleEnabled ? "开" : "关"));
         return true;
     });
     panel->addView(rumbleBtn);
 
     auto* exitBtn = makeButton("退出云游戏（安全释放实例）", &brls::BUTTONSTYLE_DEFAULT);
     exitBtn->setTextColor(nvgRGB(248, 113, 113));
-    exitBtn->registerClickAction([this](brls::View*) {
-        m_overlayOpen = false;
-        m_exiting = true;
-        setBorealisInputsBlocked(false);
-        brls::Application::popActivity(brls::TransitionAnimation::NONE);
-        exitStream();
+    exitBtn->registerClickAction([self, alive](brls::View*) {
+        brls::sync([self, alive]() {
+            if (alive->load()) {
+                self->dismissPauseOverlay(false, true);
+            }
+        });
         return true;
     });
     panel->addView(exitBtn);
 
     backdrop->addView(panel);
-    backdrop->registerAction("返回游戏", brls::BUTTON_B, [resumeGame](brls::View*) {
-        resumeGame();
+    backdrop->registerAction("返回游戏", brls::BUTTON_B, [self, alive](brls::View*) {
+        brls::sync([self, alive]() {
+            if (alive->load()) {
+                self->dismissPauseOverlay(false, false);
+            }
+        });
         return true;
     });
 
     brls::Application::pushActivity(new TranslucentOverlayActivity(backdrop),
                                     brls::TransitionAnimation::NONE);
     brls::Application::giveFocus(resumeBtn);
+}
+
+void LevelUpStreamView::dismissPauseOverlay(bool requestKeyFrame, bool exitAfter) {
+    if (!m_overlayOpen) {
+        return;
+    }
+    m_overlayOpen = false;
+
+    if (requestKeyFrame && !m_exiting) {
+        m_orchestrator.requestKeyFrame();
+        brls::Application::notify("已请求云端发送恢复关键帧");
+    }
+
+    if (exitAfter) {
+        m_exiting = true;
+        m_stopping->store(true);
+        setBorealisInputsBlocked(false);
+        brls::Application::popActivity(brls::TransitionAnimation::NONE);
+        exitStream();
+        return;
+    }
+
+    brls::Application::popActivity(brls::TransitionAnimation::NONE);
+    if (!m_exiting) {
+        m_orchestrator.setPausedForOverlay(false);
+        if (m_uiPhase == SessionPhase::Streaming && m_windowFocused) {
+            setBorealisInputsBlocked(true);
+        }
+    }
 }
 
 void LevelUpStreamView::showFailureDialog(const std::string& stageText, const std::string& errText) {
@@ -500,15 +577,26 @@ void LevelUpStreamView::showFailureDialog(const std::string& stageText, const st
         msg += "\n" + errText;
     }
 
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
     auto* dialog = new brls::Dialog(msg);
     dialog->setCancelable(false);
-    dialog->addButton("重试", [this]() {
-        m_errorDialogOpen = false;
-        startSession();
+    dialog->addButton("重试", [this, alive]() {
+        brls::sync([this, alive]() {
+            if (!alive->load() || m_exiting) {
+                return;
+            }
+            m_errorDialogOpen = false;
+            startSession();
+        });
     });
-    dialog->addButton("返回大厅", [this]() {
-        m_errorDialogOpen = false;
-        exitStream();
+    dialog->addButton("返回大厅", [this, alive]() {
+        brls::sync([this, alive]() {
+            if (!alive->load()) {
+                return;
+            }
+            m_errorDialogOpen = false;
+            exitStream();
+        });
     });
     dialog->open();
 }
@@ -519,6 +607,7 @@ void LevelUpStreamView::exitStream() {
     }
     m_popRequested = true;
     m_exiting = true;
+    m_stopping->store(true);
     setBorealisInputsBlocked(false);
 
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
@@ -526,6 +615,7 @@ void LevelUpStreamView::exitStream() {
         m_renderer->invalidateHardwareResources();
         m_renderer.reset();
     }
+    AVFrameHolder::instance().cleanup();
 #endif
 
     m_orchestrator.stop();

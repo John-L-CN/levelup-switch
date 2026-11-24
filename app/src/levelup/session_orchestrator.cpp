@@ -21,6 +21,11 @@ void SessionOrchestrator::setOverlayComboCallback(OverlayComboCallback cb) {
     m_overlayCb = std::move(cb);
 }
 
+void SessionOrchestrator::setBeforeVideoCodecCloseCallback(
+    video::VideoPipeline::BeforeCodecCloseCallback cb) {
+    m_video.setBeforeCodecCloseCallback(std::move(cb));
+}
+
 void SessionOrchestrator::setPhase(SessionPhase phase, const std::string& text, const std::string& err) {
     {
         std::lock_guard lock(m_stateMu);
