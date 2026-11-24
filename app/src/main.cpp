@@ -24,7 +24,9 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 }
 #endif
 
+#include <cstdio>
 #include <cstdlib>
+#include <exception>
 
 #include <borealis.hpp>
 #include <string>
@@ -42,6 +44,7 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 #include "SwitchMoonlightSessionDecoderAndRenderProvider.hpp"
 
 #ifdef LEVELUP_ENABLE_WEBRTC
+#include <curl/curl.h>
 #include "levelup/ui/lobby_activity.hpp"
 #include "levelup/webrtc_probe.hpp"
 #endif
@@ -100,6 +103,30 @@ void preferSwitchCore(int ordinal) {
 } // namespace
 #endif
 
+#ifdef LEVELUP_ENABLE_WEBRTC
+namespace {
+
+FILE* g_levelupLogFile = nullptr;
+
+[[noreturn]] void levelupTerminateHandler() {
+    FILE* out = g_levelupLogFile ? g_levelupLogFile : stderr;
+    std::fprintf(out, "[FATAL] std::terminate invoked\n");
+    if (auto eptr = std::current_exception()) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch (const std::exception& e) {
+            std::fprintf(out, "[FATAL] uncaught exception: %s\n", e.what());
+        } catch (...) {
+            std::fprintf(out, "[FATAL] uncaught non-std exception\n");
+        }
+    }
+    std::fflush(out);
+    std::abort();
+}
+
+} // namespace
+#endif
+
 int main(int argc, char* argv[]) {
 #ifdef __SWITCH2__
     // Keep diagnostics available after a failed launch or streaming session.
@@ -117,15 +144,19 @@ int main(int argc, char* argv[]) {
 #endif
     // Enable recording for Twitter memes
 #ifdef __SWITCH__
+#ifndef LEVELUP_ENABLE_WEBRTC
     appletInitializeGamePlayRecording();
+#endif
     appletSetWirelessPriorityMode(AppletWirelessPriorityMode_OptimizedForWlan);
 
     // Keep the UI loop away from the hottest streaming worker core.
     preferSwitchCore(0);
 
+#ifndef LEVELUP_ENABLE_WEBRTC
     // Keep the main thread above others so that the program stays responsive
     // when doing software decoding
     svcSetThreadPriority(CUR_THREAD_HANDLE, 0x20);
+#endif
 
     // auto at = appletGetAppletType();
     // g_application_mode = at == AppletType_Application || at == AppletType_SystemApplication;
@@ -140,24 +171,48 @@ int main(int argc, char* argv[]) {
     // Set log level
     // We recommend to use INFO for real apps
     brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
+#ifdef LEVELUP_ENABLE_WEBRTC
+    brls::Logger::setThreadSafeLogging(true);
+#endif
 
 #if defined(__SWITCH__) && defined(LEVELUP_ENABLE_WEBRTC)
     mkdir("sdmc:/switch", 0777);
     mkdir("sdmc:/switch/levelup-nx", 0777);
     if (FILE* log = fopen("sdmc:/switch/levelup-nx/levelup.log", "w")) {
         setvbuf(log, nullptr, _IONBF, 0);
+        g_levelupLogFile = log;
         brls::Logger::setLogOutput(log);
     }
+#endif
+
+#ifdef LEVELUP_ENABLE_WEBRTC
+    std::set_terminate(levelupTerminateHandler);
+#ifdef __SWITCH__
+    brls::Logger::info("[BOOT] 1. main start: hos=0x{:x} appletType={}",
+                       static_cast<unsigned>(hosversionGet()),
+                       static_cast<int>(appletGetAppletType()));
+#else
+    brls::Logger::info("[BOOT] 1. main start");
+#endif
+    const CURLcode curlInitRc = curl_global_init(CURL_GLOBAL_ALL);
+    brls::Logger::info("[BOOT] 2. curl_global_init rc={}", static_cast<int>(curlInitRc));
+
+    try {
 #endif
 
     // Init the app and i18n
     if (!brls::Application::init()) {
         brls::Logger::error("Unable to init Borealis application");
+#ifdef LEVELUP_ENABLE_WEBRTC
+        curl_global_cleanup();
+#endif
         return EXIT_FAILURE;
     }
 
 #ifdef LEVELUP_ENABLE_WEBRTC
+    brls::Logger::info("[BOOT] 3. brls::Application::init ok");
     levelup::logWebRtcBuildProbe();
+    brls::Logger::info("[BOOT] 4. webrtc probe ok");
 #endif
 
     registerDeepLinkHandler();
@@ -171,6 +226,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef LEVELUP_ENABLE_WEBRTC
     brls::Application::createWindow("LevelUp-NX");
+    brls::Logger::info("[BOOT] 5. createWindow ok");
 #else
     brls::Application::createWindow("title"_i18n);
 #endif
@@ -208,6 +264,7 @@ int main(int argc, char* argv[]) {
     // Create and push the main activity to the stack if cannot run game from arguments
 #ifdef LEVELUP_ENABLE_WEBRTC
     brls::Application::pushActivity(new levelup::ui::LevelUpLobbyActivity());
+    brls::Logger::info("[BOOT] 6. pushActivity ok");
     brls::Application::enableDebuggingView(false);
     brls::Application::setSwapInputKeys(false);
 #else
@@ -225,6 +282,13 @@ int main(int argc, char* argv[]) {
     bool vitaHealthReported = false;
 #endif
     while (brls::Application::mainLoop()) {
+#ifdef LEVELUP_ENABLE_WEBRTC
+        static bool firstFrameLogged = false;
+        if (!firstFrameLogged) {
+            firstFrameLogged = true;
+            brls::Logger::info("[BOOT] 7. first mainLoop frame completed");
+        }
+#endif
 #ifdef __SWITCH2__
         static bool switch2Ready = false;
         if (!switch2Ready)
@@ -240,6 +304,27 @@ int main(int argc, char* argv[]) {
         }
 #endif
     }
+
+#ifdef LEVELUP_ENABLE_WEBRTC
+    } catch (const std::exception& e) {
+        brls::Logger::error("[FATAL] unhandled exception in main: {}", e.what());
+        if (g_levelupLogFile) {
+            std::fprintf(g_levelupLogFile, "[FATAL] unhandled exception in main: %s\n", e.what());
+            std::fflush(g_levelupLogFile);
+        }
+        curl_global_cleanup();
+        return EXIT_FAILURE;
+    } catch (...) {
+        brls::Logger::error("[FATAL] unhandled non-std exception in main");
+        if (g_levelupLogFile) {
+            std::fprintf(g_levelupLogFile, "[FATAL] unhandled non-std exception in main\n");
+            std::fflush(g_levelupLogFile);
+        }
+        curl_global_cleanup();
+        return EXIT_FAILURE;
+    }
+    curl_global_cleanup();
+#endif
 
     // Exit
 #if defined(PLATFORM_TVOS)

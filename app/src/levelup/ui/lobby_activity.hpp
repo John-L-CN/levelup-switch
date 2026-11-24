@@ -47,6 +47,7 @@ class LevelUpLobbyActivity : public brls::Activity {
 
     void openSearchIme();
     void cycleCategory(int delta);
+    void changePage(int delta);
     void openGameDetailModal(const GameEntry& game);
     void launchGame(const GameEntry& game);
     void openQrLoginModal();
@@ -65,6 +66,9 @@ class LevelUpLobbyActivity : public brls::Activity {
 
     std::string m_selectedCategory = "__ALL__";
     std::string m_searchQuery;
+    size_t m_currentPage = 0;
+    size_t m_totalPages = 1;
+    static constexpr size_t kGamesPerPage = 24;
     std::atomic<uint64_t> m_gridGeneration{0};
     bool m_needsGridRebuild = false;
 

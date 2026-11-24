@@ -5,10 +5,14 @@
 #include "levelup/ui/levelup_stream_view.hpp"
 
 #include <borealis/core/touch/tap_gesture.hpp>
+#include <stb_image.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <mutex>
 #include <unordered_map>
 
 #ifdef __SWITCH__
@@ -31,6 +35,179 @@ class TranslucentModalActivity : public brls::Activity {
         return 0.0f;
     }
 };
+
+// Borealis Box::draw() skips culling for Box children, which overflows deko3d's
+// 128 KB DynamicCmdSize command buffer when many game card Boxes live inside a ScrollingFrame.
+class CulledGridBox : public brls::Box {
+  public:
+    CulledGridBox() : brls::Box(brls::Axis::COLUMN) {}
+
+    void draw(NVGcontext* vg,
+              float x,
+              float y,
+              float width,
+              float height,
+              brls::Style style,
+              brls::FrameContext* ctx) override {
+        brls::Box* parent = this->getParent();
+        if (!parent) {
+            brls::Box::draw(vg, x, y, width, height, style, ctx);
+            return;
+        }
+        (void)vg;
+        (void)x;
+        (void)y;
+        (void)width;
+        (void)height;
+        (void)style;
+
+        float top = 0.0f;
+        float right = 0.0f;
+        float bottom = 0.0f;
+        float left = 0.0f;
+        parent->getCullingBounds(&top, &right, &bottom, &left);
+        top -= 64.0f;
+        bottom += 64.0f;
+
+        for (brls::View* child : this->getChildren()) {
+            const float childTop = child->getY();
+            const float childBottom = childTop + child->getHeight();
+            if (childBottom < top || childTop > bottom) {
+                continue;
+            }
+            child->frame(ctx);
+        }
+    }
+};
+
+std::mutex& stbiDecodeMutex() {
+    static std::mutex mu;
+    return mu;
+}
+
+bool decodeDownscaleToRgba(const uint8_t* data,
+                           size_t size,
+                           int maxW,
+                           int maxH,
+                           std::vector<uint8_t>& outRgba,
+                           int& outW,
+                           int& outH) {
+    outRgba.clear();
+    outW = 0;
+    outH = 0;
+    if (!data || size == 0 || size > 16 * 1024 * 1024 || maxW <= 0 || maxH <= 0) {
+        return false;
+    }
+
+    int srcW = 0;
+    int srcH = 0;
+    int comp = 0;
+    stbi_uc* pixels = nullptr;
+    {
+        // Borealis Switch builds define -DSTBI_NO_THREAD_LOCALS; serialize stb_image calls.
+        std::lock_guard lock(stbiDecodeMutex());
+        if (!stbi_info_from_memory(data, static_cast<int>(size), &srcW, &srcH, &comp)) {
+            return false;
+        }
+        if (srcW <= 0 || srcH <= 0 || srcW > 4096 || srcH > 4096) {
+            return false;
+        }
+        pixels = stbi_load_from_memory(data, static_cast<int>(size), &srcW, &srcH, &comp, 4);
+    }
+    if (!pixels) {
+        return false;
+    }
+
+    if (srcW <= maxW && srcH <= maxH) {
+        outW = srcW;
+        outH = srcH;
+        outRgba.resize(static_cast<size_t>(srcW) * static_cast<size_t>(srcH) * 4);
+        std::memcpy(outRgba.data(), pixels, outRgba.size());
+        {
+            std::lock_guard lock(stbiDecodeMutex());
+            stbi_image_free(pixels);
+        }
+        return true;
+    }
+
+    const double scaleX = static_cast<double>(maxW) / static_cast<double>(srcW);
+    const double scaleY = static_cast<double>(maxH) / static_cast<double>(srcH);
+    const double scale = std::min(scaleX, scaleY);
+    const int dstW = std::max(1, static_cast<int>(std::lround(srcW * scale)));
+    const int dstH = std::max(1, static_cast<int>(std::lround(srcH * scale)));
+
+    outRgba.resize(static_cast<size_t>(dstW) * static_cast<size_t>(dstH) * 4);
+    for (int dy = 0; dy < dstH; ++dy) {
+        const double fy = dstH > 1
+                              ? (static_cast<double>(dy) + 0.5) * static_cast<double>(srcH) /
+                                        static_cast<double>(dstH) -
+                                    0.5
+                              : 0.0;
+        const double cy = std::clamp(fy, 0.0, static_cast<double>(srcH - 1));
+        const int y0 = static_cast<int>(std::floor(cy));
+        const int y1 = std::min(y0 + 1, srcH - 1);
+        const double wy = cy - static_cast<double>(y0);
+
+        for (int dx = 0; dx < dstW; ++dx) {
+            const double fx = dstW > 1
+                                  ? (static_cast<double>(dx) + 0.5) * static_cast<double>(srcW) /
+                                            static_cast<double>(dstW) -
+                                        0.5
+                                  : 0.0;
+            const double cx = std::clamp(fx, 0.0, static_cast<double>(srcW - 1));
+            const int x0 = static_cast<int>(std::floor(cx));
+            const int x1 = std::min(x0 + 1, srcW - 1);
+            const double wx = cx - static_cast<double>(x0);
+
+            const uint8_t* p00 = pixels + (static_cast<size_t>(y0) * srcW + x0) * 4;
+            const uint8_t* p10 = pixels + (static_cast<size_t>(y0) * srcW + x1) * 4;
+            const uint8_t* p01 = pixels + (static_cast<size_t>(y1) * srcW + x0) * 4;
+            const uint8_t* p11 = pixels + (static_cast<size_t>(y1) * srcW + x1) * 4;
+
+            uint8_t* dst = outRgba.data() + (static_cast<size_t>(dy) * dstW + dx) * 4;
+            for (int c = 0; c < 4; ++c) {
+                const double topVal = p00[c] * (1.0 - wx) + p10[c] * wx;
+                const double botVal = p01[c] * (1.0 - wx) + p11[c] * wx;
+                const double val = topVal * (1.0 - wy) + botVal * wy;
+                dst[c] = static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(val)), 0, 255));
+            }
+        }
+    }
+
+    {
+        std::lock_guard lock(stbiDecodeMutex());
+        stbi_image_free(pixels);
+    }
+    outW = dstW;
+    outH = dstH;
+    return true;
+}
+
+void applyRgbaTexture(brls::Image* img, const std::vector<uint8_t>& rgba, int w, int h) {
+    if (!img || w <= 0 || h <= 0 ||
+        rgba.size() != static_cast<size_t>(w) * static_cast<size_t>(h) * 4) {
+        return;
+    }
+    NVGcontext* vg = brls::Application::getNVGContext();
+    if (!vg) {
+        return;
+    }
+    const int tex = nvgCreateImageRGBA(vg, w, h, 0, rgba.data());
+    if (tex > 0) {
+        img->innerSetImage(tex);
+    }
+}
+
+std::string truncateUtf8(const std::string& s, size_t maxBytes) {
+    if (s.size() <= maxBytes) {
+        return s;
+    }
+    size_t end = maxBytes > 3 ? maxBytes - 3 : maxBytes;
+    while (end > 0 && (static_cast<unsigned char>(s[end]) & 0xC0U) == 0x80U) {
+        --end;
+    }
+    return s.substr(0, end) + "...";
+}
 
 std::string joinGameCategories(const std::vector<std::string>& cats) {
     if (cats.empty()) {
@@ -190,7 +367,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
 
     auto* hintLabel = new brls::Label();
     hintLabel->setText(
-        "A 详情/启动   Y 搜索游戏   X 扫码/账号   L/R 切换分类   + 设置   - 清搜/刷新");
+        "A 详情/启动  Y 搜索  X 登录  L/R 分类  ZL/ZR 翻页  + 设置  - 刷新");
     hintLabel->setFontSize(14.0f);
     hintLabel->setTextColor(nvgRGB(148, 163, 184));
     footer->addView(hintLabel);
@@ -244,6 +421,24 @@ brls::View* LevelUpLobbyActivity::createContentView() {
         true);
 
     m_root->registerAction(
+        "上一页",
+        brls::BUTTON_LT,
+        [this](brls::View*) {
+            changePage(-1);
+            return true;
+        },
+        true);
+
+    m_root->registerAction(
+        "下一页",
+        brls::BUTTON_RT,
+        [this](brls::View*) {
+            changePage(1);
+            return true;
+        },
+        true);
+
+    m_root->registerAction(
         "设置",
         brls::BUTTON_START,
         [this](brls::View*) {
@@ -258,6 +453,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
         [this](brls::View*) {
             if (!m_searchQuery.empty()) {
                 m_searchQuery.clear();
+                m_currentPage = 0;
                 updateHeaderUi();
                 rebuildGameGrid();
             } else {
@@ -356,16 +552,25 @@ void LevelUpLobbyActivity::coverWorkerLoop() {
             continue;
         }
 
+        std::vector<uint8_t> rgba;
+        int imgW = 0;
+        int imgH = 0;
+        if (!decodeDownscaleToRgba(bytes.data(), bytes.size(), 320, 180, rgba, imgW, imgH)) {
+            continue;
+        }
+
         std::shared_ptr<std::atomic<bool>> alive = m_alive;
         brls::sync([this,
                     alive,
                     gen = task.generation,
                     img = task.target,
-                    data = std::move(bytes)]() {
+                    imgW,
+                    imgH,
+                    rgbaData = std::move(rgba)]() {
             if (!alive->load() || m_gridGeneration.load() != gen || !img) {
                 return;
             }
-            img->setImageFromMem(data.data(), static_cast<int>(data.size()));
+            applyRgbaTexture(img, rgbaData, imgW, imgH);
         });
     }
 }
@@ -459,6 +664,7 @@ void LevelUpLobbyActivity::rebuildCategoryStrip() {
         pill->addGestureRecognizer(new brls::TapGestureRecognizer(pill, [this, catId]() {
             m_selectedCategory = catId;
             m_searchQuery.clear();
+            m_currentPage = 0;
             updateHeaderUi();
             rebuildCategoryStrip();
             rebuildGameGrid();
@@ -515,11 +721,28 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
     }
 
     const std::vector<GameEntry> games = currentFilteredGames();
+    m_totalPages = std::max<size_t>(1, (games.size() + kGamesPerPage - 1) / kGamesPerPage);
+    if (m_currentPage >= m_totalPages) {
+        m_currentPage = m_totalPages - 1;
+    }
+    const size_t startIdx = m_currentPage * kGamesPerPage;
+    const size_t endIdx = std::min(games.size(), startIdx + kGamesPerPage);
+
     if (m_countLabel) {
-        m_countLabel->setText("共 " + std::to_string(games.size()) + " 款游戏");
+        if (m_totalPages > 1) {
+            m_countLabel->setText("第 " + std::to_string(m_currentPage + 1) + "/" +
+                                  std::to_string(m_totalPages) + " 页 · 共 " +
+                                  std::to_string(games.size()) + " 款");
+        } else {
+            m_countLabel->setText("共 " + std::to_string(games.size()) + " 款游戏");
+        }
     }
 
-    auto* gridBox = new brls::Box(brls::Axis::COLUMN);
+    logInfo("[Lobby] rebuildGameGrid: total=" + std::to_string(games.size()) +
+            " page=" + std::to_string(m_currentPage + 1) + "/" + std::to_string(m_totalPages) +
+            " showing=" + std::to_string(endIdx > startIdx ? (endIdx - startIdx) : 0));
+
+    auto* gridBox = new CulledGridBox();
     gridBox->setHeight(brls::View::AUTO);
     gridBox->setPadding(12.0f, 16.0f, 20.0f, 16.0f);
     gridBox->setAlignItems(brls::AlignItems::STRETCH);
@@ -546,13 +769,13 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
         gridBox->addView(emptyBox);
     } else {
         constexpr size_t kCols = 4;
-        for (size_t i = 0; i < games.size(); i += kCols) {
+        for (size_t i = startIdx; i < endIdx; i += kCols) {
             auto* row = new brls::Box(brls::Axis::ROW);
             row->setHeight(brls::View::AUTO);
             row->setJustifyContent(brls::JustifyContent::FLEX_START);
             row->setMarginBottom(8.0f);
 
-            for (size_t c = 0; c < kCols && (i + c) < games.size(); ++c) {
+            for (size_t c = 0; c < kCols && (i + c) < endIdx; ++c) {
                 const GameEntry& game = games[i + c];
 
                 auto* card = new brls::Box(brls::Axis::COLUMN);
@@ -612,6 +835,55 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
             }
             gridBox->addView(row);
         }
+
+        if (m_totalPages > 1) {
+            auto* pagerRow = new brls::Box(brls::Axis::ROW);
+            pagerRow->setHeight(58.0f);
+            pagerRow->setMarginTop(8.0f);
+            pagerRow->setJustifyContent(brls::JustifyContent::CENTER);
+            pagerRow->setAlignItems(brls::AlignItems::CENTER);
+
+            const bool hasPrev = m_currentPage > 0;
+            auto* prevBtn = new brls::Button();
+            prevBtn->setStyle(hasPrev ? &brls::BUTTONSTYLE_PRIMARY : &brls::BUTTONSTYLE_DEFAULT);
+            prevBtn->setText("上一页 (ZL)");
+            if (!hasPrev) {
+                prevBtn->setTextColor(nvgRGB(100, 116, 139));
+            }
+            prevBtn->setHeight(42.0f);
+            prevBtn->setMinWidth(160.0f);
+            prevBtn->setMarginRight(20.0f);
+            prevBtn->registerClickAction([this](brls::View*) {
+                changePage(-1);
+                return true;
+            });
+            pagerRow->addView(prevBtn);
+
+            auto* pageLbl = new brls::Label();
+            pageLbl->setText("第 " + std::to_string(m_currentPage + 1) + " / " +
+                             std::to_string(m_totalPages) + " 页");
+            pageLbl->setFontSize(16.0f);
+            pageLbl->setTextColor(nvgRGB(203, 213, 225));
+            pageLbl->setMarginRight(20.0f);
+            pagerRow->addView(pageLbl);
+
+            const bool hasNext = (m_currentPage + 1) < m_totalPages;
+            auto* nextBtn = new brls::Button();
+            nextBtn->setStyle(hasNext ? &brls::BUTTONSTYLE_PRIMARY : &brls::BUTTONSTYLE_DEFAULT);
+            nextBtn->setText("下一页 (ZR)");
+            if (!hasNext) {
+                nextBtn->setTextColor(nvgRGB(100, 116, 139));
+            }
+            nextBtn->setHeight(42.0f);
+            nextBtn->setMinWidth(160.0f);
+            nextBtn->registerClickAction([this](brls::View*) {
+                changePage(1);
+                return true;
+            });
+            pagerRow->addView(nextBtn);
+
+            gridBox->addView(pagerRow);
+        }
     }
 
     m_scrollFrame->setContentView(gridBox);
@@ -631,6 +903,7 @@ void LevelUpLobbyActivity::openSearchIme() {
     ime->openForText(
         [this](std::string text) {
             m_searchQuery = text;
+            m_currentPage = 0;
             updateHeaderUi();
             rebuildCategoryStrip();
             rebuildGameGrid();
@@ -664,9 +937,22 @@ void LevelUpLobbyActivity::cycleCategory(int delta) {
     const int next = ((cur + delta) % n + n) % n;
     m_selectedCategory = ids[next];
     m_searchQuery.clear();
+    m_currentPage = 0;
     updateHeaderUi();
     rebuildCategoryStrip();
     rebuildGameGrid();
+}
+
+void LevelUpLobbyActivity::changePage(int delta) {
+    if (m_totalPages <= 1) {
+        return;
+    }
+    const int next = std::clamp<int>(
+        static_cast<int>(m_currentPage) + delta, 0, static_cast<int>(m_totalPages) - 1);
+    if (static_cast<size_t>(next) != m_currentPage) {
+        m_currentPage = static_cast<size_t>(next);
+        rebuildGameGrid();
+    }
 }
 
 void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
@@ -692,7 +978,13 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     cover->setMarginRight(18.0f);
     std::vector<uint8_t> coverBytes;
     if (m_store.loadCoverBytes(game.gameId, coverBytes) && coverBytes.size() > 16) {
-        cover->setImageFromMem(coverBytes.data(), static_cast<int>(coverBytes.size()));
+        std::vector<uint8_t> rgba;
+        int imgW = 0;
+        int imgH = 0;
+        if (decodeDownscaleToRgba(
+                coverBytes.data(), coverBytes.size(), 320, 180, rgba, imgW, imgH)) {
+            applyRgbaTexture(cover, rgba, imgW, imgH);
+        }
     }
     topRow->addView(cover);
 
@@ -725,13 +1017,8 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     panel->addView(topRow);
 
     if (!game.description.empty()) {
-        std::string descText = game.description;
-        if (descText.size() > 260) {
-            descText.resize(257);
-            descText += "...";
-        }
         auto* desc = new brls::Label();
-        desc->setText(descText);
+        desc->setText(truncateUtf8(game.description, 260));
         desc->setFontSize(15.0f);
         desc->setSingleLine(false);
         desc->setTextColor(nvgRGB(203, 213, 225));
@@ -916,10 +1203,22 @@ void LevelUpLobbyActivity::openQrLoginModal() {
         }
 
         std::vector<uint8_t> jpeg = base64Decode(qr.buffer);
-        brls::sync([alive, modalOpen, qrImg, statusLbl, imgData = std::move(jpeg)]() {
+        std::vector<uint8_t> rgba;
+        int qrW = 0;
+        int qrH = 0;
+        const bool decodedQr =
+            !jpeg.empty() && decodeDownscaleToRgba(jpeg.data(), jpeg.size(), 360, 360, rgba, qrW, qrH);
+        brls::sync([alive,
+                    modalOpen,
+                    qrImg,
+                    statusLbl,
+                    decodedQr,
+                    qrW,
+                    qrH,
+                    imgData = std::move(rgba)]() {
             if (!alive->load() || !modalOpen->load()) return;
-            if (!imgData.empty()) {
-                qrImg->setImageFromMem(imgData.data(), static_cast<int>(imgData.size()));
+            if (decodedQr) {
+                applyRgbaTexture(qrImg, imgData, qrW, qrH);
             }
             statusLbl->setText("请使用微信 / LevelUp App 扫码登录");
             statusLbl->setTextColor(nvgRGB(125, 211, 252));
