@@ -714,6 +714,7 @@ struct RtcSession::Impl {
         uint64_t prevLost = 0;
         int64_t prevHbMs = 0;
         int64_t prevBootPliMs = 0;
+        int64_t prevAliveMs = 0;
         int cursorKickIndex = 0;
         int candResendIdx = 0;
         static constexpr int kCursorKickMs[] = {1000, 3000, 6000, 10000, 16000};
@@ -721,6 +722,29 @@ struct RtcSession::Impl {
 
         while (!bgStop.load() && !closing.load()) {
             const int64_t nowMs = unixMillisNow();
+
+            // Liveness heartbeat: distinguishes "app hung" from "app crashed" when the
+            // tail of levelup.log is all we get back from the console.
+            if (prevAliveMs == 0 || (nowMs - prevAliveMs) >= 5000) {
+                prevAliveMs = nowMs;
+                const int64_t uptime = std::max<int64_t>(0, nowMs - startMs.load());
+                bool ctlOpen = false;
+                {
+                    std::lock_guard lock(dcMu);
+                    ctlOpen = controlDc && controlDc->isOpen();
+                }
+                uint64_t rtpRecv = 0;
+                if (auto rh = getRtcpHandler()) {
+                    rtpRecv = rh->packetsReceived();
+                }
+                logInfo("[RTC] alive t=" + std::to_string(uptime) +
+                        "ms ice=" + std::string(iceConnected.load() ? "1" : "0") +
+                        " ctl=" + std::string(ctlOpen ? "1" : "0") +
+                        " echo=" + std::to_string(dcPingEchoCount.load()) +
+                        " dcRecv=" + std::to_string(dcRecvCount.load()) +
+                        " rtp=" + std::to_string(rtpRecv) +
+                        " frame=" + std::string(gotFirstFrame.load() ? "1" : "0"));
+            }
 
             // Retry cached local ICE candidates across all m-lines while ICE is still connecting
             if (!iceConnected.load() && candResendIdx < 3 &&

@@ -487,6 +487,165 @@ def patch_libdatachannel(rtc_dir: Path) -> None:
     )
 
 
+    patch_sctp_trace(rtc_dir)
+
+
+def patch_sctp_trace(rtc_dir: Path) -> None:
+    """Add step markers around every usrsctp call in SctpTransport.
+
+    Horizon OS gives no usable crash dump, so the only way to tell which
+    usrsctp call kills the process is to log a marker after each step. The
+    markers are plain PLOG_DEBUG lines, i.e. they land in levelup.log through
+    rtc::InitLogger (which the app already installs at Debug level).
+    """
+    sctp_cpp = rtc_dir / "src/impl/sctptransport.cpp"
+    steps = [
+        # 1: diag right at ctor entry
+        (
+            '\tPLOG_DEBUG << "Initializing SCTP transport";\n',
+            '\tPLOG_DEBUG << "Initializing SCTP transport";\n'
+            "\t// SCTP-TRACE-1\n"
+            '\tPLOG_DEBUG << "SCTP trace: af_conn=" << int(AF_CONN)\n'
+            '\t           << " sconn_size=" << int(sizeof(struct sockaddr_conn));\n',
+            "SCTP-TRACE-1",
+            "libdatachannel sctptransport.cpp trace #1 (ctor diag)",
+        ),
+        (
+            "\tmSock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, nullptr, nullptr, 0, nullptr);\n"
+            "\tif (!mSock)\n"
+            '\t\tthrow std::runtime_error("Could not create SCTP socket, errno=" + std::to_string(errno));\n',
+            "\tmSock = usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, nullptr, nullptr, 0, nullptr);\n"
+            "\tif (!mSock)\n"
+            '\t\tthrow std::runtime_error("Could not create SCTP socket, errno=" + std::to_string(errno));\n'
+            "\t// SCTP-TRACE-2\n"
+            '\tPLOG_DEBUG << "SCTP trace: socket created";\n',
+            "SCTP-TRACE-2",
+            "libdatachannel sctptransport.cpp trace #2 (socket)",
+        ),
+        (
+            "\tusrsctp_set_upcall(mSock, &SctpTransport::UpcallCallback, this);\n",
+            "\t// SCTP-TRACE-3\n"
+            '\tPLOG_DEBUG << "SCTP trace: set_upcall begin";\n'
+            "\tusrsctp_set_upcall(mSock, &SctpTransport::UpcallCallback, this);\n"
+            '\tPLOG_DEBUG << "SCTP trace: set_upcall ok";\n',
+            "SCTP-TRACE-3",
+            "libdatachannel sctptransport.cpp trace #3 (upcall)",
+        ),
+        (
+            "\tif (usrsctp_set_non_blocking(mSock, 1))\n"
+            '\t\tthrow std::runtime_error("Unable to set non-blocking mode, errno=" + std::to_string(errno));\n',
+            "\tif (usrsctp_set_non_blocking(mSock, 1))\n"
+            '\t\tthrow std::runtime_error("Unable to set non-blocking mode, errno=" + std::to_string(errno));\n'
+            "\t// SCTP-TRACE-4\n"
+            '\tPLOG_DEBUG << "SCTP trace: non-blocking ok";\n',
+            "SCTP-TRACE-4",
+            "libdatachannel sctptransport.cpp trace #4 (non-blocking)",
+        ),
+        (
+            "\tstruct sctp_assoc_value av = {};\n",
+            "\t// SCTP-TRACE-5\n"
+            '\tPLOG_DEBUG << "SCTP trace: SO_LINGER ok";\n'
+            "\tstruct sctp_assoc_value av = {};\n",
+            "SCTP-TRACE-5",
+            "libdatachannel sctptransport.cpp trace #5 (linger)",
+        ),
+        (
+            "\tint nodelay = 1;\n",
+            "\t// SCTP-TRACE-6\n"
+            '\tPLOG_DEBUG << "SCTP trace: events ok";\n'
+            "\tint nodelay = 1;\n",
+            "SCTP-TRACE-6",
+            "libdatachannel sctptransport.cpp trace #6 (events)",
+        ),
+        (
+            "\tstruct sctp_paddrparams spp = {};\n",
+            "\t// SCTP-TRACE-7\n"
+            '\tPLOG_DEBUG << "SCTP trace: nodelay ok";\n'
+            "\tstruct sctp_paddrparams spp = {};\n",
+            "SCTP-TRACE-7",
+            "libdatachannel sctptransport.cpp trace #7 (nodelay)",
+        ),
+        (
+            "\t// RFC 8831 6.2. SCTP Association Management\n",
+            "\t// SCTP-TRACE-8\n"
+            '\tPLOG_DEBUG << "SCTP trace: paddr params ok";\n'
+            "\t// RFC 8831 6.2. SCTP Association Management\n",
+            "SCTP-TRACE-8",
+            "libdatachannel sctptransport.cpp trace #8 (paddr params)",
+        ),
+        (
+            "\t// Prevent fragmented interleave of messages (i.e. level 0), see RFC 6458 section 8.1.20.\n",
+            "\t// SCTP-TRACE-9\n"
+            '\tPLOG_DEBUG << "SCTP trace: initmsg ok";\n'
+            "\t// Prevent fragmented interleave of messages (i.e. level 0), see RFC 6458 section 8.1.20.\n",
+            "SCTP-TRACE-9",
+            "libdatachannel sctptransport.cpp trace #9 (initmsg)",
+        ),
+        (
+            "\tint rcvBuf = 0;\n",
+            "\t// SCTP-TRACE-10\n"
+            '\tPLOG_DEBUG << "SCTP trace: fragment interleave ok";\n'
+            "\tint rcvBuf = 0;\n",
+            "SCTP-TRACE-10",
+            "libdatachannel sctptransport.cpp trace #10 (frag interleave)",
+        ),
+        (
+            "\tusrsctp_register_address(this);\n"
+            "\tInstances->insert(this);\n",
+            "\t// SCTP-TRACE-11\n"
+            '\tPLOG_DEBUG << "SCTP trace: buffers ok, registering address";\n'
+            "\tusrsctp_register_address(this);\n"
+            "\tInstances->insert(this);\n"
+            '\tPLOG_DEBUG << "SCTP trace: ctor done";\n',
+            "SCTP-TRACE-11",
+            "libdatachannel sctptransport.cpp trace #11 (ctor done)",
+        ),
+        (
+            "void SctpTransport::start() {\n"
+            "\tregisterIncoming();\n"
+            "\tconnect();\n"
+            "}\n",
+            "void SctpTransport::start() {\n"
+            "\t// SCTP-TRACE-12\n"
+            '\tPLOG_DEBUG << "SCTP trace: start begin";\n'
+            "\tregisterIncoming();\n"
+            '\tPLOG_DEBUG << "SCTP trace: registerIncoming ok";\n'
+            "\tconnect();\n"
+            "}\n",
+            "SCTP-TRACE-12",
+            "libdatachannel sctptransport.cpp trace #12 (start)",
+        ),
+        (
+            "\tauto local = getSockAddrConn(mPorts.local);\n"
+            "\tif (usrsctp_bind(mSock, reinterpret_cast<struct sockaddr *>(&local), sizeof(local)))\n"
+            '\t\tthrow std::runtime_error("Could not bind usrsctp socket, errno=" + std::to_string(errno));\n',
+            "\tauto local = getSockAddrConn(mPorts.local);\n"
+            "\t// SCTP-TRACE-13\n"
+            '\tPLOG_DEBUG << "SCTP trace: bind local_len=" << int(sizeof(local));\n'
+            "\tif (usrsctp_bind(mSock, reinterpret_cast<struct sockaddr *>(&local), sizeof(local)))\n"
+            '\t\tthrow std::runtime_error("Could not bind usrsctp socket, errno=" + std::to_string(errno));\n'
+            '\tPLOG_DEBUG << "SCTP trace: bind ok";\n',
+            "SCTP-TRACE-13",
+            "libdatachannel sctptransport.cpp trace #13 (bind)",
+        ),
+        (
+            "\tint ret = usrsctp_connect(mSock, reinterpret_cast<struct sockaddr *>(&remote), sizeof(remote));\n"
+            "\tif (ret && errno != EINPROGRESS)\n"
+            '\t\tthrow std::runtime_error("Connection attempt failed, errno=" + std::to_string(errno));\n',
+            "\tint ret = usrsctp_connect(mSock, reinterpret_cast<struct sockaddr *>(&remote), sizeof(remote));\n"
+            "\t// SCTP-TRACE-14\n"
+            '\tPLOG_DEBUG << "SCTP trace: connect ret=" << ret << " errno=" << errno\n'
+            '\t           << " inprogress=" << int(EINPROGRESS);\n'
+            "\tif (ret && errno != EINPROGRESS)\n"
+            '\t\tthrow std::runtime_error("Connection attempt failed, errno=" + std::to_string(errno));\n',
+            "SCTP-TRACE-14",
+            "libdatachannel sctptransport.cpp trace #14 (connect)",
+        ),
+    ]
+    for anchor, new_text, marker, label in steps:
+        replace_once(sctp_cpp, anchor, new_text, marker, label)
+
+
 def patch_libjuice(juice_dir: Path) -> None:
     sock_h = juice_dir / "src/socket.h"
     replace_once(

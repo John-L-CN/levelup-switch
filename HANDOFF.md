@@ -93,6 +93,29 @@
 
 （附注：日志里 `remote candidate #N ... resolved=0` 已改为 `applied`，那个 0 只是 `rtc::Candidate(cs, mid)` 构造后的初始值，不代表解析失败；ICE `completed` 已证伪该怀疑。）
 
+### 3.3 第三轮真机（21:18 日志）：DTLS 通过后的 SCTP 构造阶段秒死，正在取证
+**观测**（修复 3.2 后的第一份日志）：
+
+```
+39.714 [libRTC] DtlsTransport::doRecv@565: DTLS handshake finished
+39.732 [libRTC] SctpTransport::SctpTransport@168: Initializing SCTP transport
+<日志到此为止，无任何错误行、无 [FATAL] std::terminate>
+```
+
+即：BUNDLE 正确（`mid="0", removed=false`）、DTLS 握手完成，随后进程在 `SctpTransport` 构造函数内部**硬死**（SIGSEGV/SIGBUS 类）或**卡死**，连 `SctpTransport::connect` 的 `SCTP connecting` 行都没出现。注意这轮的失败点比第二轮更靠前（第二轮至少打到了 `SCTP connecting` + `Could not bind`），说明 3.2 的布局修复**确实让 bind 走通了**，现在卡在更深的 usrsctp 初始化路径里。
+
+**Horizon OS 没有可用的崩溃转储**（用户态 SIGSEGV handler 不可靠、fatal 只弹系统对话框），因此本轮不再猜，改为**取证优先**：
+
+1. `patch_webrtc_deps.py` 新增 `patch_sctp_trace()`：在 `src/impl/sctptransport.cpp` 的每一处 usrsctp 调用前后插入 `PLOG_DEBUG << "SCTP trace: ..."` 标记（共 14 个点：ctor 入口/诊断、socket、set_upcall、non-blocking、SO_LINGER、events、NODELAY、PEER_ADDR_PARAMS、INITMSG、FRAGMENT_INTERLEAVE、buffers、register_address、start()、bind、connect）。`[libRTC]` 已是 `Debug` 级且日志文件 `_IONBF`，所以崩在哪一步会直接留在 `levelup.log` 最后一行。
+2. Ctor 入口额外打印 `af_conn=123` / `sconn_size=`（运行时确认布局补丁真的生效）。
+3. [app/src/levelup/rtc_session.cpp](app/src/levelup/rtc_session.cpp) 的 `bgLoop()` 增加 5 秒心跳：`[RTC] alive t=... ice=... ctl=... echo=... dcRecv=... rtp=... frame=...`。**卡死**（心跳还在涨、只是 SCTP 没进展）与**崩溃**（心跳停止）由此一次分清。
+
+**下一轮判读规则**：
+- 日志最后一行是 `SCTP trace: <X>` → 崩在 X 之后的那个调用（对照上表定位）。
+- 心跳继续但 SCTP 无进展 → 是死锁/阻塞，不是崩溃，转向 usrsctp 锁与线程模型。
+- 走到 `SCTP trace: connect ret=... errno=...` → SCTP 已跑通，看 `inprogress=119` 是否为真（newlib 的 `EINPROGRESS=119`，不是 Linux 的 115）。
+
+
 
 ---
 
@@ -134,7 +157,7 @@ ssh ub "cd ~/levelup-switch && bash scripts/build_switch1_deps.sh"
 - 注意：改的虽是 deps，仍需同步 `scripts/` 到 ub（`ub_sync_and_run.py sync`），否则 ub 上的补丁脚本还是旧版，会漏掉 `usrsctp.h` 这条。
 
 ### Step 4：真机复测（下一步唯一的动作）
-把 `build/switch/LevelUp-NX.nro`（2026-11-24 21:16:23 构建，SHA256 `9FAB25A472B8EDF71CE3611AD8ACDA23FB8499664488E4BBB898D1918C3DB835`）拷到 `sdmc:/switch/LevelUp-NX.nro`，在 Title Override / `appletType=0` 全内存模式下进一次游戏，取回 `sdmc:/switch/levelup-nx/levelup.log`，按第 5 节 checklist 对照。
+把 `build/switch/LevelUp-NX.nro`（本轮取证版：21:28 构建，含 `SCTP trace` 14 个标记 + 5s 心跳）拷到 `sdmc:/switch/LevelUp-NX.nro`，在 Title Override / `appletType=0` 全内存模式下进一次游戏，**等应用退出后**再拷回 `sdmc:/switch/levelup-nx/levelup.log`（日志是 `_IONBF` 无缓冲，退出瞬间的最后一行就是崩溃点），按第 5 节 checklist 对照。
 
 ---
 
