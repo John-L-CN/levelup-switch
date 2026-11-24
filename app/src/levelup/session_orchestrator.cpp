@@ -335,15 +335,41 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
 
     setPhase(SessionPhase::WaitingFirstFrame, "等待云端首帧 H.264 解码...");
 
-    // 7. Schedule 8s post-launch AllocVPad (cmd=33)
-    m_vpadAllocThread = std::thread([this, &sleepInterruptible]() {
-        if (!sleepInterruptible(8000) || m_stopRequested.load()) {
+    // 7. Schedule 8s post-launch AllocVPad (cmd=33), retrying once after firstFrame (playing=1) if rejected
+    m_vpadAllocThread = std::thread([this]() {
+        auto waitMs = [this](int ms) -> bool {
+            std::unique_lock lock(m_stateMu);
+            return !m_stopCv.wait_for(lock, std::chrono::milliseconds(ms),
+                                      [this]() { return m_stopRequested.load(); });
+        };
+        auto tryAllocVPad = [this](const char* reason) {
+            std::lock_guard lock(m_compMu);
+            if (m_be && m_be->isConnected()) {
+                if (m_be->sendAllocVPad({}, 65535, 2)) {
+                    logInfo(std::string("[Session] sent cmd=33 CGReqAllocVPad (") + reason + ")");
+                }
+            }
+        };
+
+        if (!waitMs(8000) || m_stopRequested.load()) {
             return;
         }
-        std::lock_guard lock(m_compMu);
-        if (m_be && m_be->isConnected()) {
-            if (m_be->sendAllocVPad({}, 65535, 2)) {
-                logInfo("[Session] sent cmd=33 CGReqAllocVPad (8s post-launch)");
+        tryAllocVPad("8s post-launch");
+
+        for (int i = 0; i < 180; ++i) {
+            if (!waitMs(250) || m_stopRequested.load()) {
+                return;
+            }
+            if (m_allocatedVPad.load() || m_firstFrame.load()) {
+                break;
+            }
+        }
+        if (!m_stopRequested.load() && m_firstFrame.load() && !m_allocatedVPad.load()) {
+            if (!waitMs(2000) || m_stopRequested.load()) {
+                return;
+            }
+            if (!m_allocatedVPad.load()) {
+                tryAllocVPad("2s post-firstFrame retry");
             }
         }
     });

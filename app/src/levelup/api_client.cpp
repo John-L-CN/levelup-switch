@@ -4,6 +4,7 @@
 #include "levelup/log.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <vector>
 
@@ -63,6 +64,8 @@ std::string truncateMsg(std::string_view s, size_t n = 200) {
 }
 
 #ifndef LEVELUP_NO_CURL
+std::atomic<bool> g_preferInsecureTls{false};
+
 struct CurlBuffer {
     std::vector<uint8_t> data;
     size_t maxBytes = 8 * 1024 * 1024;
@@ -382,12 +385,15 @@ bool Client::call(std::string_view path,
     CURLcode curlCode = CURLE_OK;
     std::string transportErr;
 
-    bool ok = performCurlRequest(url, &payload, "okhttp/4.12.0", false, 25L, 8 * 1024 * 1024,
+    const bool startInsecure = g_preferInsecureTls.load(std::memory_order_relaxed);
+    bool ok = performCurlRequest(url, &payload, "okhttp/4.12.0", startInsecure, 25L, 8 * 1024 * 1024,
                                  httpCode, rawBytes, curlCode, &transportErr);
-    if (!ok && (curlCode == CURLE_PEER_FAILED_VERIFICATION ||
-                curlCode == CURLE_SSL_CACERT_BADFILE ||
-                curlCode == CURLE_SSL_CONNECT_ERROR)) {
-        logWarn("TLS verify failed for " + url + " (" + transportErr + "), retrying insecure fallback");
+    if (!ok && !startInsecure &&
+        (curlCode == CURLE_PEER_FAILED_VERIFICATION ||
+         curlCode == CURLE_SSL_CACERT_BADFILE ||
+         curlCode == CURLE_SSL_CONNECT_ERROR)) {
+        g_preferInsecureTls.store(true, std::memory_order_relaxed);
+        logWarn("TLS verify failed for " + url + " (" + transportErr + "), switching to insecure fallback");
         ok = performCurlRequest(url, &payload, "okhttp/4.12.0", true, 25L, 8 * 1024 * 1024,
                                 httpCode, rawBytes, curlCode, &transportErr);
     }
@@ -518,11 +524,14 @@ bool Client::downloadBinary(std::string_view url,
     std::string transportErr;
     const std::string urlStr(url);
 
-    bool ok = performCurlRequest(urlStr, nullptr, "okhttp/4.12.0", false, 15L, maxBytes,
+    const bool startInsecure = g_preferInsecureTls.load(std::memory_order_relaxed);
+    bool ok = performCurlRequest(urlStr, nullptr, "okhttp/4.12.0", startInsecure, 15L, maxBytes,
                                  httpCode, outBytes, curlCode, &transportErr);
-    if (!ok && (curlCode == CURLE_PEER_FAILED_VERIFICATION ||
-                curlCode == CURLE_SSL_CACERT_BADFILE ||
-                curlCode == CURLE_SSL_CONNECT_ERROR)) {
+    if (!ok && !startInsecure &&
+        (curlCode == CURLE_PEER_FAILED_VERIFICATION ||
+         curlCode == CURLE_SSL_CACERT_BADFILE ||
+         curlCode == CURLE_SSL_CONNECT_ERROR)) {
+        g_preferInsecureTls.store(true, std::memory_order_relaxed);
         ok = performCurlRequest(urlStr, nullptr, "okhttp/4.12.0", true, 15L, maxBytes,
                                 httpCode, outBytes, curlCode, &transportErr);
     }

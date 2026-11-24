@@ -103,17 +103,15 @@ docker run --rm \
             -DSCTP_USE_MBEDTLS_SHA1=OFF
         cmake --build /workspace/build/deps/work/libdatachannel --target install -j"${NJOBS}"
 
-        if [[ ! -f /workspace/build/deps/switch/lib/libjuice.a ]]; then
-            if [[ -f /workspace/build/deps/switch/lib/libjuice-static.a ]]; then
-                cp -f /workspace/build/deps/switch/lib/libjuice-static.a /workspace/build/deps/switch/lib/libjuice.a
-            elif [[ -f /workspace/build/deps/work/libdatachannel/deps/libjuice/libjuice.a ]]; then
-                cp -f /workspace/build/deps/work/libdatachannel/deps/libjuice/libjuice.a /workspace/build/deps/switch/lib/libjuice.a
-            fi
+        if [[ -f /workspace/build/deps/switch/lib/libjuice-static.a ]]; then
+            cp -f /workspace/build/deps/switch/lib/libjuice-static.a /workspace/build/deps/switch/lib/libjuice.a
+        elif [[ -f /workspace/build/deps/work/libdatachannel/deps/libjuice/libjuice.a ]]; then
+            cp -f /workspace/build/deps/work/libdatachannel/deps/libjuice/libjuice.a /workspace/build/deps/switch/lib/libjuice.a
         fi
-        if [[ ! -f /workspace/build/deps/switch/lib/libsrtp2.a && -f /workspace/build/deps/work/libdatachannel/deps/libsrtp/libsrtp2.a ]]; then
+        if [[ -f /workspace/build/deps/work/libdatachannel/deps/libsrtp/libsrtp2.a ]]; then
             cp -f /workspace/build/deps/work/libdatachannel/deps/libsrtp/libsrtp2.a /workspace/build/deps/switch/lib/libsrtp2.a
         fi
-        if [[ ! -f /workspace/build/deps/switch/lib/libusrsctp.a && -f /workspace/build/deps/work/libdatachannel/deps/usrsctp/usrsctplib/libusrsctp.a ]]; then
+        if [[ -f /workspace/build/deps/work/libdatachannel/deps/usrsctp/usrsctplib/libusrsctp.a ]]; then
             cp -f /workspace/build/deps/work/libdatachannel/deps/usrsctp/usrsctplib/libusrsctp.a /workspace/build/deps/switch/lib/libusrsctp.a
         fi
 
@@ -145,6 +143,13 @@ docker run --rm \
         grep -q "SWITCH-ADDR-DIAG" /tmp/juice_str.txt
         grep -q "223.5.5.5" /tmp/juice_str.txt
         rm -f /tmp/juice_str.txt
+
+        for rtclib in libdatachannel.a libjuice.a; do
+            if "${NM}" -u "/workspace/build/deps/switch/lib/${rtclib}" | grep -qw "getnameinfo"; then
+                echo "FAIL: ${rtclib} still has undefined reference to getnameinfo"
+                exit 1
+            fi
+        done
 
         ls -lh /workspace/build/deps/switch/lib/*.a
     '

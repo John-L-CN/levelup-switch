@@ -173,6 +173,56 @@ RtcStatsSnapshot RtcSession::stats() const { return {}; }
 
 namespace {
 
+void initRtcLoggingOnce() {
+    static std::once_flag s_once;
+    std::call_once(s_once, []() {
+        rtc::InitLogger(rtc::LogLevel::Info, [](rtc::LogLevel level, std::string message) {
+            while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
+                message.pop_back();
+            }
+            if (message.empty()) {
+                return;
+            }
+            switch (level) {
+            case rtc::LogLevel::Fatal:
+            case rtc::LogLevel::Error:
+                logError("[libRTC] " + message);
+                break;
+            case rtc::LogLevel::Warning:
+                logWarn("[libRTC] " + message);
+                break;
+            default:
+                logInfo("[libRTC] " + message);
+                break;
+            }
+        });
+    });
+}
+
+void logAnswerSummary(const std::string& sdp) {
+    std::istringstream iss(sdp);
+    std::string line;
+    std::string h264Pt;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.rfind("m=", 0) == 0 || line.rfind("a=setup:", 0) == 0 ||
+            line.rfind("a=group:", 0) == 0) {
+            logInfo("[RTC] SDP " + line);
+        } else if (line.rfind("a=rtpmap:", 0) == 0 && line.find("H264") != std::string::npos) {
+            const auto sp = line.find(' ');
+            if (sp != std::string::npos && sp > 9) {
+                h264Pt = line.substr(9, sp - 9);
+            }
+            logInfo("[RTC] SDP " + line);
+        } else if (!h264Pt.empty() &&
+                   line.rfind("a=rtcp-fb:" + h264Pt + " ", 0) == 0) {
+            logInfo("[RTC] SDP " + line);
+        }
+    }
+}
+
 bool equalsIgnoreCase(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;
     for (size_t i = 0; i < a.size(); ++i) {
@@ -379,6 +429,11 @@ struct RtcSession::Impl {
     std::string deadReason;
 
     std::atomic<bool> gotFirstFrame{false};
+    std::atomic<bool> iceConnected{false};
+    std::atomic<bool> loggedFirstVideoRtp{false};
+    std::atomic<bool> loggedFirstAudioRtp{false};
+    std::atomic<int> remoteCandCount{0};
+    std::atomic<int> localCandCount{0};
     std::atomic<int64_t> startMs{0};
     std::atomic<int64_t> firstVideoTrackMs{0};
     std::atomic<int64_t> lastBootPliMs{0};
@@ -386,6 +441,9 @@ struct RtcSession::Impl {
     std::atomic<int64_t> lastRttMs{-1};
     std::atomic<uint64_t> dcRecvCount{0};
     std::atomic<uint64_t> dcPingEchoCount{0};
+
+    std::mutex localCandMu;
+    std::vector<std::string> localCandidates;
 
     std::mutex cbMu;
     VideoRtpCallback onVideoRtp;
@@ -415,6 +473,25 @@ struct RtcSession::Impl {
         } catch (const std::exception& e) {
             logWarn(std::string("[RTC] signal send error: ") + e.what());
             return false;
+        }
+    }
+
+    void sendLocalCandidateToAllMids(const std::string& candLine) {
+        std::string curPeer;
+        {
+            std::lock_guard lock(peerMu);
+            curPeer = peer;
+        }
+        static constexpr const char* kMids[] = {"0", "1", "2"};
+        for (int idx = 0; idx < 3; ++idx) {
+            const nlohmann::json msg = {
+                {"candidate",
+                 {{"sdpMLineIndex", idx}, {"sdpMid", kMids[idx]}, {"candidate", candLine}}},
+                {"uid", cfg.uid},
+                {"peer", curPeer},
+                {"token", ""},
+            };
+            sendSignalJson(msg);
         }
     }
 
@@ -530,7 +607,14 @@ struct RtcSession::Impl {
                     mid = std::to_string(idx);
                 }
                 try {
-                    pc->addRemoteCandidate(rtc::Candidate(cs, mid));
+                    rtc::Candidate rcand(cs, mid);
+                    const int n = remoteCandCount.fetch_add(1) + 1;
+                    if (n <= 16) {
+                        logInfo("[RTC] remote candidate #" + std::to_string(n) +
+                                " mid=" + mid + " resolved=" +
+                                std::string(rcand.isResolved() ? "1" : "0") + " " + cs);
+                    }
+                    pc->addRemoteCandidate(rcand);
                 } catch (const std::exception& e) {
                     logWarn(std::string("[RTC] addRemoteCandidate rejected (") + cs + "): " + e.what());
                 }
@@ -544,10 +628,30 @@ struct RtcSession::Impl {
         int64_t prevHbMs = 0;
         int64_t prevBootPliMs = 0;
         int cursorKickIndex = 0;
+        int candResendIdx = 0;
         static constexpr int kCursorKickMs[] = {1000, 3000, 6000, 10000, 16000};
+        static constexpr int kCandResendMs[] = {1500, 4000, 7500};
 
         while (!bgStop.load() && !closing.load()) {
             const int64_t nowMs = unixMillisNow();
+
+            // Retry cached local ICE candidates across all m-lines while ICE is still connecting
+            if (!iceConnected.load() && candResendIdx < 3 &&
+                (nowMs - startMs.load()) >= kCandResendMs[candResendIdx]) {
+                std::vector<std::string> snapshot;
+                {
+                    std::lock_guard lock(localCandMu);
+                    snapshot = localCandidates;
+                }
+                if (!snapshot.empty()) {
+                    logInfo("[RTC] resending " + std::to_string(snapshot.size()) +
+                            " local candidates (round " + std::to_string(candResendIdx + 1) + ")");
+                    for (const auto& c : snapshot) {
+                        sendLocalCandidateToAllMids(c);
+                    }
+                }
+                candResendIdx++;
+            }
 
             // Pre-first-frame boost: send PLI+FIR every 500ms for first 8s until first video frame arrives
             const int64_t trackMs = firstVideoTrackMs.load();
@@ -636,6 +740,7 @@ void RtcSession::setRumbleCallback(RumbleCallback cb) {
 
 bool RtcSession::start(int timeoutMs, std::string* errOut) {
     close();
+    initRtcLoggingOnce();
 
     m_impl->closing.store(false);
     m_impl->dead.store(false);
@@ -645,9 +750,18 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
     m_impl->wsOpenError.clear();
     m_impl->dcReadyFired.store(false);
     m_impl->gotFirstFrame.store(false);
+    m_impl->iceConnected.store(false);
+    m_impl->loggedFirstVideoRtp.store(false);
+    m_impl->loggedFirstAudioRtp.store(false);
+    m_impl->remoteCandCount.store(0);
+    m_impl->localCandCount.store(0);
     m_impl->firstVideoTrackMs.store(0);
     m_impl->startMs.store(unixMillisNow());
     m_impl->lastKeyReqMs.store(0);
+    {
+        std::lock_guard lock(m_impl->localCandMu);
+        m_impl->localCandidates.clear();
+    }
 
     rtc::Configuration pcCfg;
     pcCfg.disableAutoNegotiation = true;
@@ -672,26 +786,30 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         };
         m_impl->sendSignalJson(msg);
         logInfo("[RTC] SDP Answer sent (" + std::to_string(sdp.size()) + " bytes)");
+        logAnswerSummary(sdp);
     });
 
     m_impl->pc->onLocalCandidate([this](rtc::Candidate cand) {
         const std::string candLine = ensureCandidatePrefix(cand.candidate());
-        std::string curPeer;
+        const int n = m_impl->localCandCount.fetch_add(1) + 1;
+        logInfo("[RTC] local candidate #" + std::to_string(n) +
+                " resolved=" + std::string(cand.isResolved() ? "1" : "0") +
+                " " + candLine);
         {
-            std::lock_guard lock(m_impl->peerMu);
-            curPeer = m_impl->peer;
+            std::lock_guard lock(m_impl->localCandMu);
+            m_impl->localCandidates.push_back(candLine);
         }
-        static constexpr const char* kMids[] = {"0", "1", "2"};
-        for (int idx = 0; idx < 3; ++idx) {
-            const nlohmann::json msg = {
-                {"candidate",
-                 {{"sdpMLineIndex", idx}, {"sdpMid", kMids[idx]}, {"candidate", candLine}}},
-                {"uid", m_impl->cfg.uid},
-                {"peer", curPeer},
-                {"token", ""},
-            };
-            m_impl->sendSignalJson(msg);
+        m_impl->sendLocalCandidateToAllMids(candLine);
+    });
+
+    m_impl->pc->onGatheringStateChange([this](rtc::PeerConnection::GatheringState st) {
+        const char* name = "unknown";
+        switch (st) {
+        case rtc::PeerConnection::GatheringState::New: name = "new"; break;
+        case rtc::PeerConnection::GatheringState::InProgress: name = "inprogress"; break;
+        case rtc::PeerConnection::GatheringState::Complete: name = "complete"; break;
         }
+        logInfo(std::string("[RTC] ICE gathering: ") + name);
     });
 
     m_impl->pc->onStateChange([this](rtc::PeerConnection::State st) {
@@ -727,8 +845,14 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         switch (st) {
         case rtc::PeerConnection::IceState::New: name = "new"; break;
         case rtc::PeerConnection::IceState::Checking: name = "checking"; break;
-        case rtc::PeerConnection::IceState::Connected: name = "connected"; break;
-        case rtc::PeerConnection::IceState::Completed: name = "completed"; break;
+        case rtc::PeerConnection::IceState::Connected:
+            name = "connected";
+            m_impl->iceConnected.store(true);
+            break;
+        case rtc::PeerConnection::IceState::Completed:
+            name = "completed";
+            m_impl->iceConnected.store(true);
+            break;
         case rtc::PeerConnection::IceState::Failed: name = "failed"; break;
         case rtc::PeerConnection::IceState::Disconnected: name = "disconnected"; break;
         case rtc::PeerConnection::IceState::Closed: name = "closed"; break;
@@ -765,6 +889,11 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                             reinterpret_cast<const uint8_t*>(bin.data()), bin.size(), rtp)) {
                         return;
                     }
+                    if (!m_impl->loggedFirstVideoRtp.exchange(true)) {
+                        logInfo("[RTC] first video RTP seq=" + std::to_string(rtp.seq) +
+                                " pt=" + std::to_string(rtp.payloadType) +
+                                " len=" + std::to_string(rtp.payloadLen));
+                    }
                     VideoRtpCallback cb;
                     {
                         std::lock_guard lock(m_impl->cbMu);
@@ -785,6 +914,11 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                     if (!levelup::video::parseRtpPacket(
                             reinterpret_cast<const uint8_t*>(bin.data()), bin.size(), rtp)) {
                         return;
+                    }
+                    if (!m_impl->loggedFirstAudioRtp.exchange(true)) {
+                        logInfo("[RTC] first audio RTP seq=" + std::to_string(rtp.seq) +
+                                " pt=" + std::to_string(rtp.payloadType) +
+                                " len=" + std::to_string(rtp.payloadLen));
                     }
                     AudioOpusCallback cb;
                     {
