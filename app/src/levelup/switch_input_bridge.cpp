@@ -31,15 +31,24 @@ GamepadState mapSwitchHidToGamepad(uint64_t buttons,
                                    int32_t ly,
                                    int32_t rx,
                                    int32_t ry,
-                                   bool invertStickY) {
+                                   bool invertStickY,
+                                   bool swapAbXy) {
     GamepadState st;
     uint16_t mask = 0;
 
-    // Native Nintendo ABXY passthrough (cloud session is switch-handheld: NO Xbox swap!)
-    if (buttons & nxhid::kA) mask |= kPadA;
-    if (buttons & nxhid::kB) mask |= kPadB;
-    if (buttons & nxhid::kX) mask |= kPadX;
-    if (buttons & nxhid::kY) mask |= kPadY;
+    if (swapAbXy) {
+        // Xbox layout: Switch B -> Xbox A, Switch A -> Xbox B, Switch Y -> Xbox X, Switch X -> Xbox Y
+        if (buttons & nxhid::kA) mask |= kPadB;
+        if (buttons & nxhid::kB) mask |= kPadA;
+        if (buttons & nxhid::kX) mask |= kPadY;
+        if (buttons & nxhid::kY) mask |= kPadX;
+    } else {
+        // Native Nintendo ABXY passthrough
+        if (buttons & nxhid::kA) mask |= kPadA;
+        if (buttons & nxhid::kB) mask |= kPadB;
+        if (buttons & nxhid::kX) mask |= kPadX;
+        if (buttons & nxhid::kY) mask |= kPadY;
+    }
 
     if (buttons & nxhid::kUp) mask |= kPadDPadUp;
     if (buttons & nxhid::kDown) mask |= kPadDPadDown;
@@ -129,6 +138,10 @@ void SwitchInputBridge::setVPadId(uint16_t vpadId) {
 
 void SwitchInputBridge::setInvertStickY(bool invert) {
     m_invertStickY.store(invert);
+}
+
+void SwitchInputBridge::setSwapAbXy(bool swap) {
+    m_swapAbXy.store(swap);
 }
 
 void SwitchInputBridge::workerLoop() {
@@ -228,7 +241,7 @@ void SwitchInputBridge::workerLoop() {
 
         if (!m_paused.load()) {
             const GamepadState cur = mapSwitchHidToGamepad(
-                btns, stL.x, stL.y, stR.x, stR.y, m_invertStickY.load());
+                btns, stL.x, stL.y, stR.x, stR.y, m_invertStickY.load(), m_swapAbXy.load());
             if (cur != lastState || (nowMs - lastSendMs) >= 100) {
                 lastState = cur;
                 lastSendMs = nowMs;

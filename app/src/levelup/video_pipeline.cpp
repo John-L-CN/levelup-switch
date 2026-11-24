@@ -517,9 +517,9 @@ void VideoPipeline::decodeLoop() {
             m_width.store(initW);
             m_height.store(initH);
         } else if (item.flushBeforeFeed) {
-            logInfo("[NVDEC] flushing buffers before recovery IDR");
-            avcodec_flush_buffers(codecCtx);
-            logInfo("[NVDEC] flush buffers done");
+            logInfo("[NVDEC] recovery IDR arriving (" + std::to_string(m_framesDepacked.load()) + " frames)");
+            // Do not invoke avcodec_flush_buffers(): on Tegra NVDEC hardware, H.264 IDR resets the DPB
+            // natively according to spec without destroying active frame buffers or racing with deko3d.
             m_decoderResets.fetch_add(1);
         }
 
@@ -602,8 +602,8 @@ void VideoPipeline::decodeLoop() {
             act = m_heal.onDecodeResult(totalOut > 0, decodeErr, unixMillisNow());
         }
         if (act == SelfHealPolicy::WatchdogAction::FlushAndRequestKey) {
-            logWarn("[NVDEC] flushing buffers & requesting IDR after no-output/error");
-            if (codecCtx) avcodec_flush_buffers(codecCtx);
+            logWarn("[NVDEC] requesting IDR after no-output/error");
+            // Do not call avcodec_flush_buffers(codecCtx); Tegra NVDEC clears reference frames on next IDR
             m_decoderResets.fetch_add(1);
             {
                 std::lock_guard rtpLock(m_rtpMu);

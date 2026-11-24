@@ -373,6 +373,7 @@ AppConfig Store::loadConfig() const {
                 cfg.rumbleEnabled = j.value("rumbleEnabled", true);
                 cfg.rumbleStrength = std::clamp(j.value("rumbleStrength", 100), 0, 100);
                 cfg.invertStickY = j.value("invertStickY", false);
+                cfg.swapAbXy = j.value("swapAbXy", false);
                 cfg.showStatsHud = j.value("showStatsHud", false);
                 cfg.audioVolume = std::clamp(j.value("audioVolume", 100), 0, 100);
             }
@@ -402,6 +403,7 @@ bool Store::saveConfig(const AppConfig& cfg) const {
         {"rumbleEnabled", cfg.rumbleEnabled},
         {"rumbleStrength", std::clamp(cfg.rumbleStrength, 0, 100)},
         {"invertStickY", cfg.invertStickY},
+        {"swapAbXy", cfg.swapAbXy},
         {"showStatsHud", cfg.showStatsHud},
         {"audioVolume", std::clamp(cfg.audioVolume, 0, 100)},
     };

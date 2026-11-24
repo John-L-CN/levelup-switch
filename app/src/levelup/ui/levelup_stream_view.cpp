@@ -233,6 +233,7 @@ void LevelUpStreamView::startSession() {
     lcfg.rumbleEnabled = m_cfg.rumbleEnabled;
     lcfg.rumbleStrengthPercent = m_cfg.rumbleStrength;
     lcfg.invertStickY = m_cfg.invertStickY;
+    lcfg.swapAbXy = m_cfg.swapAbXy;
     lcfg.audioVolumePercent = m_cfg.audioVolume;
 
     m_orchestrator.start(lcfg);
@@ -507,6 +508,24 @@ void LevelUpStreamView::openPauseOverlay() {
         return true;
     });
     panel->addView(rumbleBtn);
+
+    auto* layoutBtn = makeButton(
+        std::string("按键布局：") + (m_cfg.swapAbXy ? "Xbox (AB/XY互换)" : "Switch (原生)"),
+        &brls::BUTTONSTYLE_DEFAULT);
+    layoutBtn->registerClickAction([self, alive, layoutBtn](brls::View*) {
+        if (!alive->load()) {
+            return true;
+        }
+        self->m_cfg.swapAbXy = !self->m_cfg.swapAbXy;
+        self->m_orchestrator.setSwapAbXy(self->m_cfg.swapAbXy);
+        self->m_store.saveConfig(self->m_cfg);
+        if (self->m_onConfigChanged) {
+            self->m_onConfigChanged(self->m_cfg);
+        }
+        layoutBtn->setText(std::string("按键布局：") + (self->m_cfg.swapAbXy ? "Xbox (AB/XY互换)" : "Switch (原生)"));
+        return true;
+    });
+    panel->addView(layoutBtn);
 
     auto* exitBtn = makeButton("退出云游戏（安全释放实例）", &brls::BUTTONSTYLE_DEFAULT);
     exitBtn->setTextColor(nvgRGB(248, 113, 113));

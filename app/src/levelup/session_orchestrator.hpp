@@ -32,6 +32,7 @@ struct SessionLaunchConfig {
     bool rumbleEnabled = true;
     int rumbleStrengthPercent = 100;
     bool invertStickY = false;
+    bool swapAbXy = false;
     int audioVolumePercent = 100;
 };
 
@@ -86,6 +87,7 @@ class SessionOrchestrator {
     void setRumbleEnabled(bool enabled);
     void setRumbleStrengthPercent(int percent);
     void setInvertStickY(bool invert);
+    void setSwapAbXy(bool swap);
     void setAudioVolumePercent(int percent);
 
     SessionStatsSnapshot stats() const;

@@ -1596,6 +1596,13 @@ void LevelUpLobbyActivity::openSettingsModal() {
     });
     list->addView(invertYCell);
 
+    auto* xboxCell = new brls::BooleanCell();
+    xboxCell->init("Xbox 按键布局 (A-B, X-Y 互换)", m_cfg.swapAbXy, [this](bool on) {
+        m_cfg.swapAbXy = on;
+        m_store.saveConfig(m_cfg);
+    });
+    list->addView(xboxCell);
+
     auto* volCell = new brls::SelectorCell();
     volCell->init(
         "串流音频音量",

@@ -298,6 +298,7 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     m_rumble.start();
 
     m_input.setInvertStickY(cfg.invertStickY);
+    m_input.setSwapAbXy(cfg.swapAbXy);
     m_input.setSendCallback([&rtcPtr = *rtcSess](const std::vector<uint8_t>& pkt) {
         return rtcPtr.sendControlPacket(pkt);
     });
@@ -420,6 +421,10 @@ void SessionOrchestrator::setRumbleStrengthPercent(int percent) {
 
 void SessionOrchestrator::setInvertStickY(bool invert) {
     m_input.setInvertStickY(invert);
+}
+
+void SessionOrchestrator::setSwapAbXy(bool swap) {
+    m_input.setSwapAbXy(swap);
 }
 
 void SessionOrchestrator::setAudioVolumePercent(int percent) {

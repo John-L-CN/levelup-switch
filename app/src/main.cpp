@@ -169,8 +169,8 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Set log level
-    // We recommend to use INFO for real apps
-    brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
+    // Use INFO for normal operation to avoid flooding SD card with per-button debug traces
+    brls::Logger::setLogLevel(brls::LogLevel::LOG_INFO);
 #ifdef LEVELUP_ENABLE_WEBRTC
     brls::Logger::setThreadSafeLogging(true);
 #endif

@@ -42,6 +42,7 @@ struct AppConfig {
     bool rumbleEnabled = true;   // default true
     int rumbleStrength = 100;    // 0..100
     bool invertStickY = false;   // default false (libnx +Y is up)
+    bool swapAbXy = false;       // default false (true = Xbox layout: A<->B, X<->Y)
     bool showStatsHud = false;   // default false
     int audioVolume = 100;       // 0..100
 };

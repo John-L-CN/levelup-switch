@@ -12,13 +12,14 @@
 
 namespace levelup::input {
 
-// Pure Switch HID -> GamepadState mapper (host-testable; Nintendo ABXY without Xbox swap)
+// Pure Switch HID -> GamepadState mapper (host-testable; Nintendo ABXY or Xbox layout swap)
 GamepadState mapSwitchHidToGamepad(uint64_t buttons,
                                    int32_t lx,
                                    int32_t ly,
                                    int32_t rx,
                                    int32_t ry,
-                                   bool invertStickY = false);
+                                   bool invertStickY = false,
+                                   bool swapAbXy = false);
 
 // Helper bit constants matching libnx HidNpadButton bits for cross-platform testing
 namespace nxhid {
@@ -60,8 +61,10 @@ class SwitchInputBridge {
     void setPaused(bool paused);
     void setVPadId(uint16_t vpadId);
     void setInvertStickY(bool invert);
+    void setSwapAbXy(bool swap);
 
     uint16_t vpadId() const { return m_vpadId.load(); }
+    bool swapAbXy() const { return m_swapAbXy.load(); }
 
   private:
     void workerLoop();
@@ -75,6 +78,7 @@ class SwitchInputBridge {
     std::atomic<bool> m_paused{false};
     std::atomic<uint16_t> m_vpadId{1}; // Default controller 1 until cmd=34 updates it
     std::atomic<bool> m_invertStickY{false};
+    std::atomic<bool> m_swapAbXy{false};
     std::atomic<uint32_t> m_seq{0};
 
     std::mutex m_cvMu;

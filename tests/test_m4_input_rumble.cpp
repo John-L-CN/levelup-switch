@@ -95,7 +95,7 @@ int main() {
 
         const GamepadState st = mapSwitchHidToGamepad(
             nxhid::kA | nxhid::kR | nxhid::kZR | nxhid::kPlus,
-            1234, 5678, -4321, -8765, false);
+            1234, 5678, -4321, -8765, false, false);
         // Nintendo ABXY direct passthrough (A stays 0x1000, NO Xbox swap)
         assert((st.buttons & kPadA) != 0);
         assert((st.buttons & kPadB) == 0);
@@ -103,6 +103,14 @@ int main() {
         assert((st.buttons & kPadStart) != 0);
         assert(st.leftTrigger == 0 && st.rightTrigger == 255);
         assert(st.lx == 1234 && st.ly == 5678 && st.rx == -4321 && st.ry == -8765);
+
+        // Xbox layout swap (A<->B, X<->Y)
+        const GamepadState stXbox = mapSwitchHidToGamepad(
+            nxhid::kA | nxhid::kX, 0, 0, 0, 0, false, true);
+        assert((stXbox.buttons & kPadB) != 0); // Switch A -> Xbox B
+        assert((stXbox.buttons & kPadA) == 0);
+        assert((stXbox.buttons & kPadY) != 0); // Switch X -> Xbox Y
+        assert((stXbox.buttons & kPadX) == 0);
 
         const auto pkt = buildGamepadPacket(77, 1700000000123ULL, 2, st);
         assert(pkt.size() == 54); // 8-byte wrapper + 46-byte inner
