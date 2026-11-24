@@ -7,5 +7,7 @@
 
 #pragma once
 #include <Settings.hpp>
+#include <string>
 
 int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo = true);
+int makeAppForwarder(const std::string& appName, const std::string& author);

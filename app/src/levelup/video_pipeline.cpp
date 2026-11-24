@@ -142,7 +142,8 @@ void VideoPipeline::start(int initialWidth, int initialHeight, int targetFps) {
     m_queueFullDrops.store(0);
 
 #if defined(__SWITCH__) && !defined(LEVELUP_HOST_TEST) && defined(BOREALIS_USE_DEKO3D)
-    AVFrameHolder::instance().prepare(targetFps > 0 ? targetFps : 60, true);
+    Settings::instance().set_frames_queue_size(1);
+    AVFrameHolder::instance().prepare(targetFps > 0 ? targetFps : 60, true, 3);
 #else
     (void)targetFps;
 #endif

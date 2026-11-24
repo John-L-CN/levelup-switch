@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 #ifdef __SWITCH__
+#include <forwarder_maker.hpp>
 #include <switch.h>
 #endif
 
@@ -1588,6 +1589,29 @@ void LevelUpLobbyActivity::openSettingsModal() {
         return true;
     });
     list->addView(clearCacheBtn);
+
+#ifdef __SWITCH__
+    auto* forwarderBtn = makeActionBtn("安装到 Switch 主界面（桌面图标）", &brls::BUTTONSTYLE_DEFAULT);
+    forwarderBtn->registerClickAction([alive, closeModal](brls::View*) {
+        closeModal([alive]() {
+            if (!alive->load()) {
+                return;
+            }
+            const int rc = makeAppForwarder("LevelUp-NX", "LevelUp-Switch");
+            if (rc == 0) {
+                logInfo("[Forwarder] installed LevelUp-NX home menu forwarder");
+                brls::Application::notify("已安装到 Switch 主界面，请返回桌面查看");
+            } else {
+                char buf[128];
+                std::snprintf(buf, sizeof(buf), "主界面安装失败 (0x%X)，需确认大气层签名补丁/sys-patch", rc);
+                logWarn(std::string("[Forwarder] ") + buf);
+                brls::Application::notify(buf);
+            }
+        });
+        return true;
+    });
+    list->addView(forwarderBtn);
+#endif
 
     if (!m_cfg.cred.sessionKey.empty()) {
         auto* logoutBtn = makeActionBtn("退出当前账号", &brls::BUTTONSTYLE_DEFAULT);

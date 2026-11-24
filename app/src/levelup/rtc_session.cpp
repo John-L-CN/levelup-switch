@@ -205,23 +205,42 @@ void initRtcLoggingOnce() {
 void logAnswerSummary(const std::string& sdp) {
     std::istringstream iss(sdp);
     std::string line;
-    std::string h264Pt;
+    std::unordered_set<std::string> h264Pts;
+    std::unordered_set<std::string> rtxPts;
     while (std::getline(iss, line)) {
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
         if (line.rfind("m=", 0) == 0 || line.rfind("a=setup:", 0) == 0 ||
-            line.rfind("a=group:", 0) == 0) {
+            line.rfind("a=group:", 0) == 0 || line.rfind("a=extmap:", 0) == 0) {
             logInfo("[RTC] SDP " + line);
-        } else if (line.rfind("a=rtpmap:", 0) == 0 && line.find("H264") != std::string::npos) {
+        } else if (line.rfind("a=rtpmap:", 0) == 0) {
             const auto sp = line.find(' ');
             if (sp != std::string::npos && sp > 9) {
-                h264Pt = line.substr(9, sp - 9);
+                const std::string pt = line.substr(9, sp - 9);
+                const std::string codec = line.substr(sp + 1);
+                if (codec.find("H264") != std::string::npos) {
+                    h264Pts.insert(pt);
+                    logInfo("[RTC] SDP " + line);
+                } else if (codec.find("rtx/") != std::string::npos) {
+                    rtxPts.insert(pt);
+                    logInfo("[RTC] SDP " + line);
+                }
             }
-            logInfo("[RTC] SDP " + line);
-        } else if (!h264Pt.empty() &&
-                   line.rfind("a=rtcp-fb:" + h264Pt + " ", 0) == 0) {
-            logInfo("[RTC] SDP " + line);
+        } else if (line.rfind("a=rtcp-fb:", 0) == 0) {
+            const auto sp = line.find(' ');
+            if (sp != std::string::npos && sp > 10 &&
+                h264Pts.count(line.substr(10, sp - 10))) {
+                logInfo("[RTC] SDP " + line);
+            }
+        } else if (line.rfind("a=fmtp:", 0) == 0) {
+            const auto sp = line.find(' ');
+            if (sp != std::string::npos && sp > 7) {
+                const std::string pt = line.substr(7, sp - 7);
+                if (h264Pts.count(pt) || rtxPts.count(pt)) {
+                    logInfo("[RTC] SDP " + line);
+                }
+            }
         }
     }
 }
@@ -295,33 +314,76 @@ bool equalsIgnoreCase(std::string_view a, std::string_view b) {
 }
 
 /// Custom RTCP handler replacing upstream RtcpReceivingSession:
-///  1. Captures raw transportSend callback so NACK/PLI/FIR can be sent on RecvOnly tracks
+///  1. Captures raw transportSend callback so NACK/PLI/FIR/RR/REMB work on RecvOnly tracks
 ///  2. Forces BOTH PLI and FIR on requestKeyframe (cloud encoder coverage)
 ///  3. Implements explicit RTCP NACK (PT=205, FMT=1)
-///  4. Tracks exact RTP packet loss cleanly from sequence 1 (immune to RtcpReceivingSession probation=0)
+///  4. Replaces broken upstream pushRR() with accurate RFC 3550 RR + 20 Mbps REMB
 class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
   public:
+    explicit LevelUpRtcpHandler(bool enableRemb = true, uint32_t rembBitrateBps = 20000000U)
+        : m_enableRemb(enableRemb), m_rembBitrateBps(rembBitrateBps) {}
+
     void incoming(rtc::message_vector& messages, const rtc::message_callback& send) override {
         {
             std::lock_guard lock(m_sendMu);
             m_sendCb = send;
         }
 
-        // First track incoming binary RTP sequence numbers before/after RtcpReceivingSession (including RTX unwrap)
-        rtc::RtcpReceivingSession::incoming(messages, send);
+        // Split binary RTP and control RTCP so upstream RtcpReceivingSession keeps RTX unwrapping
+        // and mSsrc detection, while never emitting its buggy pushRR() on incoming SRs.
+        rtc::message_vector binaryMsgs;
+        rtc::message_vector controlMsgs;
+        binaryMsgs.reserve(messages.size());
+        for (auto& m : messages) {
+            if (!m) continue;
+            if (m->type == rtc::Message::Control) {
+                controlMsgs.push_back(std::move(m));
+            } else {
+                binaryMsgs.push_back(std::move(m));
+            }
+        }
+
+        rtc::RtcpReceivingSession::incoming(binaryMsgs, send);
 
         const uint32_t ssrc = mSsrc;
         if (ssrc != 0) {
             m_videoSsrc.store(ssrc);
         }
 
-        std::lock_guard seqLock(m_seqMu);
-        for (const auto& m : messages) {
-            if (!m || m->type != rtc::Message::Binary || m->size() < sizeof(rtc::RtpHeader)) {
+        const int64_t nowMs = unixMillisNow();
+        {
+            std::lock_guard seqLock(m_seqMu);
+            for (const auto& m : binaryMsgs) {
+                if (!m || m->type != rtc::Message::Binary || m->size() < sizeof(rtc::RtpHeader)) {
+                    continue;
+                }
+                m_bytesRecv.fetch_add(m->size());
+                const auto* rtp = reinterpret_cast<const rtc::RtpHeader*>(m->data());
+                recordSeqAndJitterLocked(rtp->seqNumber(), rtp->timestamp(), nowMs);
+            }
+        }
+
+        messages.swap(binaryMsgs);
+
+        for (const auto& m : controlMsgs) {
+            if (!m || m->size() < sizeof(rtc::RtcpHeader)) {
                 continue;
             }
-            const auto* rtp = reinterpret_cast<const rtc::RtpHeader*>(m->data());
-            recordSeqLocked(rtp->seqNumber());
+            const auto* hdr = reinterpret_cast<const rtc::RtcpHeader*>(m->data());
+            if (hdr->payloadType() == 200 && m->size() >= rtc::RtcpSr::Size(0)) {
+                const auto* sr = reinterpret_cast<const rtc::RtcpSr*>(m->data());
+                const uint32_t srSsrc = sr->senderSSRC();
+                if (srSsrc != 0) {
+                    uint32_t expectedZero = 0;
+                    m_videoSsrc.compare_exchange_strong(expectedZero, srSsrc);
+                }
+                {
+                    std::lock_guard seqLock(m_seqMu);
+                    m_lastSrNtp = sr->ntpTimestamp();
+                    m_lastSrRecvMs = nowMs;
+                }
+                sendRrAndRemb(send);
+            }
         }
     }
 
@@ -345,12 +407,89 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
         if (!send || ssrc == 0) {
             return;
         }
-        std::lock_guard lock(mMutex);
-        mSsrc = ssrc;
-        pushPLI(send);
-        m_pliSent.fetch_add(1);
-        pushFIR(send, {ssrc}, false);
-        m_firSent.fetch_add(1);
+        uint64_t pli = 0;
+        uint64_t fir = 0;
+        try {
+            std::lock_guard lock(mMutex);
+            mSsrc = ssrc;
+            pushPLI(send);
+            pli = m_pliSent.fetch_add(1) + 1;
+            pushFIR(send, {ssrc}, false);
+            fir = m_firSent.fetch_add(1) + 1;
+        } catch (const std::exception&) {
+            return;
+        }
+        logInfo("[RTC] sent PLI+FIR ssrc=" + std::to_string(ssrc) +
+                " pli=" + std::to_string(pli) + " fir=" + std::to_string(fir));
+    }
+
+    void sendRrAndRemb(const rtc::message_callback& sendOverride = nullptr) {
+        auto send = sendOverride ? sendOverride : copySendCb();
+        const uint32_t ssrc = m_videoSsrc.load();
+        if (!send || ssrc == 0) {
+            return;
+        }
+
+        uint8_t fraction = 0;
+        uint32_t cumulativeLost = 0;
+        uint16_t highestSeq = 0;
+        uint16_t seqCycles = 0;
+        uint32_t jitter = 0;
+        uint64_t lastSrNtp = 0;
+        uint32_t dlsr = 0;
+        {
+            std::lock_guard seqLock(m_seqMu);
+            if (!m_seqInit) {
+                return;
+            }
+            const uint64_t expected = (m_cycles + m_maxSeq) - m_baseSeq + 1ULL;
+            const uint64_t uniqueRecv = m_uniqueRecv;
+            cumulativeLost = static_cast<uint32_t>(
+                std::min<uint64_t>(0x7FFFFFULL, expected > uniqueRecv ? (expected - uniqueRecv) : 0ULL));
+
+            const uint64_t expectedDelta = expected >= m_expectedPrior ? (expected - m_expectedPrior) : 0ULL;
+            const uint64_t recvDelta = uniqueRecv >= m_receivedPrior ? (uniqueRecv - m_receivedPrior) : 0ULL;
+            const uint64_t lostDelta = expectedDelta > recvDelta ? (expectedDelta - recvDelta) : 0ULL;
+            if (expectedDelta > 0 && lostDelta > 0) {
+                fraction = static_cast<uint8_t>(
+                    std::min<uint64_t>(255ULL, (lostDelta * 256ULL) / expectedDelta));
+            }
+            m_expectedPrior = expected;
+            m_receivedPrior = uniqueRecv;
+
+            highestSeq = m_maxSeq;
+            seqCycles = static_cast<uint16_t>(m_cycles >> 16);
+            jitter = static_cast<uint32_t>(std::max(0.0, m_jitter));
+            lastSrNtp = m_lastSrNtp;
+            if (m_lastSrRecvMs > 0) {
+                const int64_t dtMs = std::max<int64_t>(0, unixMillisNow() - m_lastSrRecvMs);
+                dlsr = static_cast<uint32_t>(
+                    std::min<uint64_t>(0xFFFFFFFFULL, (static_cast<uint64_t>(dtMs) * 65536ULL) / 1000ULL));
+            }
+        }
+
+        try {
+            auto rrMsg = rtc::make_message(rtc::RtcpRr::SizeWithReportBlocks(1), rtc::Message::Control);
+            std::fill(rrMsg->begin(), rrMsg->end(), std::byte{0});
+            auto* rr = reinterpret_cast<rtc::RtcpRr*>(rrMsg->data());
+            rr->preparePacket(ssrc, 1);
+            if (auto* rb = rr->getReportBlock(0)) {
+                rb->preparePacket(ssrc, fraction, cumulativeLost, highestSeq, seqCycles, jitter, lastSrNtp, dlsr);
+            }
+            send(std::move(rrMsg));
+            m_rrSent.fetch_add(1);
+
+            if (m_enableRemb && m_rembBitrateBps > 0) {
+                auto rembMsg = rtc::make_message(rtc::RtcpRemb::SizeWithSSRCs(1), rtc::Message::Control);
+                std::fill(rembMsg->begin(), rembMsg->end(), std::byte{0});
+                auto* remb = reinterpret_cast<rtc::RtcpRemb*>(rembMsg->data());
+                remb->preparePacket(ssrc, 1, m_rembBitrateBps);
+                remb->setSSRC(0, ssrc);
+                send(std::move(rembMsg));
+                m_rembSent.fetch_add(1);
+            }
+        } catch (const std::exception&) {
+        }
     }
 
     void sendNack(const std::vector<uint16_t>& missingSeqs) {
@@ -380,8 +519,11 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
         }
         nack->header.header.prepareHeader(205, 1, static_cast<uint16_t>(2 + fciCount));
         msg->resize(rtc::RtcpNack::Size(fciCount));
-        send(std::move(msg));
-        m_nackSent.fetch_add(sorted.size());
+        try {
+            send(std::move(msg));
+            m_nackSent.fetch_add(sorted.size());
+        } catch (const std::exception&) {
+        }
     }
 
     uint32_t videoSsrc() const { return m_videoSsrc.load(); }
@@ -389,6 +531,9 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
     uint64_t firSent() const { return m_firSent.load(); }
     uint64_t nackSent() const { return m_nackSent.load(); }
     uint64_t packetsReceived() const { return m_packetsRecv.load(); }
+    uint64_t bytesReceived() const { return m_bytesRecv.load(); }
+    uint64_t rrSent() const { return m_rrSent.load(); }
+    uint64_t rembSent() const { return m_rembSent.load(); }
 
     uint64_t totalLostEstimate() const {
         std::lock_guard lock(m_seqMu);
@@ -404,14 +549,27 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
         return m_sendCb;
     }
 
-    void recordSeqLocked(uint16_t seq) {
+    void recordSeqAndJitterLocked(uint16_t seq, uint32_t rtpTs, int64_t arrivalMs) {
         m_packetsRecv.fetch_add(1);
+
+        const int64_t arrivalTicks = arrivalMs * (m_enableRemb ? 90LL : 48LL);
+        const int64_t transit = arrivalTicks - static_cast<int64_t>(rtpTs);
+        if (m_hasJitterPrev) {
+            int64_t d = transit - m_prevTransit;
+            if (d < 0) d = -d;
+            m_jitter += (static_cast<double>(d) - m_jitter) / 16.0;
+        }
+        m_prevTransit = transit;
+        m_hasJitterPrev = true;
+
         if (!m_seqInit) {
             m_seqInit = true;
             m_baseSeq = seq;
             m_maxSeq = seq;
             m_cycles = 0;
             m_uniqueRecv = 1;
+            m_expectedPrior = 0;
+            m_receivedPrior = 0;
             return;
         }
         const int16_t delta = static_cast<int16_t>(seq - m_maxSeq);
@@ -430,8 +588,13 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
             m_maxSeq = seq;
             m_cycles = 0;
             m_uniqueRecv = 1;
+            m_expectedPrior = 0;
+            m_receivedPrior = 0;
         }
     }
+
+    const bool m_enableRemb;
+    const uint32_t m_rembBitrateBps;
 
     mutable std::mutex m_sendMu;
     rtc::message_callback m_sendCb;
@@ -442,12 +605,22 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
     uint16_t m_maxSeq = 0;
     uint64_t m_cycles = 0;
     uint64_t m_uniqueRecv = 0;
+    uint64_t m_expectedPrior = 0;
+    uint64_t m_receivedPrior = 0;
+    bool m_hasJitterPrev = false;
+    int64_t m_prevTransit = 0;
+    double m_jitter = 0.0;
+    uint64_t m_lastSrNtp = 0;
+    int64_t m_lastSrRecvMs = 0;
 
     std::atomic<uint32_t> m_videoSsrc{0};
     std::atomic<uint64_t> m_packetsRecv{0};
+    std::atomic<uint64_t> m_bytesRecv{0};
     std::atomic<uint64_t> m_pliSent{0};
     std::atomic<uint64_t> m_firSent{0};
     std::atomic<uint64_t> m_nackSent{0};
+    std::atomic<uint64_t> m_rrSent{0};
+    std::atomic<uint64_t> m_rembSent{0};
 };
 
 } // namespace
@@ -466,7 +639,7 @@ struct RtcSession::Impl {
     // treat mid=0 as removed -> "a=group:BUNDLE 1 2" + "m=audio 0", which killed
     // the DTLS/SRTP transport (cloud never answered). Keep both audio handles alive.
     std::shared_ptr<rtc::Track> audioTrack;
-    std::shared_ptr<rtc::RtcpReceivingSession> audioRtcpHandler;
+    std::shared_ptr<LevelUpRtcpHandler> audioRtcpHandler;
 
     std::shared_ptr<rtc::Track> getVideoTrack() {
         std::lock_guard lock(trackMu);
@@ -481,6 +654,11 @@ struct RtcSession::Impl {
     std::shared_ptr<rtc::Track> getAudioTrack() {
         std::lock_guard lock(trackMu);
         return audioTrack;
+    }
+
+    std::shared_ptr<LevelUpRtcpHandler> getAudioRtcpHandler() {
+        std::lock_guard lock(trackMu);
+        return audioRtcpHandler;
     }
 
     std::mutex wsWriteMu;
@@ -627,27 +805,98 @@ struct RtcSession::Impl {
                         " candidates=" + std::to_string(candLines));
             }
 
+            auto stripTwccExtmaps = [](rtc::Description::Media& media) {
+                std::vector<int> rmIds;
+                for (int id : media.extIds()) {
+                    const auto* em = media.extMap(id);
+                    if (em && em->uri.find("transport-wide-cc") != std::string::npos) {
+                        rmIds.push_back(id);
+                    }
+                }
+                for (int id : rmIds) {
+                    media.removeExtMap(id);
+                }
+            };
+
             if (auto vt = getVideoTrack()) {
                 auto desc = vt->description();
-                bool modified = false;
+                bool hasMode1H264 = false;
+                for (int pt : desc.payloadTypes()) {
+                    const auto* rm = desc.rtpMap(pt);
+                    if (!rm || !equalsIgnoreCase(rm->format, "H264")) {
+                        continue;
+                    }
+                    for (const auto& f : rm->fmtps) {
+                        if (f.find("packetization-mode=1") != std::string::npos) {
+                            hasMode1H264 = true;
+                            break;
+                        }
+                    }
+                    if (hasMode1H264) break;
+                }
+
+                std::vector<int> ptsToRemove;
+                for (int pt : desc.payloadTypes()) {
+                    const auto* rm = desc.rtpMap(pt);
+                    if (!rm) continue;
+                    if (equalsIgnoreCase(rm->format, "rtx")) {
+                        continue;
+                    }
+                    if (!equalsIgnoreCase(rm->format, "H264")) {
+                        ptsToRemove.push_back(pt);
+                        continue;
+                    }
+                    if (hasMode1H264) {
+                        bool isMode1 = false;
+                        for (const auto& f : rm->fmtps) {
+                            if (f.find("packetization-mode=1") != std::string::npos) {
+                                isMode1 = true;
+                                break;
+                            }
+                        }
+                        if (!isMode1) {
+                            ptsToRemove.push_back(pt);
+                        }
+                    }
+                }
+                for (int pt : ptsToRemove) {
+                    desc.removeRtpMap(pt);
+                }
+
                 for (int pt : desc.payloadTypes()) {
                     auto* rm = desc.rtpMap(pt);
                     if (!rm || !equalsIgnoreCase(rm->format, "H264")) {
                         continue;
                     }
+                    rm->removeFeedback("transport-cc");
+                    rm->removeFeedback("rrtr");
                     static constexpr const char* kFeedbacks[] = {
                         "nack", "nack pli", "ccm fir", "goog-remb",
                     };
                     for (const char* fb : kFeedbacks) {
                         if (!rm->hasFeedback(fb)) {
                             rm->addFeedback(fb);
-                            modified = true;
                         }
                     }
                 }
-                if (modified) {
-                    vt->setDescription(std::move(desc));
+                desc.removeFeedback("transport-cc");
+                desc.removeFeedback("rrtr");
+                stripTwccExtmaps(desc);
+                vt->setDescription(std::move(desc));
+            }
+
+            if (auto at = getAudioTrack()) {
+                auto desc = at->description();
+                for (int pt : desc.payloadTypes()) {
+                    if (auto* rm = desc.rtpMap(pt)) {
+                        rm->removeFeedback("transport-cc");
+                        rm->removeFeedback("rrtr");
+                    }
                 }
+                desc.removeFeedback("transport-cc");
+                desc.removeFeedback("rrtr");
+                stripTwccExtmaps(desc);
+                at->setDescription(std::move(desc));
             }
 
             pc->setLocalDescription(rtc::Description::Type::Answer);
@@ -712,6 +961,8 @@ struct RtcSession::Impl {
     void bgLoop() {
         int64_t tick = 0;
         uint64_t prevLost = 0;
+        uint64_t prevAliveBytes = 0;
+        int64_t prevAliveTs = 0;
         int64_t prevHbMs = 0;
         int64_t prevBootPliMs = 0;
         int64_t prevAliveMs = 0;
@@ -734,15 +985,40 @@ struct RtcSession::Impl {
                     ctlOpen = controlDc && controlDc->isOpen();
                 }
                 uint64_t rtpRecv = 0;
+                uint64_t lost = 0;
+                uint64_t rrSent = 0;
+                uint64_t rembSent = 0;
+                uint64_t pliSent = 0;
+                uint64_t nackSent = 0;
+                uint64_t bytesRecv = 0;
                 if (auto rh = getRtcpHandler()) {
                     rtpRecv = rh->packetsReceived();
+                    lost = rh->totalLostEstimate();
+                    rrSent = rh->rrSent();
+                    rembSent = rh->rembSent();
+                    pliSent = rh->pliSent();
+                    nackSent = rh->nackSent();
+                    bytesRecv = rh->bytesReceived();
                 }
+                uint64_t kbps = 0;
+                if (prevAliveTs > 0 && nowMs > prevAliveTs && bytesRecv >= prevAliveBytes) {
+                    kbps = ((bytesRecv - prevAliveBytes) * 8ULL) /
+                           static_cast<uint64_t>(nowMs - prevAliveTs);
+                }
+                prevAliveBytes = bytesRecv;
+                prevAliveTs = nowMs;
                 logInfo("[RTC] alive t=" + std::to_string(uptime) +
                         "ms ice=" + std::string(iceConnected.load() ? "1" : "0") +
                         " ctl=" + std::string(ctlOpen ? "1" : "0") +
                         " echo=" + std::to_string(dcPingEchoCount.load()) +
                         " dcRecv=" + std::to_string(dcRecvCount.load()) +
                         " rtp=" + std::to_string(rtpRecv) +
+                        " kbps=" + std::to_string(kbps) +
+                        " lost=" + std::to_string(lost) +
+                        " rr=" + std::to_string(rrSent) +
+                        " remb=" + std::to_string(rembSent) +
+                        " pli=" + std::to_string(pliSent) +
+                        " nack=" + std::to_string(nackSent) +
                         " frame=" + std::string(gotFirstFrame.load() ? "1" : "0"));
             }
 
@@ -789,9 +1065,10 @@ struct RtcSession::Impl {
                 }
             }
 
-            // Every 1s (5x200ms ticks): poll RTP packet loss delta -> Layer 1 callback
+            // Every 1s (5x200ms ticks): send accurate RR+REMB and poll RTP packet loss delta -> Layer 1 callback
             if ((tick % 5) == 0) {
                 if (auto rh = getRtcpHandler()) {
+                    rh->sendRrAndRemb();
                     const uint64_t lost = rh->totalLostEstimate();
                     const int64_t delta = static_cast<int64_t>(lost) - static_cast<int64_t>(prevLost);
                     prevLost = lost;
@@ -805,6 +1082,9 @@ struct RtcSession::Impl {
                             cb(delta);
                         }
                     }
+                }
+                if (auto arh = getAudioRtcpHandler()) {
+                    arh->sendRrAndRemb();
                 }
             }
 
@@ -985,7 +1265,7 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         logInfo("[RTC] Track mid=" + track->mid() + " kind=" + kind);
 
         if (kind == "video") {
-            auto rh = std::make_shared<LevelUpRtcpHandler>();
+            auto rh = std::make_shared<LevelUpRtcpHandler>(true, 20000000U);
             {
                 std::lock_guard lock(m_impl->trackMu);
                 m_impl->videoTrack = track;
@@ -1024,7 +1304,7 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                 },
                 nullptr);
         } else if (kind == "audio") {
-            auto audioRtcp = std::make_shared<rtc::RtcpReceivingSession>();
+            auto audioRtcp = std::make_shared<LevelUpRtcpHandler>(false, 0);
             {
                 std::lock_guard lock(m_impl->trackMu);
                 m_impl->audioTrack = track;

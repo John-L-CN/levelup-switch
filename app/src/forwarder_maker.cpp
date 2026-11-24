@@ -1435,13 +1435,16 @@ NacpStruct getBaseNacp() {
     return nacp;
 }
 
-Result installForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
-    const std::string nro_path = formatNroPathForForwarder(Settings::instance().launch_path());
+Result installForwarderImpl(const std::string& raw_nro_path,
+                           const std::string& extra_args,
+                           const std::string& app_name,
+                           const std::string& author_name,
+                           const std::vector<u8>& icon) {
+    const std::string nro_path = formatNroPathForForwarder(raw_nro_path);
     if (nro_path.empty()) {
         return MAKERESULT(Module_Libnx, LibnxError_BadInput);
     }
 
-    const auto icon = resolveForwarderIcon(app, add_moonlight_logo);
     if (icon.empty()) {
         return MAKERESULT(Module_Libnx, LibnxError_NotFound);
     }
@@ -1477,7 +1480,7 @@ Result installForwarder(const Host& host, const App& app, bool add_moonlight_log
         return rc;
     }
 
-    std::string args = buildForwarderArgs(host, app);
+    std::string args = extra_args;
     if (args.empty()) {
         args = nro_path;
     } else {
@@ -1509,8 +1512,8 @@ Result installForwarder(const Host& host, const App& app, bool add_moonlight_log
 
     NacpStruct nacp = getBaseNacp();
     NacpPatch nacp_patch{
-        .name = app.name,
-        .author = host.hostname.empty() ? "Moonlight" : host.hostname,
+        .name = app_name,
+        .author = author_name,
         .tid = tid,
     };
     patchNacp(nacp, nacp_patch);
@@ -1621,7 +1624,30 @@ Result installForwarder(const Host& host, const App& app, bool add_moonlight_log
 } // namespace
 
 int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
-    return static_cast<int>(installForwarder(host, app, add_moonlight_logo));
+    return static_cast<int>(installForwarderImpl(
+        Settings::instance().launch_path(),
+        buildForwarderArgs(host, app),
+        app.name,
+        host.hostname.empty() ? "Moonlight" : host.hostname,
+        resolveForwarderIcon(app, add_moonlight_logo)));
+}
+
+int makeAppForwarder(const std::string& appName, const std::string& author) {
+    std::string launch_path = Settings::instance().launch_path();
+    if (launch_path.empty()) {
+        launch_path = "/switch/LevelUp-NX/LevelUp-NX.nro";
+    }
+    auto raw_icon = readFileBytes("romfs:/forwarder/control/icon_AmericanEnglish.dat");
+    if (raw_icon.empty()) {
+        return static_cast<int>(MAKERESULT(Module_Libnx, LibnxError_NotFound));
+    }
+    const auto icon = normalizeForwarderIcon(raw_icon, false);
+    return static_cast<int>(installForwarderImpl(
+        launch_path,
+        "",
+        appName.empty() ? "LevelUp-NX" : appName,
+        author.empty() ? "LevelUp-Switch" : author,
+        icon));
 }
 
 #elif defined(PLATFORM_IOS)
@@ -1634,12 +1660,20 @@ int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
     return EXIT_SUCCESS;
 }
 
+int makeAppForwarder(const std::string&, const std::string&) {
+    return EXIT_FAILURE;
+}
+
 #else
 
 int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
     (void)host;
     (void)app;
     (void)add_moonlight_logo;
+    return EXIT_FAILURE;
+}
+
+int makeAppForwarder(const std::string&, const std::string&) {
     return EXIT_FAILURE;
 }
 
