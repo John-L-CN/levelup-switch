@@ -42,6 +42,7 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 #include "SwitchMoonlightSessionDecoderAndRenderProvider.hpp"
 
 #ifdef LEVELUP_ENABLE_WEBRTC
+#include "levelup/ui/lobby_activity.hpp"
 #include "levelup/webrtc_probe.hpp"
 #endif
 
@@ -140,6 +141,15 @@ int main(int argc, char* argv[]) {
     // We recommend to use INFO for real apps
     brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
 
+#if defined(__SWITCH__) && defined(LEVELUP_ENABLE_WEBRTC)
+    mkdir("sdmc:/switch", 0777);
+    mkdir("sdmc:/switch/levelup-nx", 0777);
+    if (FILE* log = fopen("sdmc:/switch/levelup-nx/levelup.log", "w")) {
+        setvbuf(log, nullptr, _IONBF, 0);
+        brls::Logger::setLogOutput(log);
+    }
+#endif
+
     // Init the app and i18n
     if (!brls::Application::init()) {
         brls::Logger::error("Unable to init Borealis application");
@@ -159,7 +169,11 @@ int main(int argc, char* argv[]) {
     MoonlightSession::set_provider(
             new SwitchMoonlightSessionDecoderAndRenderProvider());
 
+#ifdef LEVELUP_ENABLE_WEBRTC
+    brls::Application::createWindow("LevelUp-NX");
+#else
     brls::Application::createWindow("title"_i18n);
+#endif
 
     auto home = Application::getPlatform()->getHomeDirectory("Moonlight-Switch");
     Settings::instance().set_working_dir(home);
@@ -192,12 +206,18 @@ int main(int argc, char* argv[]) {
     brls::getStyle().addMetric("about/description_margin", 50);
 
     // Create and push the main activity to the stack if cannot run game from arguments
+#ifdef LEVELUP_ENABLE_WEBRTC
+    brls::Application::pushActivity(new levelup::ui::LevelUpLobbyActivity());
+    brls::Application::enableDebuggingView(false);
+    brls::Application::setSwapInputKeys(false);
+#else
     if (!startFromArgs(argc, argv)) {
         brls::Application::pushActivity(new MainActivity());
     }
 
     brls::Application::enableDebuggingView(Settings::instance().write_log());
     brls::Application::setSwapInputKeys(Settings::instance().swap_ui_keys());
+#endif
 
     // Run the app. The Vita development loop waits for this marker so a
     // successful launch means at least one complete Borealis frame rendered.

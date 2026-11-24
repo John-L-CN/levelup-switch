@@ -26,7 +26,9 @@ if [[ "${STRIP_RESOURCES_FONT}" == "1" && -d "${REPO_ROOT}/resources/font" ]]; t
 fi
 
 CMAKE_WEBRTC_FLAGS="-DLEVELUP_ENABLE_WEBRTC=OFF"
+NRO_NAME="Moonlight.nro"
 if [[ "${LEVELUP_ENABLE_WEBRTC}" == "1" ]]; then
+    NRO_NAME="LevelUp-NX.nro"
     if [[ ! -f "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libdatachannel.a" ]]; then
         echo ">>> Missing libdatachannel.a at ${LEVELUP_SWITCH_DEPS_PREFIX}/lib; running build_switch1_deps.sh"
         bash "${SCRIPT_DIR}/build_switch1_deps.sh"
@@ -34,7 +36,7 @@ if [[ "${LEVELUP_ENABLE_WEBRTC}" == "1" ]]; then
     CMAKE_WEBRTC_FLAGS="-DLEVELUP_ENABLE_WEBRTC=ON -DLEVELUP_SWITCH_DEPS_PREFIX=/workspace/build/deps/switch"
 fi
 
-echo ">>> Cross-compiling Switch 1 NRO in ${BUILD_DIR} using ${IMAGE_NAME} (LEVELUP_ENABLE_WEBRTC=${LEVELUP_ENABLE_WEBRTC})"
+echo ">>> Cross-compiling Switch 1 ${NRO_NAME} in ${BUILD_DIR} using ${IMAGE_NAME} (LEVELUP_ENABLE_WEBRTC=${LEVELUP_ENABLE_WEBRTC})"
 docker run --rm \
     -u "$(id -u):$(id -g)" \
     -e HOME=/tmp \
@@ -47,12 +49,17 @@ docker run --rm \
         git config --global --add safe.directory "*"
         cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON '"${CMAKE_WEBRTC_FLAGS}"' || true
         cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON '"${CMAKE_WEBRTC_FLAGS}"'
-        make -C "'"${BUILD_DIR}"'" Moonlight.nro -j"$(nproc)"
+        make -C "'"${BUILD_DIR}"'" "'"${NRO_NAME}"'" -j"$(nproc)"
     '
 
-NRO_PATH="${REPO_ROOT}/${BUILD_DIR}/Moonlight.nro"
+NRO_PATH="${REPO_ROOT}/${BUILD_DIR}/${NRO_NAME}"
 if [[ ! -f "${NRO_PATH}" ]]; then
     echo "ERROR: Expected NRO not found at ${NRO_PATH}" >&2
+    exit 1
+fi
+
+if [[ "${LEVELUP_ENABLE_WEBRTC}" == "1" && ! -f "${REPO_ROOT}/${BUILD_DIR}/resources/levelup/games_library.json" ]]; then
+    echo "ERROR: Expected staged romfs games_library.json missing at ${REPO_ROOT}/${BUILD_DIR}/resources/levelup/games_library.json" >&2
     exit 1
 fi
 

@@ -423,11 +423,19 @@ elseif (PLATFORM_SWITCH)
         gen_dksh("${PROJECT_RESOURCES}/shaders")
     endif ()
     set(MOONLIGHT_NRO_NAME "${PROJECT_NAME}")
+    set(MOONLIGHT_NACP_NAME "${PROJECT_NAME}")
+    set(MOONLIGHT_NACP_AUTHOR "${PROJECT_AUTHOR}")
+    set(MOONLIGHT_NACP_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}")
     if (PLATFORM_SWITCH2)
         set(MOONLIGHT_NRO_NAME "Moonlight-Switch")
+    elseif (LEVELUP_ENABLE_WEBRTC)
+        set(MOONLIGHT_NRO_NAME "LevelUp-NX")
+        set(MOONLIGHT_NACP_NAME "LevelUp-NX")
+        set(MOONLIGHT_NACP_AUTHOR "LevelUp-Switch")
+        set(MOONLIGHT_NACP_VERSION "0.1.0")
     endif ()
     add_custom_target(${MOONLIGHT_NRO_NAME}.nro DEPENDS ${PROJECT_NAME}
-        COMMAND ${NX_NACPTOOL_EXE} --create "${PROJECT_NAME}" "${PROJECT_AUTHOR}" "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}" ${PROJECT_NAME}.nacp --titleid=${PROJECT_TITLEID}
+        COMMAND ${NX_NACPTOOL_EXE} --create "${MOONLIGHT_NACP_NAME}" "${MOONLIGHT_NACP_AUTHOR}" "${MOONLIGHT_NACP_VERSION}" ${PROJECT_NAME}.nacp --titleid=${PROJECT_TITLEID}
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/resources
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_RESOURCES} ${CMAKE_BINARY_DIR}/resources
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/resources/font

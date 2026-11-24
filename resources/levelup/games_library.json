@@ -1,0 +1,2771 @@
+{
+  "categories": [
+    {
+      "id": "",
+      "name": "休闲解谜"
+    },
+    {
+      "id": "",
+      "name": "体育竞速"
+    },
+    {
+      "id": "",
+      "name": "动作冒险"
+    },
+    {
+      "id": "",
+      "name": "动作射击"
+    },
+    {
+      "id": "",
+      "name": "双人同屏"
+    },
+    {
+      "id": "",
+      "name": "模拟养成"
+    },
+    {
+      "id": "",
+      "name": "移植游戏"
+    },
+    {
+      "id": "",
+      "name": "策略战棋"
+    },
+    {
+      "id": "",
+      "name": "街机格斗"
+    },
+    {
+      "id": "",
+      "name": "视觉小说"
+    },
+    {
+      "id": "",
+      "name": "角色扮演"
+    }
+  ],
+  "games": [
+    {
+      "gid": 274,
+      "gameId": "2zkaqmg1",
+      "gameName": "尼尔 机械纪元",
+      "gameFullName": "尼尔 机械纪元",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/664a0bcc33154234902f88504f0cfb24.jpg",
+      "description": "尼尔：机械纪元 讲述了人造人 2B、9S 与 A2 的故事，以及他们为夺回被强大机械生命体侵占的、由机械主宰的反乌托邦世界而战的征程。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 272,
+      "gameId": "tcy94ops",
+      "gameName": "歧路旅人 II",
+      "gameFullName": "歧路旅人 II",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/bfc99838f4114fadb0ade8290eeebb82.jpg",
+      "description": "2018年发售的“歧路旅人”在全球实体加线上累计销量超过300万部。本作为“歧路旅人”系列的新作RPG，内容全新。 在本作中，像素风格与3DCG所融合的“HD-2D”画面表现会全面升级。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 561,
+      "gameId": "weut6od8",
+      "gameName": "血源诅咒",
+      "gameFullName": "血源诅咒",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261116/7df72866d850434986577f3cca4a35c3.png",
+      "description": "动作RPG的金字塔『Demon's Souls』的制作团队SCE JAPAN Studio与FromSoftware再度携手合作。\n以「未知的探索」「死斗感」「全新的线上体验」为主题，\n描述在被诅咒的古都雅南为舞台狩猎怪兽的猎人的故事，本游戏为PS4™专用的全新动作RPG。",
+      "categories": [
+        "动作冒险",
+        "移植游戏"
+      ]
+    },
+    {
+      "gid": 562,
+      "gameId": "3pyq4byl",
+      "gameName": "咩咩启示录",
+      "gameFullName": "咩咩启示录",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261116/1691280122a0440c8cb1d32b3b730429.jpg",
+      "description": "在这片虚假先知横行的土地上，你要建立自己的教派，遍历大陆上神秘无比、风格迥异的各个区域，笼络一群笃信森林的忠诚追随者，广散你的真言，最终一统全境，成为唯一的正教。",
+      "categories": [
+        "动作冒险",
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 563,
+      "gameId": "7jt3c3cs",
+      "gameName": "EA SPORTS FC 27",
+      "gameFullName": "EA SPORTS FC™ 27",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261117/f05c328984dc44f595920150fd4197fe.jpg",
+      "description": "欢迎在《EA SPORTS FC™ 27》中体验全世界的游戏。 踏入 The Grounds，体验这座连接街头与球场的足球乐园；随着灵感源自社区反馈的创新带来更真实的足球玩法，在每一种模式中感受更强的掌控力。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 558,
+      "gameId": "n39szrom",
+      "gameName": "模拟火车世界 6",
+      "gameFullName": "模拟火车世界 6",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261106/43323d3269ba44e3af3f5b737feccf7f.jpg",
+      "description": "踏上下一段旅程，领略模拟驾驶列车的乐趣。做好万全准备，在三条全新的路线上驾驭功能强大的列车。解锁新技能，拓展新爱好—一切惊喜，尽在《模拟火车世界6》！\n\n在莫里斯敦线上领略新泽西交通公司® 的电气化铁路网络。穿过莫里斯和埃塞克斯郡的郊区，乘坐经典的 Arrow III 型电力动车组、ALP-46 型机车和多层车厢列车穿梭于纽约市和通勤小镇多佛之间。\n\n豪华版：启动原动机或升起集电弓，驾驶多功能的新泽西交通公司® ALP-45DP 型机车，提供更多的繁忙通勤服务。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 559,
+      "gameId": "st8hgw0r",
+      "gameName": "浮游世界",
+      "gameFullName": "浮游世界",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261107/35398916518f40cfa6e9a1f1d13aebdf.jpg",
+      "description": "在这款充满活力的漂浮城市建造游戏中，努力生存、航行并营救幸存者。带领你的漂泊者穿越无尽的垃圾海洋，探索被海水浸泡的废墟、锈迹斑斑的工厂，以及来自旧世界的故事。\n\n建造你的漂浮家园\n将海洋垃圾变成房屋、工坊和色彩缤纷的小花园。\n收集漂浮的塑料和浮木，打捞旧世界的废料，将它们回收利用，制成可以漂浮的房屋。\n对海水进行淡化，清理鱼内脏，用木板搭建一个避难所，以保证每个人的安全\n用植物、翻新的家具和雕像装饰你的城镇，让你的漂泊者们心情愉悦。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 560,
+      "gameId": "0xv60v08",
+      "gameName": "战国BASARA 4 皇",
+      "gameFullName": "战国BASARA 4 皇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261110/c7a42853f5e7427a8fa2f15271586378.png",
+      "description": "《战国Basara 4 皇》是《战国Basara 4》的扩展包，于2015年夏季在PlayStation 3和PlayStation 4主机上发布。\n• 等级上限提高至999。\n• 将有32个新故事。\n• 此前对武器参数的限制（1500）现在可以通过特殊铭文突破并超过3000。\n• 每个角色现在可以携带40把武器，而不是之前的20把。\n• 游戏新增了一个更高难度“天堂”，士兵和Boss都更强大且更具攻击性，治疗道具出现频率降低，步兵外观也不同。\n• 个人铭文购买后会与低等级武器融合，然后玩家可选择附加到更高等级的武器上。",
+      "categories": [
+        "移植游戏",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 74,
+      "gameId": "82087b9a",
+      "gameName": "神界 原罪 2",
+      "gameFullName": "神界 原罪 2 终极版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/eef48ff7d18c4971a6175b5883fda0eb.jpg",
+      "description": "来自《博德之门3》的开发团队，倍受好评的本作提升了RPG业界标杆。召集你的队伍，驾驭富有深度和挑战性的战斗。以最多四人的队伍进行冒险 - 但是请记住，只有其中一人才能成神。",
+      "categories": [
+        "策略战棋",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 193,
+      "gameId": "1gqazm0h",
+      "gameName": "莱莎的炼金工房",
+      "gameFullName": "莱莎的炼金工房 ～常暗女王与秘密藏身处～ DX",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/cee95fb4bc0c4d21a8c028050f933d54.jpg",
+      "description": "莱莎的炼金工房 ～常暗女王与秘密藏身处～》为基础，新增全新剧情与可操控角色等海量新元素。",
+      "categories": [
+        "角色扮演",
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 557,
+      "gameId": "5fthyhpn",
+      "gameName": "红色的炼金术士和白色的守护者 ～蕾斯莱莉娅娜的炼金工房～",
+      "gameFullName": "红色的炼金术士和白色的守护者 ～蕾斯莱莉娅娜的炼金工房～",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261102/016e802a8be84932a06761cf2b907a86.jpg",
+      "description": "以炼金术为主题的RPG。描绘了两位主角为了重建曾遭受灾害的故乡，并追寻真相而奋斗的故事。除了充满战略性的时间轴指令战斗、简单却深奥的调合等经典“炼金工房”系统外，还能享受经营商店、随机迷宫等要素！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 556,
+      "gameId": "fpvhguax",
+      "gameName": "牧场物语 来吧！风之繁华集市",
+      "gameFullName": "牧场物语 来吧！风之繁华集市",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261102/bcd1724591f2438f8e318101710e291c.jpg",
+      "description": "《牧场物语》系列最新作登场！故事的舞台是微风吹拂的小镇“煦风镇”。你可以悉心经营牧场，种植农作物、照料动物，并在集市贩卖农产品；或是与小镇上的居民交流，展开人生的另一段篇章。来吧，朝着“世界第一大集市”的梦想迈进，开启你的牧场新生活！",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 249,
+      "gameId": "dox9kpuf",
+      "gameName": "勇者斗恶龙 I \u0026 II",
+      "gameFullName": "勇者斗恶龙 I \u0026 II HD-2D 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/dbf0bbea51704326a847fbd8b0a8644c.jpg",
+      "description": "描绘《勇者斗恶龙III HD-2D Remake》世界后续的《勇者斗恶龙I》与《勇者斗恶龙II》合并为一部作品登场。\n在融合像素图与3DCG的HD-2D优美世界中，再次踏上盛大的冒险吧！\n※本作可于标题画面选择《勇者斗恶龙I》或《勇者斗恶龙II》，能够随时游玩您喜欢的作品。\n\n■《勇者斗恶龙I》\n◇故事\n传说中的勇者曾击败大魔王，为阿雷夫戈尔德之地带来了和平。\n然而，如今由于黑暗霸主——龙王的出现，魔物再次肆虐整个大地。\n为了拯救饱受苦难的人们，身为勇者洛特后代的你，将踏上讨伐龙王的旅程！\n\n◇冒险舞台\n这片由精灵露比丝创造的大地，名为“阿雷夫戈尔德”。\n主角为了讨伐龙王，将独自踏上旅程，走遍阿雷夫戈尔德的各个角落。\n在冒险的旅途中，不仅会与形形色色的人们相遇，有时也必须对抗强大的敌人。\n\n■《勇者斗恶龙II》\n◇故事\n勇者洛特曾拯救阿雷夫戈尔德之地，\n而后其子孙们创建了三个新兴的国度。\n然而，这份和平却突然被可怕的魔物大军摧毁殆尽。\n为了对抗不断蔓延的黑暗势力，\n继承洛特血脉的年轻王子与公主，踏上了夺回真正和平的旅程！\n\n◇冒险舞台\n这里有着各式各样的城镇、城堡、洞窟与高塔等迷宫，\n其中还包括遥远昔日传说中的勇者曾游历过的大陆。\n在旅途中获得船只后，便能探索河川与大海，冒险的范围也会大幅拓展。\n\n◇勇者洛特的子孙将并肩展开冒险\n主角——萝蕾西亚的王子，将与萨玛尔托利亚的王子及穆恩布鲁克的公主一同踏上讨伐魔物们的旅程。本作中，萨玛尔托利亚的公主也会加入队伍，继承勇者洛特血脉的四人将携手合作，共同对抗威胁和平的邪恶魔物。\n\n■“勇者斗恶龙”系列传统的回合制指令战斗\n除了使用武器攻击外，还能活用具备各种效果的咒文与特技击败来袭的各式怪物。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 555,
+      "gameId": "19rvhg32",
+      "gameName": "鬼武者 剑之道",
+      "gameFullName": "鬼武者 剑之道",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261101/ad8e20daf7594c1da66c51da23e4de92.jpg",
+      "description": "本作是刀光血影、以牙还牙的极致动作游戏。在面目全非的“京都”，一位佩戴“鬼之笼手”的武士正四处奔波，斩杀猖獗肆虐的幻魔。在激烈的刀光剑影之中沐浴鲜血，不断寻求战斗的意义。前行的道路，终将通往何处？\n\n本作是刀光血影、以牙还牙的极致动作游戏。\n这次的舞台设在日本江户时代初期的“京都”，\n历史悠久的都城因瘴气而面目全非。\n形形色色的关卡无一不充满了诡异气息。\n来自异界的恐怖“幻魔”，和苟延残喘的人们，共同交织出一幕幕黑暗的奇幻故事。\n而在这京都之内，一位佩戴“鬼之笼手”的武士正四处奔波，斩杀猖獗肆虐的幻魔。\n在激烈的刀光剑影之中沐浴鲜血，不断寻求战斗的意义。\n前行的道路，终将通往何处？",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 507,
+      "gameId": "drlmheiw",
+      "gameName": "恶意不息",
+      "gameFullName": "恶意不息",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260528/623dfe01b9484427b7107faf30496e0b.jpg",
+      "description": "由曾打造《精灵与森林》与《精灵与萤火意志》的获奖工作室 Moon Studios 倾力呈现，《恶意不息》是一款风格独特、直击感官的动作角色扮演游戏。游戏设定于一个精心构建的世界中，带来硬核的类魂战斗体验。支持最多四人合作游玩。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 554,
+      "gameId": "czsheavy",
+      "gameName": "战锤40K 星际战士 2",
+      "gameFullName": "战锤40K 星际战士 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261028/10dbdf77e1a646da8b9395c19bfb77d5.jpg",
+      "description": "体验星际战士的超人技能和残暴手段。利用致命能力和毁灭性武器消灭无穷无尽的泰伦虫群。选择单人或多人模式，在恢弘的第三人称战斗中保卫帝国。\n在这款2011年《Space Marine》的续作中，扮演回归极限战士队列的副官德米特里安·泰图斯，对战人类的敌人，再次证明你的忠诚。在遥远星球上展开史诗级战斗，镇压银河系的恐怖乱象，并揭露黑暗秘密，击退永夜威胁。\n投入星系级战争中！享受激烈而血腥的快节奏第三人称动作玩法，对战屏幕上成百上千的敌人，并清除无穷无尽的泰伦虫群——Saber的专有Swarm引擎让一切成为可能。",
+      "categories": [
+        "角色扮演",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 79,
+      "gameId": "s1fawjwi",
+      "gameName": "无主之地 4",
+      "gameFullName": "无主之地 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/072c9b1431b2441e816434ad65fcb86d.jpg",
+      "description": "《无主之地4》是一款充满混乱的夺宝射击游戏，这里有数十亿种武器、致命敌人和激烈的合作战斗。化身四位全新秘藏猎人之一，从一个危险的隐秘星球中逃脱。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 73,
+      "gameId": "5fttil2f",
+      "gameName": "赛博朋克 2077",
+      "gameFullName": "赛博朋克 2077",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/3d18ccf43a3947a48c4c98c44500656a.jpg",
+      "description": "《赛博朋克 2077》是一款开放世界动作冒险 RPG 游戏。故事发生在暗黑未来的夜之城，一座五光十色、危机四伏的超级大都会，权力更迭和无尽的身体改造是这里不变的主题。",
+      "categories": [
+        "动作射击",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 542,
+      "gameId": "n7yg1khc",
+      "gameName": "空之轨迹 the 2nd",
+      "gameFullName": "空之轨迹 the 2nd",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260917/c23cff4bb21a4d9ba0bd9bb34cc1b440.jpg",
+      "description": "《空之轨迹 the 2nd》为故事RPG《空之轨迹 the 1st》的正统续作。本作描绘了少女艾丝蒂尔为了寻找在前作结局中突然不见踪影的少年约书亚，踏上全新旅程的故事。\n【游戏更新】\n已追加9月16日、24日、10月1日的季票\n",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 553,
+      "gameId": "v22tqnw3",
+      "gameName": "银松镇",
+      "gameFullName": "银松镇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261021/1af27c40e547422da6d6e1248f93d24b.jpg",
+      "description": "《银松镇》是一款生存、恐怖、类银河战士恶魔城游戏，背景设定在美国小镇。在噩梦般的恐怖中奋战，破解重重谜题，同时管理稀缺资源，逐步揭开那些可能掌握救赎之钥的谜团。\n私家侦探 Red Walker 来到了半荒废、半遗忘的偏远小镇银松镇，只为追查 Eddie Velvet 的下落。Velvet 是一位失踪的音乐家。随着案件逐渐揭开一段黑暗的过往，Walker 很快便陷入了一种诡异且如噩梦般的失控坠落状态。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 552,
+      "gameId": "vqm7gr2l",
+      "gameName": "使命召唤 现代战争 4",
+      "gameFullName": "使命召唤 现代战争 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261019/4ba0dde44ced4e969668966de14e9d8b.jpg",
+      "description": "在《使命召唤®：现代战争® 4》中，朝鲜发动全面侵袭，半岛爆发战争，世界岌岌可危。\n一队年轻的韩国士兵在即将失守的前线奋力求生，而在地球的另一端，心怀仇恨的普莱斯上尉一边躲避着追捕他的人，一边在暗中展开了一场私人战争。随着普莱斯的秘密行动与侵袭行动背后的势力发生冲突，战争的局势逐渐失控。\n《现代战争® 4》将系列游戏推向了更加黑暗和危险的全新维度，种种连锁后果与局势升级，让长线剧情走向极具冲击力和感性的爆发临界点。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 551,
+      "gameId": "o8y2b0a2",
+      "gameName": "恶魔城 贝尔蒙特的诅咒",
+      "gameFullName": "恶魔城 贝尔蒙特的诅咒",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261016/9ef499c7333f4d26b9aa15afcf04cd83.jpg",
+      "description": "鲜红的诅咒，会是绝望还是希望？ 在悪魔城伝説 (Castlevania Dracula's Curse) 的23年之后，随着年轻的贝尔蒙特在巴黎冒险并成长。 KONAMI × Evil Empire × Motion Twin联手推出最新的探索型2D动作游戏。\n\n中世纪的巴黎，宣告末日来临的钟声回荡\n1499年法国首都巴黎遭到突如其来的魔物袭击。\n手持圣鞭「吸血鬼杀手」除掉德古拉的英雄特雷弗‧贝尔蒙特，其女儿Rose‧贝尔蒙特为了查明这场灾厄的元凶，开始在市街讨伐魔物并展开探索。\n渐渐被卷入潜藏幕后黑暗阴谋的Rose，究竟能否拯救巴黎呢。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 28,
+      "gameId": "kexrz811",
+      "gameName": "龙之信条 2",
+      "gameFullName": "龙之信条 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/e4b76a4382464a58ab211c45a886288b.jpg",
+      "description": "能够响应玩家想像且丰富多彩的动作，以及即使是单人游玩也能享受「与他人一起冒险的乐趣」的游戏体验。 借助最新的画面、物理计算及人工智能，精心编织而成的王道幻想世界。这个世界充满着惊喜和现实感。 与旅伴追随者一起，让我们踏入一场独一无二的冒险吧。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 549,
+      "gameId": "o248jd8b",
+      "gameName": "黎明行者之血",
+      "gameFullName": "黎明行者之血",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261008/f4e6a491321b44b2ab2245bb23cb5da6.jpg",
+      "description": "《The Blood of Dawnwalker》为开放世界的黑暗奇幻动作RPG。 故事背景在14世纪的欧洲，你将扮演科恩，一名白昼时为人类，黑夜时为吸血鬼的年轻人。在为了拯救家人的奋斗之中，所做出的各种抉择与揭露的秘密，将塑造成属于你的故事。\n14世纪的欧洲。连年的战火使得这片大地满目疮痍，无情的黑死病则让幸存者们惶惶不可终日。\n在人类最黑暗的时刻……他们降临了。对于吸血鬼来说，这是一个千载难逢的机会，经历了数千年的逃亡与躲藏之后，他们终于从阴影之中走了出来，自由与权力唾手可及。\n其他诞生自黑夜中的怪物也纷纷选择效忠吸血鬼的统治。当古老的传说成为现实，我们熟悉的历史将不复存在。\n在游戏中，你将扮演科恩，在阴差阳错之下，这位年轻人被转化为一名Dawnwalker，他命中注定将在白昼与黑夜这两个世界的分界线上永恒徘徊。\n竭尽全力守护自己的人性，或者选择拥抱诅咒之力以拯救你的家人。无论如何选择，你都无法逃避最关键的问题：是选择你的灵魂，还是你所爱之人的生命？",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 548,
+      "gameId": "x8z5ss8g",
+      "gameName": "控制 共振",
+      "gameFullName": "控制 共振",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261008/490b90068b0247299ed72a046bafcbaa.jpg",
+      "description": "畅玩这款惊险刺激的动作冒险角色扮演游戏，探索濒临超自然毁灭、遭扭曲的曼哈顿。释放迪伦·法登的非凡力量，对抗扭曲现实的宇宙威胁，努力守护其人性，并为全人类的存续而战。\n迪伦·法登遭联邦控制局（FBC）监禁多年。随着超自然危机愈演愈烈，曾将他囚禁之人又把他推到了战斗一线。\n神秘的宇宙实体正在篡改现实世界的法则，而迪伦肩负起了与之对抗的重任。如今他必须驾驭新的力量，主动迎击肆虐曼哈顿的无数威胁。\n重返屡获殊荣的《控制》世界，在续作中与迪伦并肩探索广阔的腐化都市。混沌希斯四处蔓延，侵入性微生物霉菌疯狂滋长，种种扭曲的超自然威胁正席卷全城，有待逐一肃清。\n在全面激发超自然潜能的过程中，迪伦还要寻找身为控制局局长的姐姐杰西·法登，揭开重重谜团，并遏制从太古屋散逸的危险力量，以免现实世界分崩离析。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 550,
+      "gameId": "vjq9gher",
+      "gameName": "冒险家艾略特的千年奇谭",
+      "gameFullName": "冒险家艾略特的千年奇谭",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261009/b1d67acfbe20495994ccad99ee79578f.jpg",
+      "description": "融合像素图与3DCG的“HD-2D”系列首度推出全新动作RPG！\n冒险家艾略特将与他的伙伴妖精飞飞，一同穿梭四个时代，对峙跨越千年的宿命。\n以简单却具有挑战性的动作，搭配妖精的支援动作，揭开世界的谜团吧。\n\n◆七种武器与妖精飞飞的魔法\n玩家最多可同时装备两种武器并自由切换，在蛮族横行的菲勒比迪亚展开冒险。\n妖精伙伴飞飞施放的魔法，不仅能在战斗中大显身手，也能用于解谜。\n\n◆冒险的舞台是跨越千年的四个时代\n冒险家艾略特与他的伙伴妖精飞飞，为了解开希札王国的“希莉雅公主”身上的诅咒，将穿过“时之扉”，往返于四个不同的时代。\n\n艾略特等人生活的“庇护时代”\n人类濒临灭亡的“重建时代” 因魔力而繁荣至极的“魔法时代” 原始种族生活的“萌芽时代”\n在各个时代展开冒险的旅途中，艾略特等人的命运也逐渐受到威胁……\n◆借由魔石自由地自定义武器\n在冒险途中获得的魔石，可依照玩家喜好来自定义艾略特的武器。要为哪种武器搭配哪种魔石，以及采取何种战略，全由玩家决定。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 547,
+      "gameId": "p0sddjd5",
+      "gameName": "真・三国无双 2 重制版",
+      "gameFullName": "真・三国无双２ with 猛将传 Remastered",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20261008/055c5f6e55ec4b7ea50ffddaa4372525.jpg",
+      "description": "震撼重现，一骑当千的极致体验。《真・三国无双２》与《真・三国无双２ 猛将传》经典重现，重磅回归！更爽快的动作体验，挑战一骑当千的极致境界！\n奠定系列风格的《真・三国无双２》与《真・三国无双２ 猛将传》震撼归来！\n超过40名无双武将与众多经典战场，借助Unreal Engine 5，以精美画质重现昔日风采。\n操作更简易上手、战斗更畅快淋漓，挑战一骑当千的极致境界！\n＜关于《真・三国无双２》＞\n以三国世界为舞台的战术动作游戏，玩家可化身超过40名武将，在广阔战场上体验一骑当千的爽快战斗。本作首次引入 “真·无双乱舞”、“双人同屏作战”、“武将成长系统” 等系列核心要素，成为《真・三国无双》系列首部销量破百万的里程碑之作。\n在附录内容《真・三国无双２ 猛将传》中，玩家可体验吕布、孟获、袁绍等七位武将的全新剧情，同时新增护卫兵编辑系统、新武器以及四种挑战模式。内容更加丰富，畅玩无止境。",
+      "categories": [
+        "双人同屏",
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 357,
+      "gameId": "2tpeobj6",
+      "gameName": "合金装备 3 食蛇者",
+      "gameFullName": "合金装备 3 食蛇者",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/ef3f925adc984febaa7e9fed6f886aea.jpg",
+      "description": "全部故事的起点。 以2004年推出的「METAL GEAR SOLID 3 SNAKE EATER」为范本的重制版作品。 在维持原作剧情与世界观的同时，透过最新的画面与富立体感的音效表现，享受在丛林中的极致求生匿踪动作体验。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 546,
+      "gameId": "lsbfvzt2",
+      "gameName": "勇气默示录 重制版",
+      "gameFullName": "勇气默示录 飞舞的妖精 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260930/99549752eece415c96473f54c8b9fde0.jpg",
+      "description": "全世界销量突破四百万套的RPG“BRAVELY”系列原点之作推出HD Remaster版！本作除了描写光之战士因水晶引发的一连串精彩剧情，还有活用转职的指令战斗，以及配合现代玩家习惯改得更方便的游戏环境，并添加小游戏。这个描述光与影且历久弥新的故事就此重获新生。yon",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 545,
+      "gameId": "fttq2ba5",
+      "gameName": "瘟疫传说 安魂曲",
+      "gameFullName": "瘟疫传说 安魂曲",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260928/c59679fc7d2747aaa2f8299761e35cf0.jpg",
+      "description": "走进异象四起却令人屏息的残酷世界，踏上凄婉揪心的旅程。不惜一切代价，只为生存，拯救自己所爱的人，感受其中的纠结与痛苦。利用多种兵器、工具和非同寻常的能力，暗中偷袭抑或发动骇人攻势",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 469,
+      "gameId": "kamybe04",
+      "gameName": "嗜血代码 II",
+      "gameFullName": "嗜血代码 II",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260113/30dfe643c74345229b0279eb2d217450.jpg",
+      "description": "与搭档一同探索末日后幻想世界，对上强大的吸血鬼展开死战，跨越时空等级的壮阔故事──交织而成的“戏剧性探索动作RPG”。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 544,
+      "gameId": "v7xtnrkh",
+      "gameName": "寂静岭 陨落小镇",
+      "gameFullName": "寂静岭 陨落小镇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260923/01b5eded08244bd19272c16dbb207d16.jpg",
+      "description": "为了“让一切重回正轨”，西蒙·奥德尔重返坐落于岛屿的神秘小镇，一步步踏入充满着紧张周旋、激烈冲突与难解谜题的世界。而圣阿米莉亚的真相，也随之悄然浮现。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 370,
+      "gameId": "ckjzsvet",
+      "gameName": "伊苏 X",
+      "gameFullName": "伊苏 X 诺曼荣光",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/7d16f1dab0974db3bfdd70ec2579fb11.jpg",
+      "description": "怀抱着骄傲(Proud)，迈向全新的冒险舞台！！ 动作RPG“伊苏X -北境历险-”新增故事剧情＆冒险舞台，并追加了多种新要素，以豪华升级的“伊苏X -诺曼荣光-”之姿在Steam®登场！\n",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 122,
+      "gameId": "3sgtqtq4",
+      "gameName": "超级机器人大战 Y",
+      "gameFullName": "超级机器人大战 Y",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/1c13276de7184f9fa6651f83f06572e0.jpg",
+      "description": "右为灾厄、左则毁灭—— 突破宿命吧，钢之守护者 超级机器人大战，是一款让各种动画作品中登场的机器人，超越作品界线而齐聚一堂、与共同敌人进行战斗的模拟RPG游戏。",
+      "categories": [
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 543,
+      "gameId": "3yddo6so",
+      "gameName": "极限竞速 地平线 4",
+      "gameFullName": "极限竞速 地平线 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260919/430cddfe898546038599629100cc9ed1.jpg",
+      "description": "在世界上最盛大的汽车嘉年华上，不断变化的赛季改变着一切。单枪匹马或者与其他人组队，在一个共享开放世界中探索美丽而富有历史气息的英国。收集、改装和驾驶超过 450 辆车辆。尽情竞速、表演特技、创造和探索：选择您专属的方式来成为地平线中的超级巨星。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 325,
+      "gameId": "9a6nhl85",
+      "gameName": "波斯王子 失落的王冠",
+      "gameFullName": "波斯王子 失落的王冠",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/0bbf6153797c412b87b0bb6746713c9c.jpg",
+      "description": "在这款风格奇特、惊险刺激的动作冒险平台游戏中，你将踏入奇幻的波斯世界，一手操控时与空的界限。扮演萨尔贡，掌握战斗技巧，解锁全新的时之力和独特技能，从挥舞刀刃的奇才成长为传奇人物。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 44,
+      "gameId": "n3881e4z",
+      "gameName": "女神异闻录３ Reload",
+      "gameFullName": "女神异闻录３ Reload",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/6ac91d5f44754443bb9da7bb9ef50f97.jpg",
+      "description": "因某些原因，作为主角的少年转学至座落于港区港湾人工岛的月光馆学园。\n他在入住学生宿舍后不久，遭遇了神秘怪物的袭击。\n在那次袭击中少年意外地觉醒了名为“人格面具”的心灵之力。\n此后他加入了人格面具能力者的组织，特别课外活动部（S.E.E.S.），\n与同伴们一起对抗存在于世上的诸多谜团……",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 540,
+      "gameId": "qi8i38ob",
+      "gameName": "星球大战 亡命之徒",
+      "gameFullName": "星球大战 亡命之徒",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260911/fa596e750a564f4ebb90ff58bbce9fdc.jpg",
+      "description": "体验首个《星球大战™》开放世界游戏，领略银河系名胜，探索新区域。扮演恶棍凯·维丝，赌上一切踏上寻找自由，通往新生的道路。你将加入银河系头号通缉犯的队伍，战斗、偷窃，与犯罪集团斗智斗勇。 银河系充满机遇，只要你不惧冒险。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 539,
+      "gameId": "d5xjdpcu",
+      "gameName": "队长小翼 2",
+      "gameFullName": "队长小翼 2 世界群星",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260908/5c9805cb610843b990be809e1361fca4.jpg",
+      "description": "“队长小翼”睽违6年推出家用主机游戏最新作！ 游戏可玩量创系列作新高，提供更优秀球场动作体验的足球动作游戏！ 球员们接连不断使出超级球技，带来难以预测的精彩比赛，敬请体验这场全新足球动作飨宴！",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 106,
+      "gameId": "m7ir9p6v",
+      "gameName": "宵星传奇",
+      "gameFullName": "宵星传奇 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/04a1af03fb4f418badbcd696e71d8f24.jpg",
+      "description": "「传奇」系列首屈一指的热门大作，经过10年再次回归！ 收录许多原版发布的服装下载内容！ 重新沉浸在画面更加美丽，贯彻「正义」的感人故事中吧！",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 538,
+      "gameId": "qc0mg4jd",
+      "gameName": "龙珠 超宇宙 2",
+      "gameFullName": "龙珠 超宇宙 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260903/705e5760394c4c67a9e549530a934d9a.jpg",
+      "description": "知名的DRAGON BALL XENOVERSE推出续作──DRAGON BALL XENOVERSE 2。 画面表现提升后的DRAGON BALL XENOVERSE 2，将带领你进入史上最庞大、最多彩的七龙珠世界。",
+      "categories": [
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 537,
+      "gameId": "e2q2pm60",
+      "gameName": "命运石之门 重启",
+      "gameFullName": "命运石之门 重启",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260902/7462414745c04536bc0fc8a9d57da485.jpg",
+      "description": "《STEINS;GATE》以现代标准全面重启！角色、画面焕然一新，并追加全新剧情！ 角色设计、图像、UI全部更新，将以更加清晰、更加深刻的姿态呈现熟悉秋叶原。",
+      "categories": [
+        "视觉小说"
+      ]
+    },
+    {
+      "gid": 536,
+      "gameId": "ofcfxb0u",
+      "gameName": "共鸣 瘟疫传说传承",
+      "gameFullName": "共鸣 瘟疫传说传承",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260901/52a0a34c84f24a70aa7d58d55fdc30e4.jpg",
+      "description": "本作的原创剧情在时间线上早于获奖作品《瘟疫传说》的故事，你将化身索菲亚，前往米诺陶岛，智取强敌，揭晓古老的秘密，直面凶煞诅咒之源的神话生物。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 535,
+      "gameId": "3paan7xn",
+      "gameName": "侏罗纪世界 进化 2",
+      "gameFullName": "侏罗纪世界 进化 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260901/d923667ffcb24c6fb1845b2b9af65292.jpg",
+      "description": "《侏罗纪世界：进化 2》是 Frontier 成就非凡的游戏《侏罗纪世界：进化》的续作，备受玩家期待。作为《侏罗纪世界：进化》游戏系列的全新的冒险纪元，本作以 2018 年极富开创性且充满沉浸感的管理模拟架构为基础进行开发。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 534,
+      "gameId": "s1pp641z",
+      "gameName": "森林之子",
+      "gameFullName": "森林之子",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260901/ae58a52145044040ae714283decaea48.jpg",
+      "description": "你被派到了一座孤岛上，寻找一位失踪的亿万富翁，结果却发现自己深陷被食人生物占领的炼狱之地。你需要制作工具和武器、建造房屋，倾尽全力生存下去，无论独自一人还是与朋友一起——一切尽在这款新推出的开放世界恐怖生存模拟游戏中。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 533,
+      "gameId": "x2n3ql8q",
+      "gameName": "NBA 2K27",
+      "gameFullName": "NBA 2K27",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260828/e5888f04141a40ee92a1ef5bec79d85d.jpg",
+      "description": "在《NBA 2K27》中，拼搏永不停歇，奔跑永无止境。 在 MyCAREER（辉煌生涯）、MyTEAM（梦幻球队）和 MyNBA（篮球联盟）模式中全天候追逐伟大，让你的篮球梦想照进现实。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 532,
+      "gameId": "sxeb63ap",
+      "gameName": "街头赛车",
+      "gameFullName": "街头赛车",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260827/b1e0028e69cb4e518677085e799bb7dc.jpg",
+      "description": "在《CarX Street》中征服山坡、广阔的高速公路和繁华的城市街道。通过精细调整打造你梦想中的赛车，充分展现CarX Technology©物理机制的潜力。参加惊心动魄的单人或多人游戏比赛，享受逼真的游戏和动态控制。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 531,
+      "gameId": "pmvnqgzu",
+      "gameName": "方舟 生存飞升",
+      "gameFullName": "方舟 生存飞升",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260827/98cdf0ecb9cc48b392dcad56976893df.jpg",
+      "description": "《方舟》采用虚幻引擎 5 重新设计，并融入了下一代电子游戏技术！组建一个部落, 驯养和繁殖数百种恐龙和其他原始生物，探索、制作、建造，并一路进发至食物链的顶端. 快来加入这场新的冒险吧!",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 472,
+      "gameId": "4pp74al6",
+      "gameName": "红色沙漠",
+      "gameFullName": "红色沙漠",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260113/c837191bf789417d84ed5856a13c7c34.jpg",
+      "description": "红色沙漠是一款以美丽与残酷共存的大陆 - 帕卫尔为背景的开放世界动作冒险游戏。玩家将化身为灰鬃团克里夫，为了重新找回失去的一切而在帕卫尔大陆踏上旅程。请探索隐藏在大陆各处的未知领域，与阻挡前行之路的威胁作战，亲自体验充满惊奇的世界吧。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 530,
+      "gameId": "boxmpc6f",
+      "gameName": "恐怖黎明",
+      "gameFullName": "恐怖黎明",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260825/d0a74c68b3e74553ada14f792e0db3af.jpg",
+      "description": "踏入一个末日奇幻世界，人类濒临灭绝，铁比黄金珍贵，信任来之不易。这款动作角色扮演游戏拥有复杂的角色养成系统、数百种独特道具、锻造玩法，以及带有抉择与相应后果的任务。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 84,
+      "gameId": "45gtfb5p",
+      "gameName": "四海兄弟 III",
+      "gameFullName": "四海兄弟 III 最终版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/867048f070b1413aa514309202001900.jpg",
+      "description": "1968年，世道早已改变。多年越战归来后，林肯·克莱明白了这个真理：家人并不是伴你而生的人，而是你愿意为之赴死的人。",
+      "categories": [
+        "动作射击",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 49,
+      "gameId": "ger1ye8k",
+      "gameName": "女神异闻录 5 Strikers",
+      "gameFullName": "女神异闻录 5 乱战 魅影攻手",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/e4e482f630824bba973467f80a13f1d5.jpg",
+      "description": "反击的时刻到了! 成为心之怪盗团，直面潜藏在日本中的邪恶。本应是与伙伴们快乐的夏季旅行，却与扭曲的现实一同发生剧变……揭露真相，夺回在事件中心的人们被囚禁的心灵！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 18,
+      "gameId": "cw2jjetr",
+      "gameName": "生化危机 8 村庄",
+      "gameFullName": "生化危机 8 村庄",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/9aab05be5e114a0fa1fcd940151227db.jpg",
+      "description": "在《Resident Evil》系列最新游戏中展开令人毛骨悚然的绝命拚搏。 伊森一家的平静生活因克里斯·雷德菲尔德而又陷入混乱之中，他再次身陷无法逃离的梦魇中。 这款系列第8部主要作品由日益成熟的游戏引擎“RE ENGINE”创造，将带来最新生存“动作”恐怖游戏体验。",
+      "categories": [
+        "动作射击",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 371,
+      "gameId": "qparr8fa",
+      "gameName": "伊苏 IX",
+      "gameFullName": "伊苏 IX 怪人之夜",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/c7b96098d50d4d9098fb554d3012f40b.jpg",
+      "description": "能够享受到高速爽快战斗与以“异能”自由奔驰探索的动作RPG《伊苏Ⅸ》于Steam®登场！",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 529,
+      "gameId": "3xnkfz40",
+      "gameName": "刺客信条 黑旗重置",
+      "gameFullName": "刺客信条 黑旗 记忆重置",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260817/06fb7171fe1241b588db08893fdcc999.jpg",
+      "description": "经典单人海盗冒险之旅现已回归。在这部忠实还原且经过优化的重制版中，你将扮演爱德华·肯威，在海盗的黄金时代扬帆加勒比海。本作拥有惊艳的视觉效果、经过升级的玩法以及全新的内容。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 382,
+      "gameId": "qn8k2pp2",
+      "gameName": "英雄传说 黎之轨迹 II",
+      "gameFullName": "英雄传说 黎之轨迹 II 绯红原罪",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/7c178a3d5fc34d93b9149d78dd0514d1.jpg",
+      "description": "汲取黝黯与绯红驱策的“原罪”吧—— 更加进化的共和国篇新章节，将以“轨迹”系列作品之姿登场！ 还将善用卡尔瓦德共和国的舞台设定准备丰富的钻研游玩要素，导入多种《英雄传说 黎之轨迹Ⅱ》特有的游戏内容！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 381,
+      "gameId": "slhz8w93",
+      "gameName": "英雄传说 黎之轨迹",
+      "gameFullName": "英雄传说 黎之轨迹",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/1c4e759b775c41ac87288b6ef48f33c1.jpg",
+      "description": "以缜密的剧情编排和游戏系统交织而成的新次元RPG《英雄传说 黎之轨迹》登陆Steam®！ 多民族国家《卡尔瓦德共和国》于战后正迎来前所未见的景气荣景。 新的轨迹，即将自此展开。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 298,
+      "gameId": "9gouy1ld",
+      "gameName": "忍者外传 怒之羁绊",
+      "gameFullName": "忍者外传 怒之羁绊",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/5d62cbcb69854b7c93caf061a3577b7f.jpg",
+      "description": "《NINJA GAIDEN: Ragebound（忍者外传：怒之羁绊）》是以红白机《忍者龙剑传》为灵感的系列的全新横版卷轴作品，由《神之亵渎 Blasphemous》制作团队倾力打造，以宏大、惊险且充满挑战的忍者冒险打造出了这个经典平台动作游戏新列在新时代的全新体验。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 149,
+      "gameId": "v3oyngip",
+      "gameName": "皇牌空战 7",
+      "gameFullName": "皇牌空战 7",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/be97766e129144379f6efd5728ff550a.jpg",
+      "description": "ACE COMBAT系列，是能让玩家能化身为王牌驾驶员，驾驶爱机在追求拟真天空的美丽空间内，享受360度自由飞行的爽快感、让玩家亲自判断状况并选择敌人来破坏的痛快感、享受克服难关达成感的飞行射击游戏。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 528,
+      "gameId": "blbbwx4j",
+      "gameName": "三国志 8 REMAKE",
+      "gameFullName": "三国志 8 REMAKE",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260813/6b30bed442ec4feab1387d345a040275.jpg",
+      "description": "万千武将，无限演义。历史模拟游戏名作《三国志Ⅷ》跨越20年的时光，再现经典。化身为包括君主在内的所有武将以体验三国志世界的“全武将扮演系统”将再次进化！在此，谨为广大玩家献上拥有《三国志》系列中最多武将、最多剧情的武将演义巅峰之作。",
+      "categories": [
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 246,
+      "gameId": "29dg608f",
+      "gameName": "正当防卫 4",
+      "gameFullName": "正当防卫 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/c08666da685e4d2d9ec907b5dce09236.jpg",
+      "description": "杀人特工里科·罗德里格兹来到了索利斯。这里位于南美洲，面积广阔、冲突频发、压迫不断，气候条件极其恶劣。穿上飞翼、带上完全由您定制的抓钩，准备好叱咤风云吧！",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 523,
+      "gameId": "qufcpfn2",
+      "gameName": "蔚蓝反射 少女们的奇迹",
+      "gameFullName": "蔚蓝反射 少女们的奇迹",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260801/c2ac2853ec104cf4b0b9198601efb9c8.jpg",
+      "description": "以少女们细腻情感与深厚情谊为主线的RPG系列，其原点可追溯至《BLUE REFLECTION 幻舞少女之剑》。作品讲述了一名受伤的少女在与他人相遇中收获情谊，凭借魔法少女“反像者”的力量挺身对抗世界威胁的故事。其后系列不仅推出多部游戏作品，还衍生至动画、手机及PC游戏等多个领域。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 525,
+      "gameId": "szpr7xit",
+      "gameName": "轮回之兽",
+      "gameFullName": "轮回之兽",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260804/7d2cd80ad466421591f0d17447b9a2a7.png",
+      "description": "Game Freak 诚意新作：《轮回之兽》是一款融合了即时与回合制战斗的动作角色扮演游戏。在美丽而又严酷的《轮回之兽》世界中，享受创新的“一人一狗协作动作角色扮演”体验。在艾玛和小库的旅程终点会有什么在等待着他们呢？",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 258,
+      "gameId": "vbxmp7j7",
+      "gameName": "勇者斗恶龙 VII",
+      "gameFullName": "勇者斗恶龙 VII 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/55528973455b4e40897e867f6021ccfb.jpg",
+      "description": "“大海另一头有更辽阔的世界……就由我们来证明！” 故事从住在孤岛上的一群少年少女，怀抱着一缕微小的好奇心开始。一场横越大海、跨越时空的壮阔冒险，就此揭开帷幕。 在保留原作魅力的同时，重新构筑（Reimagined）系统与剧情，打造更易于上手的游玩体验。与以“人偶风”全新呈现的魅力伙伴们，一同启程踏上壮阔的冒险之旅！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 524,
+      "gameId": "dms37h3l",
+      "gameName": "光环 战役进化",
+      "gameFullName": "光环 战役进化",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260730/19fb90f925654a39a59c9f563be8faaa.jpg",
+      "description": "Halo: Campaign Evolved 是 Halo: Combat Evolved 战役模式的忠实还原且经现代化重塑的版本。玩家将体验以高清画面、更新过场动画与优化控制重新打造的原版故事，此外还有以士官长和约翰逊中士为主角、包含三个全新任务的冒险篇章。更丰富的武器库、载具、敌人，以及可改变玩法的“骷髅头”，这类可选修改器能以有趣且富有挑战性的方式改变战斗规则，为游戏增添全新战术与无限重玩价值。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 519,
+      "gameId": "u2h4vir0",
+      "gameName": "亰都幻都 樱花幻舞",
+      "gameFullName": "亰都幻都 樱花幻舞",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260716/7937d9753e5a44589a45f8e5519b447b.jpg",
+      "description": "由日本Falcom隆重推出，以现代日本为舞台的青春RPG最新力作！本作以2015年推出的《东亰幻都》世界观为基础，为当代RPG玩家献上全新的原创故事。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 320,
+      "gameId": "87mcwfbj",
+      "gameName": "黑帝斯 II",
+      "gameFullName": "黑帝斯 II",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/763f49bb5c62439ca51893a5a2afcbc2.jpg",
+      "description": "在冥界之外奋勇战斗，驾驭黑暗巫术，与时间泰坦一决高下。在这款屡获殊荣的类 Rogue 地城探索游戏的续作中，踏上一场摄人心魄的神话之旅。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 521,
+      "gameId": "tnkwreiz",
+      "gameName": "龙之剑 觉醒",
+      "gameFullName": "龙之剑 觉醒 📢 请务必阅读游戏描述",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260723/9ecb1901cb6f493cace3fb421c9aaeba.jpg",
+      "description": "💀请使用游戏中退出游戏结束💀\n💀否则容易导致存档损坏💀\n探索由虚幻引擎5打造的动画风格开放世界",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 156,
+      "gameId": "043a4i8b",
+      "gameName": "奥日与黑暗森林",
+      "gameFullName": "奥日与黑暗森林",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/2ef25bde8f274e55b95c4cc6470415ad.jpg",
+      "description": "「Ori and the Blind Forest」是 Moon Studios 為個人電腦量身訂做的動作平台遊戲。在這個充滿美麗視覺效果的遊戲中，訴說著一位勇敢小孤兒的冒險故事。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 520,
+      "gameId": "dk034e28",
+      "gameName": "泰坦之旅 2",
+      "gameFullName": "泰坦之旅 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260722/b8036c4d58214e688770b940dd54104e.jpg",
+      "description": "复仇女神涅墨西斯挣脱了束缚。命运之线遭到侵蚀，一切但敢与她为敌的人都将受到惩罚。加入《Titan Quest II》，体验希腊神话的独特魅力，畅享动作角色扮演的酣畅淋漓。快快拿起武器，与众神并肩作战，重写命运篇章。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 331,
+      "gameId": "j93tsllc",
+      "gameName": "刺客信条 影",
+      "gameFullName": "刺客信条 影",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/baf240eb0010437fa55d4981d0c901d6.png",
+      "description": "在日本战国背景下，体验史诗般的动作冒险故事！变身夺命忍者刺客，化为强大传奇武士，在一片混沌的时代，进入美丽的开放世界进行探索！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 518,
+      "gameId": "lrmztjq6",
+      "gameName": "讨鬼传 极",
+      "gameFullName": "讨鬼传 极",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260716/c47a0d9ce24f40cba9fe08dce374ab29.png",
+      "description": "即刻动身！迈向讨“鬼”之极限─ 『讨鬼传 极』为收录了『讨鬼传』的所有内容，并追加了多种要素与故事的『讨鬼传』之续篇。 玩家将扮演拥有特殊能力的战斗武士，与同伴共同征讨“鬼”，让人世免于毁灭。 与同伴联手施展「鬼千切・极」等，体验终极的部位破坏型动作游戏吧！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 517,
+      "gameId": "sl7i19a7",
+      "gameName": "使命召唤 无限战争",
+      "gameFullName": "使命召唤 无限战争",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260714/5e9b2537e65a49f4a494010098a602ce.jpg",
+      "description": "《使命召唤：无限战争》包含三种独具特色的游戏模式：战役模式、多人模式以及僵尸模式。\n在战役模式中，玩家将扮演雷耶斯队长 —— 一名飞行员出身的指挥官。他需要率领残存的联合部队，对抗穷追猛打的敌军，同时还要在危机四伏、环境极端恶劣的太空险境中艰难求生。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 130,
+      "gameId": "67jcc6ru",
+      "gameName": "数码宝贝物语 时空异客",
+      "gameFullName": "数码宝贝物语 时空异客",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260101/dbb32d1a650646f1aa939e5e3692148e.jpg",
+      "description": "《数码宝贝物语》系列最新作品终于登场。本作是一款角色扮演游戏，您可以在追查世界毁灭谜团的过程中，一面享受横跨人类世界与异世界的冒险，以及搜集培育种类丰富的数码宝贝。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 516,
+      "gameId": "nizio2uf",
+      "gameName": "奇异人生 重制版",
+      "gameFullName": "奇异人生 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260707/f35a286770114322a971b8021a9bd657.jpg",
+      "description": "《Life is Strange》的故事剧情曾得到BAFTA奖，采用动作捕捉技术全面改善视觉效果与动画后，再度推出重制版。",
+      "categories": [
+        "视觉小说"
+      ]
+    },
+    {
+      "gid": 515,
+      "gameId": "lnu5mh7l",
+      "gameName": "乐高 蝙蝠侠 黑暗骑士之遗",
+      "gameFullName": "乐高 蝙蝠侠 黑暗骑士之遗",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260702/71bf9216107743a29554f08422f14888.jpg",
+      "description": "以黑暗骑士的身份崛起，体验蝙蝠侠的精彩故事。在充满刺激和动作的大胆冒险中，体验激烈的战斗、开放世界的哥谭市，以及粉丝熟知和喜爱的乐高标志性魅力。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 514,
+      "gameId": "o0bbajh1",
+      "gameName": "云族裔",
+      "gameFullName": "云族裔",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260630/4dda72b2140447e2a46786bf8b8f71f0.jpg",
+      "description": "「每段人生都是一則故事。」通过控制并观察'Zois'，你可以创造出一段属于你的，独一无二的人生。 利用 inZOI 易用的工具，可以自定义角色，建造房屋，在沉浸式的模拟体验中，过上梦想中的生活，体验生活中那些丰富而细腻的情感吧！",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 80,
+      "gameId": "40tpefii",
+      "gameName": "四海兄弟 故乡",
+      "gameFullName": "四海兄弟 故乡",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/aa03a83ef9c649b29ff31b2c17613841.jpg",
+      "description": "在《四海兄弟：故乡》中揭开有组织犯罪的起源，切身体验一段设定于1900年代西西里岛的残酷帮派故事。在这个沉浸式第三人称动作冒险游戏中，化身恩佐·法瓦拉，为生存而战，向家族证明你的价值。",
+      "categories": [
+        "动作射击",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 255,
+      "gameId": "et10jtde",
+      "gameName": "勇者斗恶龙 III",
+      "gameFullName": "勇者斗恶龙 III HD-2D 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/98ac34e285914748a1c43d78d1d475af.jpg",
+      "description": "受广大游戏玩家喜爱的不朽经典作品《勇者斗恶龙III　传说的起点…》将以全新的画面表现技术重获新生。在融合像素图与3DCG的HD-2D优美世界中，踏上盛大的冒险吧！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 129,
+      "gameId": "3m7vw6cf",
+      "gameName": "全民高尔夫 环球之旅",
+      "gameFullName": "全民高尔夫 环球之旅",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260101/fbdecb6d9724435facac0f32ff081679.jpg",
+      "description": "《全民高尔夫 环球之旅》除了能体验到与过去作品相同的乐趣、爽快与深奥之外， 还有着以精美图像设计而成、个性丰富的角色们与以世界各地为主题的球场， 以及能让所有人热血沸腾的全新模式等等，是本系列的全新力作！",
+      "categories": [
+        "体育竞速",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 513,
+      "gameId": "mto01128",
+      "gameName": "原子之心",
+      "gameFullName": "原子之心",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260624/0537c1c6b4a1498ebc04498cad748672.jpg",
+      "description": "欢迎进入美妙疯狂的乌托邦世界。生死之战，一触即发。针对独特敌人制定最佳战术，升级装备，利用环境条件完成任务。想要揭开真相？那就做好流血的准备吧！",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 512,
+      "gameId": "rr4nf6gw",
+      "gameName": "FIFA 23",
+      "gameFullName": "FIFA 23",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260615/12d170b6f10749dcbe2be56797f0d498.jpg",
+      "description": "《FIFA 23》将这个世界性游戏带回球场，采用 HyperMotion2 技术，更有男子和女子 FIFA World Cup™、女子俱乐部球队、跨平台游戏功能**，以及更多精彩内容。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 511,
+      "gameId": "bnlk0rih",
+      "gameName": "WRC 世代",
+      "gameFullName": "WRC 世代",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260615/65ffba50be794127957fcafae7b44fb1.jpg",
+      "description": "在史上最全面、最逼真且要求最苛刻的汽车拉力赛模拟游戏中，迎接各种挑战。成为众人瞩目的焦点，驾驶2022年WRC锦标赛的赛车，包括新推出的混合动力车型。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 510,
+      "gameId": "0kyamk3m",
+      "gameName": "合金装备 V",
+      "gameFullName": "合金装备 V 幻痛",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260615/f5064ef7d9be4db487a3b16044a425b2.jpg",
+      "description": "《合金装备 V：幻痛》借助狐引擎的顶尖技术，为合金装备系列开启全新篇章。本作打造出高水准游戏体验，玩家可在开放世界任务中自由制定战术、灵活行动。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 270,
+      "gameId": "3uivx6ea",
+      "gameName": "歧路旅人 0",
+      "gameFullName": "歧路旅人 0",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/2e0b25c49dff4ee0a57ae28ad9253882.jpg",
+      "description": "全球销量突破500万套的RPG──“歧路旅人”系列的最新作品。本作以奥鲁斯特拉大陆为舞台，讲述一段由神明之戒引发的复仇与复兴的故事。 还有让你自身成为主角的“角色创建”，以及重建故乡的“城镇建设”等系列首度登场的新系统。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 81,
+      "gameId": "a5yw4m5x",
+      "gameName": "WWE 2K25",
+      "gameFullName": "WWE 2K25",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/524943ed88b84cce8564354424d7ca9d.jpg",
+      "description": "在Showcase中颂扬血亲家族 在MyGM模式中在线竞技 扩展后的游戏内容包括跨性别摔跤、链式摔跤、障碍物俯冲技能、出场造势的回归等等！",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 277,
+      "gameId": "dl2u1n5c",
+      "gameName": "三角战略",
+      "gameFullName": "三角战略",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/5faa489bfeae4497af9e3b8189d4d80d.jpg",
+      "description": "本作为由“BRAVELY”系列、《OCTOPATH TRAVELER 歧路旅人》的开发团队所打造的全新策略RPG。游戏将以HD-2D的精美画面呈现壮阔的英雄传。故事舞台为战乱的诺泽利亚大陆，玩家将不得不做出艰难的抉择。你的正义将会迈向什么样的未来……？",
+      "categories": [
+        "策略战棋",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 509,
+      "gameId": "7r4sljt9",
+      "gameName": "NBA 2K23",
+      "gameFullName": "NBA 2K23",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260611/a6b8889e38474acf93e13b374229ded7.jpg",
+      "description": "在《NBA 2K23》中把握机会。发掘你的全部潜力。在辉煌生涯中展示你的天赋。在梦幻球队中将全明星与永恒传奇配对。作为一名传奇经理，建立属于你自己的王朝，或在终极联盟中领导NBA走向新的方向。现在就开始游戏，与NBA或WNBA球队进行较量，感受逼真的游戏体验。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 502,
+      "gameId": "m0ewh0tf",
+      "gameName": "007 初露锋芒",
+      "gameFullName": "007 初露锋芒",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260506/536cf79458fa42c8be697266e173a5e5.jpg",
+      "description": "该游戏进入时黑屏等待时间较长，请耐心等待。\n赢得编号。007 初露锋芒 是IO Interactive出品的惊险刺激的间谍动作冒险游戏。跟随年轻、机智但偶尔鲁莽的詹姆斯·邦德的脚步，他是军情六处训练项目中的新兵，一起探索这位世界最著名间谍的起源故事。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 254,
+      "gameId": "ty9zapb1",
+      "gameName": "勇者斗恶龙 创世小玩家 2",
+      "gameFullName": "勇者斗恶龙 创世小玩家 2 破坏神席德与空荡岛",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/dc2cf8545bfb44ce81e87dcc97c54665.jpg",
+      "description": "《勇者斗恶龙 创世小玩家2》是款方块建造游戏。在迷人的单人战役中探索、战斗、创造和收获，或是在最多支持4位玩家的在线沙盒模式中建造宏伟奇观。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 508,
+      "gameId": "0qgn013r",
+      "gameName": "往日不再",
+      "gameFullName": "往日不再",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260604/910d8f34da9e48f29bf8f426d692b15e.jpg",
+      "description": "驰骋于瘟疫过后满目疮痍、危机四伏的美国，在这片土地上浴血求生。化身迪肯・圣约翰 —— 一名四处漂泊的赏金猎人，驾摩托穿行在残破的公路之上，一边挣扎求生，一边寻觅活下去的念想，开启这款开放世界动作冒险游戏。",
+      "categories": [
+        "动作射击",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 103,
+      "gameId": "lfrfu2i9",
+      "gameName": "破晓传奇",
+      "gameFullName": "破晓传奇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/5b617c9da2344cbc951c3a07dd71b4a9.jpg",
+      "description": "３００年的暴政、不明面具、遗失的痛觉与记忆。化身为强大火焰之剑的唯一使用者，与不可碰触的少女及伙伴们一起挺身对抗压迫者吧。以新世代技术描绘出表情生动的角色，一个关于解放的战斗故事。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 482,
+      "gameId": "ot18ekbn",
+      "gameName": "忍者龙剑传 2 黑之章",
+      "gameFullName": "忍者龙剑传 2 黑之章",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260115/f48e3ae20d8c4d8984049c25e514a52e.jpg",
+      "description": "本作采用“Unreal Engine 5\"并大幅提升画面表现，同时也包含了追加可操作角色以及战斗辅助等机能，为《NINJA GAIDEN 2》的决定版。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 506,
+      "gameId": "4lj0afbq",
+      "gameName": "极限竞速 地平线 6",
+      "gameFullName": "极限竞速 地平线 6",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260526/5e733e16ba4140ac97d0ee5b8037ffea.jpg",
+      "description": "驾驶超过 550 辆真实存在的赛车，探索日本的绝美风光，在《Forza Horizon》有史以来最宏大的冒险中成为竞速传奇。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 505,
+      "gameId": "p1k36dma",
+      "gameName": "最终幻想 IX",
+      "gameFullName": "最终幻想 IX",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260518/d616349afd7d4eb491689091b6d6b9f4.jpg",
+      "description": "自 2000 年发售以来销量已突破500 万份，《最终幻想 9》荣耀登陆 Steam 平台！现在你可以在电脑上重温吉坦与伙伴们的冒险旅程了！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 338,
+      "gameId": "8jinq9y7",
+      "gameName": "赤痕 夜之仪式",
+      "gameFullName": "赤痕 夜之仪式",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/9d64de4509144173aedea00688352a2c.jpg",
+      "description": "《赤痕·：夜之仪式》是一款以探索为主的横向卷轴动作角色扮演游戏，由五十岚孝司亲手打造，该游戏由505 Games进行全球发行。扮演米莉娅姆，一个被炼金术士诅咒而导致身体正慢慢变成水晶的孤儿。通过奋力战斗闯过一座充满恶魔的城堡，击败城堡的主人，拯救自己以及全人类。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 457,
+      "gameId": "mzico6nq",
+      "gameName": "欧洲卡车模拟 2",
+      "gameFullName": "欧洲卡车模拟 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260113/7f66c806421145cabf41cb7360902ed2.jpg",
+      "description": "像公路之王一样在欧洲穿行， 将价值不菲的货物完美送抵远方！往返于英国，比利时，德国，意大利，荷兰，波兰等众多城市；您的耐力，技巧，速度都被您发挥到了极致！",
+      "categories": [
+        "模拟养成",
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 504,
+      "gameId": "xw35mbv0",
+      "gameName": "识质存在",
+      "gameFullName": "识质存在",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260515/410d73b9bf6246748ca5a64d8885de49.jpg",
+      "description": "《Pragmata》是卡普空推出的一款独特的科幻动作冒险游戏。 玩家将跟随命运多舛的调查队队员“休”和机器人小女孩“戴安娜”，在被失控AI掌管的月球设施内寻找返回地球的方法。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 483,
+      "gameId": "45mw5o8e",
+      "gameName": "实况足球 2021",
+      "gameFullName": "实况足球 2021",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260115/9482cf3ad22943f78956ff2acb030028.jpg",
+      "description": "eFootball PES 2021 Season Update*伴你欢庆PES系列25周年 - 特别纪念优惠价！",
+      "categories": [
+        "体育竞速",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 302,
+      "gameId": "ihyo6d8f",
+      "gameName": "剑星",
+      "gameFullName": "剑星",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/dfb0ae3537974f17ac87ca31d49779bd.jpg",
+      "description": "在后末日动作冒险游戏《剑星》中拯救濒临灭绝的人类。揭开地球衰败之谜，体验激烈战斗与曲折剧情。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 443,
+      "gameId": "6ibka87h",
+      "gameName": "底特律 化身为人",
+      "gameFullName": "底特律 化身为人",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/7c5e7ea973fb4250a3584700b23504f6.jpg",
+      "description": "在《底特律：化身为人》中，人类和机器人的命运都将掌握在您的手中，您将走进一个不远的未来，一个机器人具有比人类更高智慧的时代。您将体验到史上最为复杂的分支故事——您所作出的每个选择都将影响游戏的结局。",
+      "categories": [
+        "视觉小说"
+      ]
+    },
+    {
+      "gid": 503,
+      "gameId": "iqdwz8bs",
+      "gameName": "心灵杀手 2",
+      "gameFullName": "心灵杀手 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260509/a7fffd582a814c3fa883221606b4a3e7.png",
+      "description": "萨贾·安德森来到一个小镇调查仪式谋杀案。 而艾伦·韦克书写了一篇塑造他周围现实的黑暗故事。 这两位勇敢者在冥冥之中产生了联系。 他们能成为担负起自身使命的英雄吗？",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 160,
+      "gameId": "j0y94g8p",
+      "gameName": "战争机器 5",
+      "gameFullName": "战争机器 5",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/e807530fb7da485eb8bdc91e76925bcd.jpg",
+      "description": "Gears 脱胎于游戏史上最受欢迎的传奇之一，与前作相比更为宏大。全面战争即将爆发，凯特·迪亚兹脱离小队，调查她与敌人之间的关系，却发现锡拉星的真正威胁竟正是她自己。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 161,
+      "gameId": "xi4blvra",
+      "gameName": "战争机器 重装上阵",
+      "gameFullName": "战争机器 重装上阵",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/651ea497ee0f41a3ade9bba01919d901.jpg",
+      "description": "在这款开创先河的标志性原版第三人称掩体射击游戏中，粉碎蝗虫族的威胁。\n在无情的地下怪物入侵 14 年后，这个星球一片废墟。一名曾被弃之不顾、任其自生自灭的名叫 Marcus Fenix 的囚犯，被他的好友兼前队友 Dominic Santiago 救了出来。在敌众我寡、武器装备也处于劣势的情况下，Marcus 和 Dom 必须与三角洲小队的其他成员携手合作，击败蝗虫族的威胁，使人类免遭彻底灭绝。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 501,
+      "gameId": "ly4iof59",
+      "gameName": "神探杰克鼠",
+      "gameFullName": "神探杰克鼠",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260424/c0488e3ebafb474d8c47f530d178ca81.jpg",
+      "description": "与私家侦探杰克·佩珀一起，投身一场弹雨连天、爵士绕梁的冒险。《神探杰克鼠》将1930年代的经典手绘橡皮管动画风格与第一人称射击游戏结合，在复古格调的魅力中体验肾上腺素飙升的爆炸无双之旅。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 257,
+      "gameId": "lzfpkm8d",
+      "gameName": "勇者斗恶龙 英雄集结 II",
+      "gameFullName": "勇者斗恶龙 英雄集结 II",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/362fa2aac77a4584ab401e0b142fb886.jpg",
+      "description": "《勇者斗恶龙 英雄集结 2》是一款割草式动作角色扮演游戏，游戏将开启一段全新冒险，带你为曾享和平、如今却遍布魔物与史诗级战役的世界重铸秩序。最多支持 4 名玩家联机合作，共同击退笼罩在七大王国之上的未知威胁！",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 11,
+      "gameId": "tgxguodn",
+      "gameName": "怪物猎人 世界",
+      "gameFullName": "怪物猎人 世界",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/2dd44d269542428787b0f07fb4f449f5.jpg",
+      "description": "新的生命之地。狩猎, 就是本能! 「Monster Hunter: World」中,玩家可以体验终极的狩猎生活,活用新建构的世界中各种各样的地形与生态环境享受狩猎的惊喜与兴奋。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 499,
+      "gameId": "p44srgtv",
+      "gameName": "Replaced",
+      "gameFullName": "Replaced",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260416/b8c09b48e48543429998c1ce6df764b5.jpg",
+      "description": "扮演R.E.A.C.H.，一个被迫困于人类躯体中的人工智能，揭露凤凰公司的险恶秘密。游戏背景设定在遭受核灾难重创的架空80年代美国。在这款融合了电影化探索与自由流畅动作玩法的剧情向2.5D平台游戏中，深入体验一段黑暗的赛博朋克惊悚故事。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 500,
+      "gameId": "nau5nsk3",
+      "gameName": "星砂岛",
+      "gameFullName": "星砂岛",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260419/673dac84d7964e8082797730610a856d.jpg",
+      "description": "厌倦了城市的繁冗生活？那就回到温馨家园星砂岛吧！在这座美丽的小岛上，您将体验一段轻松写意的田园生活。您可以在这里享受慢节奏的日常，与可爱的水豚、猫狗等小动物为邻，体验渔获丰收的喜悦，探索神秘的荧月之森或是单纯享受这座岛屿自然美景。让我们一起逃离无聊的都市，在这片海上桃源重拾生活的美好。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 498,
+      "gameId": "3l8t0623",
+      "gameName": "侏罗纪世界 进化 3",
+      "gameFullName": "侏罗纪世界 进化 3",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260414/41ed1bf0a98646bb9e42f4ef0f71d766.jpg",
+      "description": "打造您自己的侏罗纪世界，奇妙体验再度升级。幼年恐龙系列首次登场，恐龙世代相传的大业就在你手中。在全球范围内广泛打造史前公园，借助强大的全新创意工具让想象力插上翅膀。 ",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 497,
+      "gameId": "5cm26ktw",
+      "gameName": "消逝的光芒 困兽",
+      "gameFullName": "消逝的光芒 困兽",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260414/ad1c1b91d6cf4f68859a337d35476f03.jpg",
+      "description": "你是凯尔·克兰，遭受了多年的实验，被改造成了半人半野兽的怪物。在开放世界和动作生存恐怖相结合的独特游戏体验里，追杀把你变成这个样子的罪魁祸首。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 496,
+      "gameId": "m2me3m4s",
+      "gameName": "消逝的光芒 2",
+      "gameFullName": "消逝的光芒 2 重装上阵版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260413/9dd258a4e1c14393b27bb42bea7b9984.jpg",
+      "description": "人类正在与病毒进行一场注定失败的斗争。在这个末日后丧尸横行的开放世界中，你的跑酷和战斗技能将成为生存的关键。白天，你可以自由穿梭于城市之间，但夜幕降临后，怪物将接管城市的控制权。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 495,
+      "gameId": "wzde2hfj",
+      "gameName": "消逝的光芒",
+      "gameFullName": "消逝的光芒",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260413/27cb485184a94d3581b5b2171967a5cc.jpg",
+      "description": "以丧尸横行的末世为背景的开放世界第一人称动作生存游戏。在一个被神秘病毒摧残过后的城市里漫游。收集物资，制作武器并迎战成群的感染者。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 21,
+      "gameId": "zmmhf1r7",
+      "gameName": "生化危机 4",
+      "gameFullName": "生化危机 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/540f002a38cb4ed3b8a9956b8ca4ba74.jpg",
+      "description": "成功逃脱并战胜死亡的快感。 前所未有的生化灾难“浣熊市事件”六年后...... 成为特务的里昂·斯科特·肯尼迪被派去营救被绑架的总统千金。 里昂踏进被“疯狂”支配之地，他的结局会是…… 一场生与死、恐怖与感情瞬间交错的严酷营救剧即将揭开帷幕。 透过直观的操作和最新的画面，以及再构成的故事重生为全新的生存恐怖体验。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 485,
+      "gameId": "kkqeveus",
+      "gameName": "生化危机 9 安魂曲",
+      "gameFullName": "生化危机 9 安魂曲",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260302/d018d224391541498b04a3dfaff25cc4.jpg",
+      "description": "予生者恐惧。给尸者安魂。 《Resident Evil Requiem》标志着“Resident Evil”系列和生存恐怖游戏步入新纪元。“安魂曲”将会撼动玩家的精神深处。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 266,
+      "gameId": "aqxidemh",
+      "gameName": "最终幻想 VII 重生",
+      "gameFullName": "最终幻想 VII 重生",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/085dc0dc7d88409ead6040fa535e5476.jpg",
+      "description": "克劳德一行人脱离魔晄都市米德加，踏进广袤的世界展开旅程。 本作有全新的故事、在广阔世界中的自由冒险以及增进与伙伴间情谊的战斗， 带来继《FINAL FANTASY VII REMAKE》之后更加进化的游戏体验。",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 265,
+      "gameId": "pyskcg1i",
+      "gameName": "最终幻想 VII 重制",
+      "gameFullName": "最终幻想 VII Remake Intergradee",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/2bcdeb0d5a3a45c19c1e642d552f79f4.jpg",
+      "description": "身背毁灭剑的前神罗战士克劳德踏入魔晄都市米德加。 运用最先进技术制作的画面、融合战略性与直觉式动作操作的战斗系统—— 不朽名作《FINAL FANTASY VII》的世界重生为“全新故事”。",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 68,
+      "gameId": "xtep60mt",
+      "gameName": "双点校园",
+      "gameFullName": "双点校园",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/4e6b6c2487db4aaaaad3b07faeed3f90.jpg",
+      "description": "《Two Point Hospital》原班人马为你带来别具一格的模拟游戏《Two Point Campus》，助你打造心目中的大学校园。打造环境、聘用员工，经营一座排满天马行空课程的学术机构。",
+      "categories": [
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 36,
+      "gameId": "fg3kek6u",
+      "gameName": "逆转裁判 456",
+      "gameFullName": "逆转裁判 456",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/fa673dc695694ce7a5328e1156517db1.jpg",
+      "description": "律师　王泥喜法介的成长故事堂堂复苏！ 以新人律师\"王泥喜法介\"与传奇律师\"成步堂龙一\"为主角的3部人气作品将集合为一全新登场！ 收录《逆转裁判4》、《逆转裁判5》及《逆转裁判6》本篇故事14章及下载内容的特别编2章，共有16章！ 本作除了是\"逆转裁判\"粉丝们期待已久的精选集之余，亦是同系列中收录了最多丰富内容的作品！",
+      "categories": [
+        "视觉小说",
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 45,
+      "gameId": "squlk28f",
+      "gameName": "女神异闻录 4 黄金版",
+      "gameFullName": "女神异闻录 4 黄金版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/690fb4e8a1184ce0921f157ba688ce48.jpg",
+      "description": "这是一个有关成长的故事，以陆续发生的连环谋杀案作为导火线，主角和他的朋友们踏上了一趟旅程。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 46,
+      "gameId": "k66y1ab0",
+      "gameName": "女神异闻录 5 皇家版",
+      "gameFullName": "女神异闻录 5 皇家版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/d89a2146f5d3455799b3ce5ddc88ba26.jpg",
+      "description": "夺取吧，用那个意志。由ATLUS倾情奉上，青春RPG系列游戏最新作《P5R》再度登场。主角是因为某些原因转学至“东京”的高中的少年。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 126,
+      "gameId": "1u5pe39x",
+      "gameName": "小小梦魇",
+      "gameFullName": "小小梦魇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260101/d4fa3cc6821b45d0a82d67130bc77e5c.jpg",
+      "description": "现在，你就是小六。 孤身一人，困在这座名为 “巨口” 的巨型钢铁囚笼之中，四面八方全是面目狰狞、形态扭曲的成年怪物。你必须竭尽全力活下去、逃出去，一旦失败，那降临的命运，会是你连做梦都不敢想象的炼狱。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 493,
+      "gameId": "c34jzvxd",
+      "gameName": "死亡搁浅 2",
+      "gameFullName": "死亡搁浅 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260402/079060b821ad43be87809618ce870229.jpg",
+      "description": "山姆和他的伙伴们开启新旅程，拯救濒临灭亡的人类。 加入他们，穿行这个异界敌人当道、充满艰难险阻的世界，探究一个挥之不去的问题：连接是必要的吗？",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 34,
+      "gameId": "9hv93got",
+      "gameName": "祇 女神之路",
+      "gameFullName": "祇 女神之路",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/e2c915915fed4fe9af8b88147ccf7f38.jpg",
+      "description": "一个新的“神”之传说 《Kunitsu-gami: Path of the Goddess》 是以独创的“日式”世界观 体会“动作与战略”乐趣的单人游玩神乐战略活剧",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 8,
+      "gameId": "qqmg3xql",
+      "gameName": "侠盗猎车手 罪恶都市",
+      "gameFullName": "侠盗猎车手 罪恶都市 增强版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/990b0b25809b4912964b6528960b3ca2.jpg",
+      "description": "欢迎来到 20 世纪 80 年代。在这发型浮夸和粉色西装当道的年代，一个男人在成群罪犯中崛起的故事就此展开。Grand Theft Auto 载誉归来，讲述汤米·维尔切蒂的传说，带您领略灯红酒绿的热带都会，在背叛与复仇之间争名夺利、纸醉金迷。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 101,
+      "gameId": "w021t749",
+      "gameName": "黑暗之魂 III",
+      "gameFullName": "黑暗之魂 III",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/7be5355db4064047b492787e9206e0d9.jpg",
+      "description": "Dark Souls即将推出极具话题性及代表性的系列新作。 作好准备，再次拥抱黑暗！",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 2,
+      "gameId": "cwwr3oix",
+      "gameName": "洛克人 11",
+      "gameFullName": "洛克人 11",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/437f4a79c9144e898cd2027de26e5886.jpg",
+      "description": "《Mega Man》系列最新作登场！ 经精心设计、富有挑战性的2D动作加上精致的图像，最新的王道《Mega Man》回归。新功能「Double-gear System」亦能令游玩体验变得比以往作品更自由和爽快！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 494,
+      "gameId": "56l6mej8",
+      "gameName": "生灵重塑",
+      "gameFullName": "生灵重塑",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260403/653dc2661d9348a9aa2a5877ec55e36c.jpg",
+      "description": "《Little Nightmares™ I \u0026 II》的创作团队回归而来，并为您带来了一段比以往都要更加黑暗、更加恐怖的旅程。在这部恐怖冒险游戏中，一对兄弟姐妹要历经地狱的考验，以拯救失踪的朋友们，并逃离那个他们曾以为家的岛屿。",
+      "categories": [
+        "动作冒险",
+        "休闲解谜"
+      ]
+    },
+    {
+      "gid": 492,
+      "gameId": "397mhr90",
+      "gameName": "刺客信条 黑旗",
+      "gameFullName": "刺客信条 黑旗",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/3d2d847d22b540d786cfaa34de673bb6.jpg",
+      "description": "时值 1715 年，海盗称霸加勒比海，并建立起属于自己的无律法共和国。腐败、贪婪与残暴在此地司空见惯。在这群法外之徒中，有一位鲁莽的年轻船长，他名叫爱德华・肯维。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 491,
+      "gameId": "tyuinc7e",
+      "gameName": "刺客信条 大革命",
+      "gameFullName": "刺客信条 大革命",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/50306538027e49e9aaca16b114558df7.jpg",
+      "description": "巴黎，1789 年。在这款动作冒险游戏中，以阿尔诺·多里安的视角，亲历法国大革命的风云。化身刺客，为拯救祖国，揭穿革命幕后黑手的面纱。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 490,
+      "gameId": "986klekg",
+      "gameName": "铁拳 7",
+      "gameFullName": "铁拳 7",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/4dedb533750f415a898c9c9d50497261.jpg",
+      "description": "揭开三岛家族成员间长年氏族纷争的史诗终章。这款传奇格斗游戏系列借助虚幻引擎 4 重磅回归，带来震撼人心的剧情驱动电影式战斗，以及可与好友和对手同场竞技的激烈对决。",
+      "categories": [
+        "街机格斗",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 489,
+      "gameId": "wxwy93a8",
+      "gameName": "深海迷航 冰点之下",
+      "gameFullName": "深海迷航 冰点之下",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/e298bb23d2b448e9bcdd342afc11e574.jpg",
+      "description": "在外星上，潜入冰冻的水下冒险。《Below Zero》的故事发生在《Subnautica》原作之后的两年。重返4546B行星，揭开致命的掩饰行动背后的真相。建造加压舱，打造工具，在恶劣条件中生存，深潜进入《Subnautica》的世界。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 488,
+      "gameId": "i6lx22go",
+      "gameName": "人类一败涂地",
+      "gameFullName": "人类一败涂地",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/98666e59bb9042c89d69ac7ce4c60eb6.jpg",
+      "description": "《人类一败涂地》是一款轻松搞笑的沙雕游戏，游戏的场景发生在飘渺的梦境之中。玩家既可以单机自闭，也可以最多八人联机一起欢畅。游戏支持的创意工坊，还可以让大家免费玩到不计其数的高质量玩家关卡和皮肤。游戏支持中文。",
+      "categories": [
+        "双人同屏",
+        "休闲解谜"
+      ]
+    },
+    {
+      "gid": 487,
+      "gameId": "2pkmki44",
+      "gameName": "无双大蛇 3",
+      "gameFullName": "无双大蛇 3 蛇魔",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/a016affe482a4df793d4c7f4be9de156.jpg",
+      "description": "在战术动作游戏“無雙OROCHI 蛇魔”系列最新版《無雙OROCHI 蛇魔３》的基础上，追加内容《無雙OROCHI 蛇魔３ Ultimate 升级包》汇集了更多的耐玩要素。 究极的“無雙OROCHI 蛇魔”在此完成！",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 486,
+      "gameId": "plc0nvpn",
+      "gameName": "冰汽时代 2",
+      "gameFullName": "冰汽时代 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260317/4f140466a0174069aff7f5414480fd56.jpg",
+      "description": "《冰汽时代2》设定于末日暴风雪肆虐地球 30 年后的社会。你要在这款社会生存游戏中，发展、扩张并推进你的城市。在游戏中，你不仅要面对来自寒冬永无止境的威胁，还要与议会厅中的不同派系斗智斗勇，他们会时刻监视着你的每一步行动。",
+      "categories": [
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 484,
+      "gameId": "2kepseaa",
+      "gameName": "仁王 3",
+      "gameFullName": "仁王 3",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260208/9dff17c5c012434abc7afdb089e3e30f.jpg",
+      "description": "黑暗战国动作RPG“仁王”系列第三部力作。本作舞台是兼具自由度与紧张感的开放地图，还可自由切换“武士”与“忍者”两种战斗风格挑战各路强敌妖怪。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 471,
+      "gameId": "9yg0ep2l",
+      "gameName": "星球大战 绝地",
+      "gameFullName": "星球大战 绝地 幸存者",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260113/c8180eccd8904501bfc73cdc4c2b31a9.jpg",
+      "description": "在《星球大战 绝地：幸存者™》，这款跨银河系第三人称动作冒险游戏中，卡尔·凯斯提斯的故事仍将继续。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 459,
+      "gameId": "3e0rfjdr",
+      "gameName": "深海迷航",
+      "gameFullName": "深海迷航",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260113/6b36d85c64254aeb80179dd4aedc4b51.jpg",
+      "description": "潜入危机与奇观并存的外星水底世界。打造装备、驾驶潜艇、智取生物，探索繁茂的珊瑚礁、火山、洞穴系统等多样地貌 —— 在步步惊心的探索中挣扎求生。",
+      "categories": [
+        "模拟养成",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 449,
+      "gameId": "56oa8f6d",
+      "gameName": "茶杯头",
+      "gameFullName": "茶杯头",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/8e0a6f5d41b0401e910dfec013a8907c.jpg",
+      "description": "《茶杯头》是一款以BOSS对战为主的经典横版卷轴类射击游戏。受上世纪30年代动画片的启发，游戏无论是画面还是音效都努力再现了当时的技术，如传统的赛璐璐手绘动画、水彩背景还有原声爵士乐录音等。",
+      "categories": [
+        "动作射击",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 432,
+      "gameId": "w3qzxs68",
+      "gameName": "三位一体 5",
+      "gameFullName": "三位一体 5 发条阴谋",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/d211ee49e85e4eeda070e01f8274f7a3.jpg",
+      "description": "《三位一体》系列精彩回归，开启最宏大的冒险！在系列游戏的第五部中，灵魂同体的三位英雄将对抗最残忍奸诈的敌人，粉碎他们控制王国的野心。时间紧迫，快来拯救世界吧！",
+      "categories": [
+        "动作冒险",
+        "休闲解谜",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 431,
+      "gameId": "anxaovpk",
+      "gameName": "三位一体 4",
+      "gameFullName": "三位一体 4 梦魇王子",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/708a2eb639bf4a9e818a5c06bdb29ebc.jpg",
+      "description": "畅销佳作《三位一体》系列重磅回归，再掀 2.5D 魔幻风潮！三位经典英雄再度集结，踏上穿越奇幻童话秘境的冒险征程，誓从梦魇王子的暗影魔爪中拯救世界。",
+      "categories": [
+        "休闲解谜",
+        "动作冒险",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 413,
+      "gameId": "iua8ubsf",
+      "gameName": "胡闹厨房 2",
+      "gameFullName": "胡闹厨房 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/174c5e0914b049b69720f61c99912af6.jpg",
+      "description": "Overcooked 回来了，带着全新的烹饪行动！重返洋葱王国，通过经典的本地合作模式或是在线游戏模式组建多达四人的大厨团队。系好你的围裙……是时候（再一次）拯救这个世界了！",
+      "categories": [
+        "休闲解谜",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 412,
+      "gameId": "nm0s6mm4",
+      "gameName": "胡闹搬家 2",
+      "gameFullName": "胡闹搬家 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/ffcdd24ff0ff4f608068d6bfb911ebba.jpg",
+      "description": "《Moving Out》回来了，并且比之前更古怪，现在还有在线游玩模式！回到 Packmore 利用您的搬家技术在全新的维度与一些旧爱中穿梭。协助重建 Smooth Moves 并成为 F.A.R.T. (家具规划与搬家师傅) 的明星员工！",
+      "categories": [
+        "双人同屏",
+        "休闲解谜"
+      ]
+    },
+    {
+      "gid": 399,
+      "gameId": "9rmuqmiw",
+      "gameName": "不义联盟 2",
+      "gameFullName": "不义联盟 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/6ae1734979874c8291b2711b62618801.jpg",
+      "description": "在《不义联盟 2》中建构以及增强你最喜欢的 DC 传奇终极版本。这是你的传奇、你的征程，你的不义联盟。",
+      "categories": [
+        "街机格斗",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 398,
+      "gameId": "4gu1lek6",
+      "gameName": "真人快打 11",
+      "gameFullName": "真人快打 11",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/1e65c77db7aa41719749aff48252d994.jpg",
+      "description": "《真人快打》经典系列隆重回归，现在就来一睹这叹为观止的新作吧。",
+      "categories": [
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 391,
+      "gameId": "hmm6cifv",
+      "gameName": "师父",
+      "gameFullName": "师父",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/1c8cef9605374b61b742fd38abb61013.jpg",
+      "description": "《Sifu》是一款拳拳到肉的第三人称动作格斗游戏，紧张刺激的功夫打斗机制 以及电影化的武术动作将引领你踏上一段复仇之旅。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 390,
+      "gameId": "0b736h44",
+      "gameName": "使命召唤 二战",
+      "gameFullName": "使命召唤 二战",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260112/1c18fa0de3414330b48b11604568fb61.jpg",
+      "description": "使命召唤®：二战，一种重新定义二战的刺激体验。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 369,
+      "gameId": "gn7tymh1",
+      "gameName": "空之轨迹 the 1st",
+      "gameFullName": "空之轨迹 the 1st",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/9edefb737df2418c8215da0e3de77085.jpg",
+      "description": "剧情RPG“轨迹”系列在 2024 年迎来 20 周年。 具有纪念性意义的系列首部作品《英雄传说 空之轨迹FC》将在完全重制后再次登场！",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 366,
+      "gameId": "p8t7po91",
+      "gameName": "无人深空",
+      "gameFullName": "无人深空",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/15749e584bfb4192975b1708e9f128f3.jpg",
+      "description": "《无人深空》是一款打破边界的科幻游戏，通过创新的随机生成技术，打造了一个无尽宇宙供玩家自由探索，玩家可以穿越星际、挖掘未知星球、建立基地并与神秘外星生物共生，每个探险家都将书写属于自己的宇宙传奇。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 364,
+      "gameId": "zt1xunrr",
+      "gameName": "骑马与砍杀 2 霸主",
+      "gameFullName": "骑马与砍杀 2 霸主",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/81d46de074ea4f6d89e4485d1aeaecde.jpg",
+      "description": "一个策略/动作类角色扮演游戏。创建一个角色，投身中世纪战场，从事外交、锻造、贸易和征服新的土地。集结你的军团奔赴战场，在大规模实时战斗中体验深奥但又直观的基于技能的战斗系统，与你忠诚的战士们并肩作战、取得胜利。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 363,
+      "gameId": "e3p022gj",
+      "gameName": "寂静岭 2",
+      "gameFullName": "寂静岭 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/506318452a2843dba94b351225350293.jpg",
+      "description": "收到已过世的妻子玛丽寄来的信，詹姆斯借机来到充满回忆的城镇「寂静岭」。 但是市街却深锁于浓雾之中，变成诡异生物徘徊的鬼城。 和怪物战斗并解谜的同时，在城镇中探索妻子蛛丝马迹的『SILENT HILL 2』重制版作品。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 362,
+      "gameId": "cg7qqm5t",
+      "gameName": "碧蓝幻想 Relink",
+      "gameFullName": "碧蓝幻想 Relink",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/84e97228f85948c5979226ebe67fcc3b.jpg",
+      "description": "可4人联机！实打实的ARPG！ 大量动作风格独特的游戏角色将登场。玩家可操作各自的角色接连发动攻击，4人联合发动“连锁攻击”“奥义连锁”，华丽地击溃敌人吧！ 本作除构思巧妙的对战及个性化的养成系统以外，还有可根据玩家技术设置的辅助功能，即便是新手玩家也可轻松上手！ 和朋友一起组队，体验冒险与对战吧！",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 356,
+      "gameId": "fl8sl51h",
+      "gameName": "寂静岭 f",
+      "gameFullName": "寂静岭 f",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/9682eef878b5420092170660aec999b1.jpg",
+      "description": "主人公是居住在群山环绕的日本乡村小镇·戎之丘的高中生·深水雏子。 她的日常生活因为神秘白色“怪物”的出现突然崩塌。 她一边在面目全非的熟悉小镇中探索、战斗、解谜，一边迎来属于她的“结局”。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 355,
+      "gameId": "5puox2wp",
+      "gameName": "魂斗罗 加鲁加行动",
+      "gameFullName": "魂斗罗 加鲁加行动",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260109/a5c3549ec7294242abc786909b943868.jpg",
+      "description": "经典魂斗罗系列的最新作品终于登场了！ 本作品是1980年代一经发售就获得广大支持的初代【魂斗罗】的完全重制版。 通过强化武器系统、增加游戏机制、加入新的敌人和关卡等一系列的升级，使经典的魂斗罗释放出更有魅力的光彩。 快来更广阔的『魂斗罗世界』中展开的新剧情吧！ 经典的正统魂斗罗，登场！！",
+      "categories": [
+        "双人同屏",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 350,
+      "gameId": "av8920bn",
+      "gameName": "刺客信条 奥德赛",
+      "gameFullName": "刺客信条 奥德赛",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/f7e03a630db84f11b5a147a87eb75956.jpg",
+      "description": "在这款动作冒险游戏中，扬帆驶向古希腊，改变这个国度的命运。陆海激战，从流浪者蜕变成传奇人物，找出自己过往的秘密。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 345,
+      "gameId": "ceb1nk2k",
+      "gameName": "双截龙再临",
+      "gameFullName": "双截龙再临",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/9898caf3b9224654afc426acd548e5ac.jpg",
+      "description": "曾风靡全世界的\"双截龙\"，如今复活了！",
+      "categories": [
+        "动作冒险",
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 344,
+      "gameId": "7ebf26ag",
+      "gameName": "兄弟 双子传说",
+      "gameFullName": "兄弟 双子传说 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/d3a48c9fcf8c4af1a26de12affbb9dde.jpg",
+      "description": "引领两兄弟展开史诗般的奇幻之旅，去探索，去冒险，并享受全方位升级的最新图形技术、性能表现和游戏玩法。 可单人游玩，也可以与朋友本地合作。 一次冒险，一生难忘。",
+      "categories": [
+        "休闲解谜",
+        "双人同屏",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 342,
+      "gameId": "oyuv28xx",
+      "gameName": "神力科莎 EVO",
+      "gameFullName": "神力科莎 EVO",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/6d231746466a409397dbe7226dbf4813.jpg",
+      "description": "作为有史以来最受欢迎的多平台驾驶模拟游戏的续作，《神力科莎EVO》将刷新真实性与游戏功能的定义。与前作一样，《神力科莎EVO》将包含历史上多种不同年代、不同等级的车型与赛道。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 339,
+      "gameId": "kcduqms4",
+      "gameName": "死亡搁浅",
+      "gameFullName": "死亡搁浅 导演剪辑版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/7cd7155008d24dc985e56e6d05fd8ba0.jpg",
+      "description": "知名游戏制作人小岛秀夫为大家带来了一种颠覆传统的体验，现在这种体验在此导演剪辑版的最终版本中加以扩展。玩家将扮演山姆·布里奇斯（Sam Bridges），你的任务就是将这残破的美国中最后的幸存者们联合起来，为人类带来希望。你能一步一步地将这破碎的世界重新连接起来吗？",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 335,
+      "gameId": "mm12p0np",
+      "gameName": "匹诺曹的谎言",
+      "gameFullName": "匹诺曹的谎言",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/9602b1fcddbb4b98b52e3d0973d59914.jpg",
+      "description": "《Lies of P》是一款精彩刺激的魂类游戏，灵感源于《匹诺曹》的故事，风格颠覆原作，游戏设定在“美好时代”的暗黑优雅背景之下。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 330,
+      "gameId": "avcyrt6w",
+      "gameName": "看门狗 2",
+      "gameFullName": "看门狗 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/dc1e2a53d3404cd0b963ec2b84682e96.jpg",
+      "description": "欢迎来到技术革命的起源地：旧金山。扮演年轻的聪明黑客马可仕（Marcus），加入最恶名昭彰的黑客团体 DedSec。你的目标：执行史上最大规模的黑客行动。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 329,
+      "gameId": "319zg2qv",
+      "gameName": "孤岛惊魂 6",
+      "gameFullName": "孤岛惊魂 6",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/3f8026317f46406ea082bc688d88b5ee.jpg",
+      "description": "进入令人肾上腺素狂飙的现代游击战世界。这里有着壮丽的风景，紧张刺激且充满挑战的枪战，以及丰富多彩的游戏体验，现在正是加入战斗的最佳时机。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 319,
+      "gameId": "xn2pqj7y",
+      "gameName": "天国 拯救 2",
+      "gameFullName": "天国 拯救 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/8bf81227ecec40d89f593929e05a1f95.jpg",
+      "description": "走进 15 世纪的欧洲，体验丰富多彩的开放世界，畅玩这款精彩的叙事驱动型角色扮演游戏，开启究极中世纪冒险，扮演年轻的亨利，踏上一场史诗级的旅程。",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 316,
+      "gameId": "2brzeh9v",
+      "gameName": "神秘海域 合辑",
+      "gameFullName": "神秘海域 盗贼传奇合辑",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/9f07256cd2584717bb3def794c99da5c.jpg",
+      "description": "化身为内森·德雷克和克罗伊·弗雷泽，在他们各自的冒险旅程中面对过去、创造自己的未来。《UNCHARTED: 盗贼传奇合辑》包含广受欢迎，来自《秘境探险 4：盗贼末路》与《秘境探险：失落的遗产》的单人故事剧情。",
+      "categories": [
+        "动作射击",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 315,
+      "gameId": "8p7sgnk3",
+      "gameName": "麻布仔大冒险",
+      "gameFullName": "麻布仔大冒险",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/fb04875789d7484b8b727d31d10eff0f.jpg",
+      "description": "专为PC打造 PlayStation®的代表性英雄“麻布仔”将在PC上展开一场大型3D多人平台冒险。充满各种平台挑战的史诗级旅程。 深度沉浸式的控制方式。 趣味无穷、各显神通的协作式多人游戏。",
+      "categories": [
+        "双人同屏",
+        "动作冒险",
+        "休闲解谜"
+      ]
+    },
+    {
+      "gid": 314,
+      "gameId": "8b985npd",
+      "gameName": "瑞奇与叮当 时空跳转",
+      "gameFullName": "瑞奇与叮当 时空跳转",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/23755e1b28744f7398a418b86ecb74e7.jpg",
+      "description": "与瑞奇和叮当一起开启火力十足的空间穿越冒险之旅，现已登陆PC！对抗来自另一个世界的邪恶统治者。以超乎想象的速度在充满刺激战斗的世界间穿梭！",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 313,
+      "gameId": "h6crvfns",
+      "gameName": "对马岛之魂",
+      "gameFullName": "对马岛之魂 导演剪辑版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/8841df9bfa1f45579e11a97264463768.jpg",
+      "description": "风暴将至，在PC上体验完整的《Ghost of Tsushima导演剪辑版》，在这场开放世界动作冒险中开辟自己的道路，发现隐藏的奇景。本游戏由Sucker Punch Productions、Nixxes Software和PlayStation Studios为您呈现。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 312,
+      "gameId": "t8qoce7p",
+      "gameName": "战神 诸神降临",
+      "gameFullName": "战神 诸神降临",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/55076123971b44aa9a0292ab25840535.jpg",
+      "description": "在诸神黄昏降临前，奎托斯与阿特柔斯一同踏上寻找答案的神话之旅——已登陆PC。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 311,
+      "gameId": "o179nimg",
+      "gameName": "战神",
+      "gameFullName": "战神",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/c9b70b058b164f84913c61c611d8a398.jpg",
+      "description": "奎托斯复仇奥林匹斯众神的往事已尘封多年，他现在以凡人的身份生活在北欧众神和怪物环伺的领土中。在这片极寒荒芜的土地上，唯有战斗方能生存……他如是教育其子。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 310,
+      "gameId": "paqqbu61",
+      "gameName": "漫威蜘蛛侠 2",
+      "gameFullName": "漫威蜘蛛侠 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/33b7390deaed4cb1887b46b6bae2b43a.jpg",
+      "description": "Be Greater. Together. 在广受好评的《Spider-Man》续作PC版的全新激动人心的篇章中，共生体的惊人力量迫使彼得·帕克和迈尔斯·墨拉莱斯身陷绝望的战斗之中，与此同时，他们也要在自己的生活、友谊和保护需要帮助的人的责任之间取得平衡。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 309,
+      "gameId": "mcm38jk0",
+      "gameName": "漫威蜘蛛侠 迈尔斯",
+      "gameFullName": "漫威蜘蛛侠 迈尔斯",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/fea8faadceed4c2f8ceda92348f834be.jpg",
+      "description": "在《漫威蜘蛛侠》重制版发生的事件过后，少年迈尔斯·墨拉莱斯一边努力适应新家的生活，一边追随导师彼得·帕克的脚步，成为新一代的蜘蛛侠。然而，当一场激烈的权力斗争威胁到他的家园时，迈尔斯必须继承蜘蛛侠的衣钵，扛下这个重责大任。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 308,
+      "gameId": "1kqgk7vj",
+      "gameName": "漫威蜘蛛侠",
+      "gameFullName": "漫威蜘蛛侠 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/38c7f2b1cec947bc9bb3253be2652fce.jpg",
+      "description": "在《Marvel’s Spider-Man Remastered》中，彼得·帕克和蜘蛛侠的世界在动作火爆的原创剧情中碰撞交织。扮演身经百战的彼得·帕克，在漫威宇宙纽约中打击猖獗犯罪，对抗经典反派。蛛丝摆荡，穿梭于充满活力的街区，以炫酷动作把反派打个落花流水。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 307,
+      "gameId": "vy0lozqd",
+      "gameName": "地平线 西之绝境",
+      "gameFullName": "地平线 西之绝境 完整版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/7352c566dabd404d947fbe32b4d9bace.jpg",
+      "description": "体验磅礴巨作《地平线 西之绝境™》完整版，包含额外内容和《炙炎海岸》资料片。 《炙炎海岸》追加内容包含了埃洛伊的冒险之旅的额外内容，包括在一个美丽却危险的新地区展开的全新剧情、角色与游戏体验。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 304,
+      "gameId": "6tcql2fx",
+      "gameName": "最后生还者",
+      "gameFullName": "最后生还者",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/f55d6cb3d6a64506bf64a19f98a74d32.jpg",
+      "description": "探索广受赞誉的游戏《The Last of Us™》，以这款游戏为灵感的同名电视剧同样大获好评。带领乔尔和艾莉穿越末日后的美国，遇见令人难忘的盟友和敌人，踏上一段充满挑战的旅程。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 303,
+      "gameId": "l5sdwspz",
+      "gameName": "最后生还者 2",
+      "gameFullName": "最后生还者 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260108/9cdc5f93b59c43dd9fdf81351ed966e8.jpg",
+      "description": "体验这个荣获超过300项年度最佳游戏奖项肯定的作品，现已登陆PC。通过强化的图形效果、Roguelike生存体验“赴死之旅”等游戏模式以及更多其他内容，探索艾莉和埃比的故事。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 282,
+      "gameId": "2f6v458v",
+      "gameName": "古墓丽影 暗影",
+      "gameFullName": "古墓丽影 暗影",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/8376563162f240feb4a3595a367ff34d.jpg",
+      "description": "劳拉·克劳馥一路狂奔，拯救世界免遭玛雅预言中的天灾摧毁，她终将迎接命运，成长为命中注定的古墓侠盗。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 281,
+      "gameId": "mncyreg8",
+      "gameName": "古墓丽影 崛起",
+      "gameFullName": "古墓丽影 崛起",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/1a1e612c9740416fab89dc08b7d8edce.jpg",
+      "description": "《古墓丽影：崛起》20 周年纪念版包括基础游戏和以全新内容为特色的季票。您可以在全新的“血缘”故事中探索克劳馥庄园，并在“劳拉的梦魇”中保护其免受僵尸入侵。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 264,
+      "gameId": "hlexewox",
+      "gameName": "最终幻想 XII",
+      "gameFullName": "最终幻想 XII 黄道时代",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/9b8bef98b6e24ba09d50c7ba63f2af41.jpg",
+      "description": "FINAL FANTASY XII THE ZODIAC AGE - 这款享有盛名的经典游戏已经过完全重制，新增了全新要素，游戏玩法也得到改良，并首次登PC平台。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 262,
+      "gameId": "gowjlezz",
+      "gameName": "最终幻想 XVI",
+      "gameFullName": "最终幻想 XVI",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260107/bba3fe6626934fa789a602e05f9491d0.jpg",
+      "description": "本作描绘了因拥有强大召唤兽力量的“显化者”而引发战乱的时代，营造出沉重且宏伟壮阔的奇幻世界。追朔主角克莱夫·罗兹菲尔德的一生，在残酷的命运中寻找正义，逼近世界的真相……",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 247,
+      "gameId": "5j868s8g",
+      "gameName": "勇者斗恶龙 XI S",
+      "gameFullName": "勇者斗恶龙XI S 寻觅逝去的时光 - Definitive Edition",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/916447f601524214b4d33cf8b3d08f9b.jpg",
+      "description": "Definitive Edition 包含备受好评的《勇者斗恶龙XI》，外加额外的剧情、管弦乐版的配乐、2D 模式以及更多内容！无论你是忠实的粉丝还是新的冒险家，这都将为你提供终极的《勇者斗恶龙XI》游玩体验。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 238,
+      "gameId": "sqmt2aik",
+      "gameName": "空洞骑士 丝之歌",
+      "gameFullName": "空洞骑士 丝之歌",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/ac43072541644066806106893ef9ee13.jpg",
+      "description": "探索《空洞骑士：丝之歌》中庞大的诅咒王国！在这个由丝线与歌声统治的地下世界中，攀登顶峰的旅途，亦是探索、战斗与生存的考验。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 229,
+      "gameId": "stje9nt2",
+      "gameName": "战地风云 5",
+      "gameFullName": "战地风云 5",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/9334753c852e4cb29c18bb4e7d0cbe11.jpg",
+      "description": "这就是终极《战地风云 5》体验。用完整的武器、载具和配备武器库以及第 1 年和第 2 年最棒的自定义内容体验人类历史上规模最大的冲突。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 225,
+      "gameId": "dfm33vl5",
+      "gameName": "泰坦陨落 2",
+      "gameFullName": "泰坦陨落 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/a7acc74ee59043bd9ff6c4e72353ec5d.jpg",
+      "description": "跃升起始包内含所有数字豪华版内容，让您快速升级和解锁物品，还有 R-201 卡宾枪的地下定制武器皮肤。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 222,
+      "gameId": "yzxacuf5",
+      "gameName": "极品飞车 热力",
+      "gameFullName": "极品飞车 热力",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/46e863cb73bb4524ab0917066a17c2e3.jpg",
+      "description": "白天的喧嚣，夜晚的狂欢，尽在《Need for Speed™ Heat》豪华版，这是一款惊险刺激的街头赛车游戏，随着太阳落山，法律的界限也将逐渐模糊。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 216,
+      "gameId": "zacsfzze",
+      "gameName": "龙腾世纪 影障守护者",
+      "gameFullName": "龙腾世纪 影障守护者",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/2570a0c04bca467797b9d38d0fc2f128.jpg",
+      "description": "在沉浸式单人 RPG 游戏《龙腾世纪™: 影障守护者》中，团结影障守护者，反抗诸神。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 215,
+      "gameId": "qce2lix1",
+      "gameName": "逃出生天",
+      "gameFullName": "逃出生天",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260106/1b90323d06cd4e85b73790e296aed0b9.jpg",
+      "description": "《A Way Out》是场专为合作模式打造的冒险，您将扮演两名囚犯之一，一道从监狱中逃出生天。",
+      "categories": [
+        "双人同屏",
+        "休闲解谜"
+      ]
+    },
+    {
+      "gid": 211,
+      "gameId": "0ewq8aiy",
+      "gameName": "幻想生活 i",
+      "gameFullName": "幻想生活 i 转圈圈的龙和偷取时间的少女",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/99dd249ca46e450ab197027bfb4269c9.jpg",
+      "description": "钓钓鱼，做做菜，建设建设岛屿，去广阔的大地图和伙伴们一起与怪物战斗……踏入这款慢生活角色扮演游戏的幻想世界，自由切换14种各有特色的职业，随心所欲地享受每一次冒险带来的惊喜吧！",
+      "categories": [
+        "角色扮演",
+        "模拟养成"
+      ]
+    },
+    {
+      "gid": 210,
+      "gameId": "pp9s8zjk",
+      "gameName": "闪电十一人",
+      "gameFullName": "闪电十一人 英雄们的胜利之路",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/a0a827500222433ea9d2f7fdc5057796.jpg",
+      "description": "本作是集收集、育成于一体的超次元足球RPG《闪电十一人》系列的最新作。 玩家不仅可以体验围绕新主人公展开的全新剧情，还可以收集、培养超过5400名球员，并在线上比赛中与全世界的玩家们一决高下！",
+      "categories": [
+        "体育竞速",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 208,
+      "gameId": "otfycpd8",
+      "gameName": "星空",
+      "gameFullName": "星空",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/6f8e898cbc7048e9b5b9eb33e2c9e7f3.jpg",
+      "description": "《Starfield》是由载誉无数、曾为大家带来《The Elder Scrolls V: Skyrim》和《Fallout 4》的Bethesda Game Studios睽违25年所打造的第一个全新宇宙。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 207,
+      "gameId": "3ym905lv",
+      "gameName": "夺宝奇兵 古老之圈",
+      "gameFullName": "夺宝奇兵 古老之圈",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/db46b622d33946018b95f48a17337dd5.jpg",
+      "description": "在这款第一人称单人冒险游戏中，探索历史上最伟大的谜团之一吧。1937年，平静的世界下波涛暗涌，邪恶势力正在追寻源自古老之圈的远古力量秘密。唯有一人可以阻止他们——那就是印第安纳·琼斯。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 201,
+      "gameId": "78stsxzj",
+      "gameName": "上古卷轴 V 天际",
+      "gameFullName": "上古卷轴 V 天际",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/bf42df6f3b2743de9ff75d907b19654b.jpg",
+      "description": "荣获超过200项年度游戏大奖的《The Elder Scrolls V: Skyrim》推出特别版，以令人惊叹的细致画面带来史诗奇幻巨作。特别版内含大获好评的主游戏、附加内容，还有全新功能。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 200,
+      "gameId": "j2xqljzc",
+      "gameName": "上古卷轴 IV 湮灭",
+      "gameFullName": "上古卷轴 IV 湮灭 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/04b3ef8c44e749a086a705307f57c6cb.jpg",
+      "description": "体验全新制作的精美画面和悉心改善的游戏系统，在《上古卷轴IV：湮灭重制版》中探索前所未有的西罗帝尔。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 190,
+      "gameId": "r4vbdmnl",
+      "gameName": "忍者龙剑传 3",
+      "gameFullName": "忍者龙剑传 3 刀锋边缘",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/5770167f066b4bb989491a939fe931be.jpg",
+      "description": "超爽快节奏的忍者动作类游戏3合1打包登场！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 189,
+      "gameId": "jtooa0th",
+      "gameName": "忍者龙剑传 Σ2",
+      "gameFullName": "忍者龙剑传 Σ2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/6d94f95373b24401ab68c4fa5a841c54.jpg",
+      "description": "超爽快节奏的忍者动作类游戏3合1打包登场！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 187,
+      "gameId": "75en94fr",
+      "gameName": "卧龙",
+      "gameFullName": "卧龙:苍天陨落",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/4b8f2c8175474b20a881560c6f575d04.jpg",
+      "description": "本作为《仁王》系列开发团队Team NINJA倾情打造的暗黑三国诛死游戏。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 186,
+      "gameId": "hrn4shj5",
+      "gameName": "浪人崛起",
+      "gameFullName": "浪人崛起",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/aa2cc33b787345c7a5c79129d576b717.jpg",
+      "description": "本游戏由曾推出《仁王》和《NINJA GAIDEN》的资深工作室Team NINJA精心打造。进入这款以日本幕末时期为舞台的开放世界动作角色扮演游戏，在19世纪饱受战乱蹂躏的日本，展开一场史诗般的旅程。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 185,
+      "gameId": "687ll6tj",
+      "gameName": "死或生 6",
+      "gameFullName": "死或生 6",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/05c0002276af485e8a079b0143758bb1.jpg",
+      "description": "战略性十足的游戏系统、华丽的必杀技以及别具张力的动作演出、充满个性的角色们，打造出富含魅力的3D对战格斗动作游戏「DEAD OR ALIVE」系列最新作登场！",
+      "categories": [
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 184,
+      "gameId": "4xr1jny9",
+      "gameName": "维纳斯璀璨假期",
+      "gameFullName": "维纳斯璀璨假期",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/74b31f52961645f7ab5d9c8d5213def9.jpg",
+      "description": "在这座岛，怦然心动的每一刻。《DEAD OR ALIVE Xtreme》系列首次以恋爱游戏的形式闪亮登场！与六位可爱动人且魅力四射的女孩进行热恋吧。",
+      "categories": [
+        "模拟养成",
+        "视觉小说"
+      ]
+    },
+    {
+      "gid": 178,
+      "gameId": "dmrlahs4",
+      "gameName": "无双大蛇 2 终极版",
+      "gameFullName": "无双大蛇 2 终极版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/d669769f5c75408bad5fb5a4da391bb9.jpg",
+      "description": "究极的《无双大蛇２》于Steam登场！本作包含《无双大蛇２》的全部内容外，还将加入使故事更有深度的新角色、篇章，以及已于其他平台发布的下载内容等。以如此大量的追加要素来畅玩无双大蛇的世界！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 174,
+      "gameId": "ubxb9nyz",
+      "gameName": "战国无双 5",
+      "gameFullName": "战国无双 5",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260105/ee69a8ab04b24001a3d46678c67a68b8.jpg",
+      "description": "新・战国无双，起动――。战略动作游戏“战国无双”系列阔别7年的新作《战国无双５》，在此登场！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 171,
+      "gameId": "1l047mm7",
+      "gameName": "真・三国无双 起源",
+      "gameFullName": "真・三国无双 起源",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/861483a863e54d4480938fcd86481503.jpg",
+      "description": "如临真实战场，畅享爽快的一骑当千动作！无名英雄闯荡三国乱世的“真・三国无双”系列新作。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 168,
+      "gameId": "a2ze6x1q",
+      "gameName": "我的世界 传奇",
+      "gameFullName": "我的世界 传奇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/c494152f58414ef498fabf4fdcaca96a.jpg",
+      "description": "探索《我的世界：传奇》的奥秘，这是一款新的动作战略游戏。探索一片柔和的土地，这里有丰富的资源和郁郁葱葱的生物群系，濒临毁灭。肆虐的猪灵已经到来，你有责任鼓舞你的盟友们，带领他们进行战略战斗，拯救主世界！",
+      "categories": [
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 167,
+      "gameId": "sh83apmy",
+      "gameName": "我的世界 地下城",
+      "gameFullName": "我的世界 地下城",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/8b718b1d031e40d7884e817db73dbf73.jpg",
+      "description": "在这款以经典的地牢爬行者为灵感、以《我的世界》为背景的动作冒险游戏中杀出一条险象环生的血路！独自挑战地牢，或者和好友一起组队！",
+      "categories": [
+        "休闲解谜",
+        "角色扮演",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 165,
+      "gameId": "nqkc45eu",
+      "gameName": "光环 士官长合集",
+      "gameFullName": "光环 士官长合集",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260313/10addb9311fb40f8a58268684e68d081.jpg",
+      "description": "士官长横跨 6 款游戏的经典英雄旅程，现在合而为一推出 PC 版。无论您是长期支持的粉丝，或是第一次与斯巴达战士 117 打照面，《光环：士官长合集》绝对能满足您，提供最棒的光环体验。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 163,
+      "gameId": "epe8xnhe",
+      "gameName": "极限竞速 地平线 5",
+      "gameFullName": "极限竞速 地平线 5",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/825a57db857d48629632ca4ec9dc1302.jpg",
+      "description": "驾驶世界上最棒的赛车，探索墨西哥生机勃勃的开放世界景观，体验无限的驾驶乐趣。",
+      "categories": [
+        "体育竞速"
+      ]
+    },
+    {
+      "gid": 162,
+      "gameId": "8qjwvnmc",
+      "gameName": "忍者龙剑传 4",
+      "gameFullName": "忍者龙剑传 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/aa372c77a9894a1ca392fbd4676eba3c.jpg",
+      "description": "终极忍者动作冒险游戏系列以新作《NINJA GAIDEN 4》重磅归来！传统与创新完美融合，交织出利落又自由的战斗，顶尖动作游戏在此拉开帷幕。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 155,
+      "gameId": "sdvhcilh",
+      "gameName": "拳皇 XV",
+      "gameFullName": "拳皇 XV",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/c87c992bd74e4922923c98baad3b94ff.jpg",
+      "description": "粉碎！突破想象 突破一切的新生『15』！1994年问世以来，凭借极具魅力的角色与独特新颖的游戏系统，让全世界为之狂热的对战格斗游戏『THE KING OF FIGHTERS（拳皇）』系列。继前作时隔六年，游戏画面、游戏系统、联机功能、突破一切的『拳皇15』完成！",
+      "categories": [
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 144,
+      "gameId": "vs1sjtmd",
+      "gameName": "队长小翼 新秀崛起",
+      "gameFullName": "队长小翼 新秀崛起",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/04f7441415db4487a9ea5915dcc30574.jpg",
+      "description": "「队长小翼 新秀崛起」是以至今依然饱受世界喜爱的动画作品「队长小翼」为题材，加上符合现代风格的影像水准，让所有人都能简单施展超级球技的足球动作游戏。",
+      "categories": [
+        "体育竞速",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 140,
+      "gameId": "i80a9tso",
+      "gameName": "JOJO的奇妙冒险",
+      "gameFullName": "JOJO的奇妙冒险 群星之战 重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260104/eab1e5032743447cbd170a584f2f7298.jpg",
+      "description": "重现了荒木飞吕彦老师所描绘的独特画风的格斗游戏！ 总共集结了50位历代角色，替身、波纹、流法等，在各部中活跃的能力互相对抗！ 只有在本作才能看到的梦幻舞台，在原作中从没相遇的角色间的互动都是此生必看！",
+      "categories": [
+        "街机格斗",
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 128,
+      "gameId": "kis0yu7t",
+      "gameName": "小小梦魇 3",
+      "gameFullName": "小小梦魇 3",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260101/1f65bb73c5c743df8881f099657da071.jpg",
+      "description": "《小小梦魇3》为悬疑冒险游戏。你将循着小洛以及小寂的旅程，寻找一条走出“虚无之地”的路。 与好友线上合作或是与AI同伴一起解谜，逃离这个梦魇般的世界。",
+      "categories": [
+        "动作冒险",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 127,
+      "gameId": "k7tfhga2",
+      "gameName": "小小梦魇 2",
+      "gameFullName": "小小梦魇 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20260101/18e6978fa15646e398f9080867ad1c15.jpg",
+      "description": "在《小小梦魇2》的悬疑冒险旅途中，您将化身为小男孩摩诺，身处在电波笼罩之下，因此变得扭曲的世界里。 与新结交的朋友小六携手合作，揭发讯号塔暗藏的秘密。",
+      "categories": null
+    },
+    {
+      "gid": 116,
+      "gameId": "2nn5smdn",
+      "gameName": "海贼无双 4",
+      "gameFullName": "航海王 海贼无双 4",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/0597dcff89eb4f4093457c13f43f8623.jpg",
+      "description": "海贼无双4是进化后的『ONE PIECE』无双游戏！本作以「拟真的ONE PIECE战场体验」为核心概念，在动作场面中加入建筑物的破坏及烟尘弥漫的效果等，力求再现「ONE PIECE战场」。此外也添加过去的「海贼无双」中从未出现的全新要素，实现前所未有、爽快感十足的『ONE PIECE』无双动作游戏体验！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 112,
+      "gameId": "qeuv5ofz",
+      "gameName": "火影忍者 终极风暴羁绊",
+      "gameFullName": "火影忍者 终极风暴羁绊",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/014cf93353cb494899e0136999d4238e.jpg",
+      "description": "本次新加入数个可游玩角色，收录角色为系列作最多，超过130位忍者在此集合！不但以超越动画水准重新编辑鸣人与佐助的故事，还有本作才玩得到原创故事！动画「火影忍者」20周年的「终极风暴」系列终极版登场！",
+      "categories": [
+        "动作冒险",
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 110,
+      "gameId": "ltikq776",
+      "gameName": "七龙珠 Z 卡卡洛特",
+      "gameFullName": "七龙珠 Z 卡卡洛特",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/9a704ea2e5e444028f719cc1f80f7475.jpg",
+      "description": "《七龙珠Z 卡卡洛特》里可体验到悟空及其他Z战士的故事！除了史诗级的对战外，在七龙珠Z世界里亦可以与悟空、悟饭及贝吉达等等角色进行打斗、钓鱼、用餐及训练。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 109,
+      "gameId": "lhm18avb",
+      "gameName": "七龙珠 电光炸裂",
+      "gameFullName": "七龙珠 电光炸裂！ZERO",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/aaf12f92e54641278a3aa012339fe516.jpg",
+      "description": "“七龙珠 电光炸裂！ZERO”堂堂登场！本作超越“七龙珠Z 电光炸裂！”（即过去“七龙珠Z Sparking!”）到达新的境界。让你拥有毁灭性的力量，成为七龙珠史上最强的战士！",
+      "categories": [
+        "街机格斗",
+        "动作冒险",
+        "双人同屏"
+      ]
+    },
+    {
+      "gid": 102,
+      "gameId": "ylo4uaar",
+      "gameName": "幻兽帕鲁",
+      "gameFullName": "幻兽帕鲁",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/691f46daed2441e585c17b34458b1135.jpg",
+      "description": "在广阔的世界中收集神奇的生物“帕鲁”，派他们进行战斗、建造、做农活，工业生产等，这是一款支持多人游戏模式的全新开放世界生存制作游戏。",
+      "categories": [
+        "模拟养成",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 99,
+      "gameId": "p11vrjx5",
+      "gameName": "黑暗之魂",
+      "gameFullName": "黑暗之魂:重制版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/14bd670991ad4ec08a7520defe063b20.jpg",
+      "description": "有一天，燃起了第一团火。 重新体验话题性、代表性十足的经典游戏。 经过画质提升，将以惊艳的60fps形式呈现，做好重返罗德兰的准备吧。 黑暗灵魂 Remastered包含游戏本体，以及DLC《Artorias of the Abyss》。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 96,
+      "gameId": "m052jpt0",
+      "gameName": "艾尔登法环 黑夜君临",
+      "gameFullName": "艾尔登法环 黑夜君临",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/9b7ffa5bbebc45b29c238184ac369b62.jpg",
+      "description": "《艾尔登法环 黑夜君临》（ELDEN RING NIGHTREIGN）为基于《艾尔登法环》（ELDEN RING）的世界观， 重新构思游戏的核心设计，带给玩家全新体验的衍生作品。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 95,
+      "gameId": "euq0ypuy",
+      "gameName": "艾尔登法环",
+      "gameFullName": "艾尔登法环 黄金树幽影版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/cc2181f76dfa4186ba5cf038dc35b8b3.jpg",
+      "description": "艾尔登法环是以正统黑暗奇幻世界为舞台的动作RPG游戏。 走进辽阔的场景与地下迷宫探索未知，挑战困难重重的险境，享受克服困境时的成就感吧。 不仅如此，登场角色之间的利害关系谱成的群像剧，更是不容错过。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 94,
+      "gameId": "ang80z0j",
+      "gameName": "只狼",
+      "gameFullName": "只狼:影逝二度",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251231/05019473c9e24dffb2b565b525fe6033.jpg",
+      "description": "进入由打造了《黑暗之魂》系列的知名开发商FromSoftware倾力制作的全新冒险，用智慧和力量斩开复仇之路。 决死复仇，夺回荣誉，智杀强敌。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 76,
+      "gameId": "mok294cz",
+      "gameName": "光与影 33号远征队",
+      "gameFullName": "光与影 33号远征队",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/24bb7bc99eca42349573aae8a9978b23.jpg",
+      "description": "率领第33号远征队踏上消灭绘母的征途，竭尽全力夺下她绘就死亡的画刷。置身这款采用即时机制的回合制角色扮演游戏，探索奇妙世界，感受法兰西19世纪末“美好年代”时期的风采，对抗超乎想象的敌人。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 75,
+      "gameId": "9ah3edqc",
+      "gameName": "博德之门 3",
+      "gameFullName": "博德之门 3",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/87e04b25ddea4b199cf4e76545261dc8.jpg",
+      "description": "《博德之门3》是一款以“龙与地下城”世界为背景的、强调故事与队伍冒险体验的角色扮演游戏。你的每一个选择，都会编织出一段关于同伴与背叛、生存与牺牲，以及至上力量诱惑的故事。",
+      "categories": [
+        "角色扮演",
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 72,
+      "gameId": "txuu9dk7",
+      "gameName": "巫师 3 狂猎",
+      "gameFullName": "巫师 3 狂猎",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/fe0463e0d2a649fda92ba6c54b8acfe3.jpg",
+      "description": "您是利维亚的杰洛特，收钱办事的怪物杀手。您可以在眼前这片怪物横行、饱受战火摧残的土地上尽情探索。您手上的委托？追踪预言之子——希里，一件足以改变世界面貌的活生生的武器。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 61,
+      "gameId": "2fk1sy18",
+      "gameName": "人中之龙 6",
+      "gameFullName": "人中之龙 6 生命诗篇",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251230/4f70390d6e504adca8de3fc6d670b009.jpg",
+      "description": "为了家族，何谓“赴汤蹈火”？在这款拳拳到肉的劲爆打斗动作游戏中，走进日本的黑道世界，扮演“传说中的黑道”桐生一马，誓死查出导致女儿陷入昏迷的真相。",
+      "categories": [
+        "动作冒险",
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 47,
+      "gameId": "wacx57xz",
+      "gameName": "暗喻幻想",
+      "gameFullName": "暗喻幻想",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/cd467649b26943648f3e7599b243d3ad.jpg",
+      "description": "《暗喻幻想：ReFantazio》是一款幻想风格RPG游戏，描绘了一位少年被卷入国王遭遇暗杀后突然开始的选举中，成为了新王候选人的命运。您可以自由选择如何度过巡游这个世界的日子，还将利用各种职业和队伍对抗强敌。现在，就让我们开始一场“只能在幻想中实现的现实之旅”吧。",
+      "categories": [
+        "角色扮演"
+      ]
+    },
+    {
+      "gid": 35,
+      "gameId": "32aimt7k",
+      "gameName": "逆转裁判 123",
+      "gameFullName": "逆转裁判 123",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/961634053f494411bdd70b6fb4a7d33a.jpg",
+      "description": "本作是以法庭为舞台的冒险游戏。玩家将扮演律师「成步堂龙一」，为证明委託人的清白而踏上法庭。此精选集收录了作为系列原点的《逆转裁判 復甦的逆转》、《逆转裁判2》和《逆转裁判3》共14话。 ※简繁中文字幕将于发售后以更新包形式追加。",
+      "categories": [
+        "视觉小说",
+        "策略战棋"
+      ]
+    },
+    {
+      "gid": 31,
+      "gameId": "dtl2vq3d",
+      "gameName": "鬼泣 5",
+      "gameFullName": "鬼泣 5",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/b14ed615534d4fb6b96083abaa2bc3d6.jpg",
+      "description": "超华丽的Stylish Action游戏《DMC4》已回归，甚至比以往更好，增加新的操作角色和游戏模式。",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 26,
+      "gameId": "kzymzgkh",
+      "gameName": "生化危机 启示录 2",
+      "gameFullName": "生化危机 启示录 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/f470b87b891b48179b19e3ae89481f00.jpg",
+      "description": "Resident Evil Revelations 2延续系列中广受好评的生存恐怖体验，同时亦揭开背后令人惊讶的真相。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 24,
+      "gameId": "2r94uoq5",
+      "gameName": "生化危机 7",
+      "gameFullName": "生化危机 7",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/301d0639f22d42c0ac44d042886bbb40.jpg",
+      "description": "于美国南部的一间被废置的农舍，腐烂的墙身渗透着一股恐怖及孤独的氛围。 「7」标志着全新的恐怖求生体验，以及玩家视觉切换为更骇人的「隔离视觉」模式。有赖RE工程部的努力，恐怖的写实感提升至一个全新的境界。让你进入恐怖求生的新世界。",
+      "categories": [
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 20,
+      "gameId": "mxy5ueuj",
+      "gameName": "生化危机 3",
+      "gameFullName": "生化危机 3",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/e83b9538fcaf459abd8f5bf1a069cfd4.jpg",
+      "description": "不管逃到哪里也会被追至绝路。 浣熊市发生突如其来的生物灾害，更为危险的武器被投入到这个逐渐毁灭的城镇中…… 多重的危机，九死一生的惊险动作和重新构建的逃生剧情，一切超乎你的想象。 你能逃离这片绝望吗？",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 19,
+      "gameId": "icuedm7x",
+      "gameName": "生化危机 2",
+      "gameFullName": "生化危机 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/3637bde31de04f18a97fc471f9da9bf8.jpg",
+      "description": "一切都凌驾于玩家的想像之上。 一场生化灾难於1998年9月袭击了浣熊市，从残害幸存者的丧尸地狱中生还吧。 无尽的刺激、引人入胜的故事和无法想像的恐怖正在等候你。 见证系列首屈一指的杰作──《Resident Evil 2》的重生吧。 別被这场惨剧吞噬。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 13,
+      "gameId": "xx2oewhm",
+      "gameName": "怪物猎人 崛起",
+      "gameFullName": "怪物猎人 崛起",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251229/7b0a75d962634337bffe2ce651e68a6f.jpg",
+      "description": "蓬勃跃动的狩猎本能！ 为狩猎掀起全新风潮、无拘无束尽情跃动的动作；可随心所欲四下驰骋的全新原野；以及能带来未知的兴奋与惊喜的全新怪物。 前所未有的狩猎体验正在《MONSTER HUNTER RISE》中等候各位猎人的到来！",
+      "categories": [
+        "动作冒险"
+      ]
+    },
+    {
+      "gid": 10,
+      "gameId": "ci8mzhdv",
+      "gameName": "街霸 V",
+      "gameFullName": "街霸 V",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/3cc51f75f5244281b1b1824ae443fe0b.jpg",
+      "description": "体验Street Fighter® V紧张、激烈的一对一格斗！有16个标志性角色可供选择，与好友进行联机或离线对战，备有各种健全的比赛选项。",
+      "categories": [
+        "双人同屏",
+        "街机格斗"
+      ]
+    },
+    {
+      "gid": 9,
+      "gameId": "u0b9utqi",
+      "gameName": "狭盗猎车手 圣安地烈斯",
+      "gameFullName": "狭盗猎车手 圣安地烈斯 增强版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/6e76aa9103784ffdaca47e3f338958b3.jpg",
+      "description": "Grand Theft Auto: San Andreas：现在是 90 年代初期。在一群贪污腐败的警察诬陷他犯下了谋杀罪后，“CJ”卡尔·约翰逊被迫踏上横跨整个圣安地列斯州的旅程，试图挽救他的家庭并掌控街头。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 7,
+      "gameId": "pyylfdea",
+      "gameName": "侠盗猎车手 III",
+      "gameFullName": "侠盗猎车手 III 增强版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/51ed7872623b4bd9968d08b440aeab05.jpg",
+      "description": "欢迎来到自由市，一切的起点。伴随着革命性的自由度提升，您想去哪便去哪、想偷谁便偷谁。在 Grand Theft Auto III 中，整个地下犯罪世界的中心尽在您的指尖，只看您有没有胆子将它揽入掌中。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 6,
+      "gameId": "icsovoe9",
+      "gameName": "荒野大镖客 2",
+      "gameFullName": "荒野大镖客 2",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/2bb0b7b86e724fd89d8994c10ca6057d.jpg",
+      "description": "亚瑟·摩根和范德林德帮众是一群逃亡在外的亡命之徒。联邦侦探和赏金猎人在他们的身后穷追不舍，亚瑟一行人必须在广袤蛮荒的腹地上四处劫掠、挣扎求生。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 5,
+      "gameId": "h2onusxp",
+      "gameName": "荒野大镖客",
+      "gameFullName": "荒野大镖客",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/1b1b0e7f8fb544c2b4b140a2df2a2df8.jpg",
+      "description": "广受好评的 Red Dead Redemption 2 的前作首次登陆 PC 平台，在这款游戏中体验前亡命之徒约翰·马斯顿追捕臭名昭著的范德林德帮最后残余成员的故事。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    },
+    {
+      "gid": 4,
+      "gameId": "m4ceuzom",
+      "gameName": "侠盗猎车手 V",
+      "gameFullName": "侠盗猎车手 V 增强版",
+      "coverUrl": "https://res1.yunshungame.com/imgs/20251227/37ffbfa2066c483cb79eca9402a77b2a.jpg",
+      "description": "体验娱乐业轰动一时的 Grand Theft Auto V 和 Grand Theft Auto 在线模式：现已更新换代，拥有震撼的视觉效果、更快的加载速度、3D 音效及更多内容，另有为 GTA 在线模式玩家提供的独家内容。",
+      "categories": [
+        "动作冒险",
+        "动作射击"
+      ]
+    }
+  ]
+}
