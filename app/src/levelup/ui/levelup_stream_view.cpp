@@ -208,6 +208,14 @@ std::pair<int, int> LevelUpStreamView::detectTargetResolution() const {
 }
 
 void LevelUpStreamView::startSession() {
+#if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
+    if (m_renderer) {
+        m_renderer->invalidateHardwareResources();
+        m_renderer.reset();
+    }
+    AVFrameHolder::instance().cleanup();
+#endif
+
     auto [tw, th] = detectTargetResolution();
     m_targetWidth = tw;
     m_targetHeight = th;
