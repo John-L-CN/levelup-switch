@@ -7,6 +7,8 @@ IMAGE_NAME="${IMAGE_NAME:-levelup-switch-devkita64:latest}"
 BASE_IMAGE="${BASE_IMAGE:-devkitpro/devkita64:latest}"
 BUILD_DIR="${BUILD_DIR:-build/switch}"
 STRIP_RESOURCES_FONT="${STRIP_RESOURCES_FONT:-0}"
+LEVELUP_ENABLE_WEBRTC="${LEVELUP_ENABLE_WEBRTC:-1}"
+LEVELUP_SWITCH_DEPS_PREFIX="${LEVELUP_SWITCH_DEPS_PREFIX:-${REPO_ROOT}/build/deps/switch}"
 
 cd "${REPO_ROOT}"
 
@@ -23,7 +25,16 @@ if [[ "${STRIP_RESOURCES_FONT}" == "1" && -d "${REPO_ROOT}/resources/font" ]]; t
     rm -rf "${REPO_ROOT}/resources/font"
 fi
 
-echo ">>> Cross-compiling Switch 1 NRO in ${BUILD_DIR} using ${IMAGE_NAME}"
+CMAKE_WEBRTC_FLAGS="-DLEVELUP_ENABLE_WEBRTC=OFF"
+if [[ "${LEVELUP_ENABLE_WEBRTC}" == "1" ]]; then
+    if [[ ! -f "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libdatachannel.a" ]]; then
+        echo ">>> Missing libdatachannel.a at ${LEVELUP_SWITCH_DEPS_PREFIX}/lib; running build_switch1_deps.sh"
+        bash "${SCRIPT_DIR}/build_switch1_deps.sh"
+    fi
+    CMAKE_WEBRTC_FLAGS="-DLEVELUP_ENABLE_WEBRTC=ON -DLEVELUP_SWITCH_DEPS_PREFIX=/workspace/build/deps/switch"
+fi
+
+echo ">>> Cross-compiling Switch 1 NRO in ${BUILD_DIR} using ${IMAGE_NAME} (LEVELUP_ENABLE_WEBRTC=${LEVELUP_ENABLE_WEBRTC})"
 docker run --rm \
     -u "$(id -u):$(id -g)" \
     -e HOME=/tmp \
@@ -34,8 +45,8 @@ docker run --rm \
     bash -lc '
         set -euo pipefail
         git config --global --add safe.directory "*"
-        cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON || true
-        cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON
+        cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON '"${CMAKE_WEBRTC_FLAGS}"' || true
+        cmake -B "'"${BUILD_DIR}"'" -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DUSE_DEKO3D=ON '"${CMAKE_WEBRTC_FLAGS}"'
         make -C "'"${BUILD_DIR}"'" Moonlight.nro -j"$(nproc)"
     '
 

@@ -41,6 +41,10 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 #include "MoonlightSession.hpp"
 #include "SwitchMoonlightSessionDecoderAndRenderProvider.hpp"
 
+#ifdef LEVELUP_ENABLE_WEBRTC
+#include "levelup/webrtc_probe.hpp"
+#endif
+
 
 #if defined(_WIN32) && defined(__SDL2__)
 #include <SDL.h>
@@ -141,6 +145,10 @@ int main(int argc, char* argv[]) {
         brls::Logger::error("Unable to init Borealis application");
         return EXIT_FAILURE;
     }
+
+#ifdef LEVELUP_ENABLE_WEBRTC
+    levelup::logWebRtcBuildProbe();
+#endif
 
     registerDeepLinkHandler();
 

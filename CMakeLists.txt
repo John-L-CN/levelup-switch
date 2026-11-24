@@ -10,6 +10,9 @@ include(${EXTERN_PATH}/cmake/commonOption.cmake)
 option(USE_SHARED_LIB "Whether to use shared libs provided by system" OFF)
 cmake_dependent_option(USE_SYSTEM_FMT "" OFF "NOT USE_SHARED_LIB" ON)
 cmake_dependent_option(USE_SYSTEM_TINYXML2 "" OFF "NOT USE_SHARED_LIB" ON)
+option(LEVELUP_ENABLE_WEBRTC "Build Switch 1 with LevelUp libdatachannel WebRTC stack" OFF)
+set(LEVELUP_SWITCH_DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/switch"
+    CACHE PATH "Prefix containing cross-compiled Switch 1 MbedTLS 3 + libdatachannel")
 
 if (APPLE AND PLATFORM_DESKTOP)
     option(BUNDLE_MACOS_APP "Bundle a app for macOS" ON)
@@ -163,6 +166,14 @@ if (USE_MBEDTLS_CRYPTO)
     if (MOONLIGHT_APPLE_MOBILE_USE_MULTI_SDK)
         set(MBEDTLS_INCLUDE_DIRS "${MOONLIGHT_APPLE_MOBILE_VCPKG_INCLUDE_DIR}")
         moonlight_define_multi_sdk_mbedtls_targets()
+    elseif (PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2 AND LEVELUP_ENABLE_WEBRTC)
+        find_package(MbedTLS CONFIG REQUIRED
+            PATHS "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/cmake/MbedTLS"
+            NO_DEFAULT_PATH)
+        set(MBEDTLS_INCLUDE_DIRS "${LEVELUP_SWITCH_DEPS_PREFIX}/include")
+        set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON)
+        set(CMAKE_C_FLAGS "-I${LEVELUP_SWITCH_DEPS_PREFIX}/include ${CMAKE_C_FLAGS}")
+        set(CMAKE_CXX_FLAGS "-I${LEVELUP_SWITCH_DEPS_PREFIX}/include ${CMAKE_CXX_FLAGS}")
     else ()
         find_package(MbedTLS REQUIRED COMPONENTS crypto tls x509)
     endif ()
@@ -212,6 +223,12 @@ file(GLOB MAIN_SRC CONFIGURE_DEPENDS
     app/src/streaming/switch/*.cpp
     app/src/views/*.cpp
     app/src/utils/*.cpp)
+
+if (LEVELUP_ENABLE_WEBRTC)
+    file(GLOB LEVELUP_SRC CONFIGURE_DEPENDS
+        app/src/levelup/*.cpp)
+    list(APPEND MAIN_SRC ${LEVELUP_SRC})
+endif ()
 
 if (MOONLIGHT_APPLE_MOBILE_USE_MULTI_SDK)
     list(APPEND APP_PLATFORM_INCLUDE "${MOONLIGHT_APPLE_MOBILE_VCPKG_INCLUDE_DIR}")
@@ -524,8 +541,38 @@ target_compile_options(${PROJECT_NAME} PRIVATE
         ${APP_PLATFORM_OPTION})
 
 if(PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2)
-    target_include_directories(${PROJECT_NAME} PRIVATE
+    if (LEVELUP_ENABLE_WEBRTC)
+        set(_levelup_ffmpeg_inc "${CMAKE_CURRENT_BINARY_DIR}/switch-ffmpeg-include")
+        file(MAKE_DIRECTORY "${_levelup_ffmpeg_inc}")
+        foreach (_ffmpeg_dir IN ITEMS libavcodec libavformat libavutil libswresample)
+            if (NOT EXISTS "${_levelup_ffmpeg_inc}/${_ffmpeg_dir}")
+                file(CREATE_LINK
+                    "${CMAKE_CURRENT_SOURCE_DIR}/lib/switch/include/${_ffmpeg_dir}"
+                    "${_levelup_ffmpeg_inc}/${_ffmpeg_dir}"
+                    SYMBOLIC
+                    RESULT _ffmpeg_link_res)
+                if (NOT _ffmpeg_link_res EQUAL 0)
+                    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/lib/switch/include/${_ffmpeg_dir}"
+                        DESTINATION "${_levelup_ffmpeg_inc}")
+                endif ()
+            endif ()
+        endforeach ()
+        target_include_directories(${PROJECT_NAME} BEFORE PRIVATE
+            "${LEVELUP_SWITCH_DEPS_PREFIX}/include"
+            "${_levelup_ffmpeg_inc}"
+        )
+    else ()
+        target_include_directories(${PROJECT_NAME} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/lib/switch/include
+        )
+    endif ()
+endif ()
+
+if (LEVELUP_ENABLE_WEBRTC)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LEVELUP_ENABLE_WEBRTC=1)
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/src/levelup
     )
 endif ()
 
@@ -679,7 +726,7 @@ else ()
 endif ()
 
 # Recompiled CURL with Mbedtls support for Switch
-if(PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2)
+if(PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2 AND NOT LEVELUP_ENABLE_WEBRTC)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/switch/libcurl.a)
 elseif (MOONLIGHT_APPLE_MOBILE_USE_MULTI_SDK)
     target_link_libraries(${PROJECT_NAME} PRIVATE curl)
@@ -701,11 +748,28 @@ else ()
     target_link_libraries(${PROJECT_NAME} PRIVATE mdns)
 endif ()
 
+if (PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2 AND LEVELUP_ENABLE_WEBRTC)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+            "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libdatachannel.a"
+            "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libusrsctp.a"
+            "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libjuice.a"
+            "${LEVELUP_SWITCH_DEPS_PREFIX}/lib/libsrtp2.a")
+endif ()
+
 if (USE_MBEDTLS_CRYPTO)
     target_link_libraries(${PROJECT_NAME} PRIVATE
             MbedTLS::mbedtls
             MbedTLS::mbedx509
             MbedTLS::mbedcrypto)
+    if (TARGET MbedTLS::p256m)
+        target_link_libraries(${PROJECT_NAME} PRIVATE MbedTLS::p256m)
+    endif ()
+    if (TARGET MbedTLS::everest)
+        target_link_libraries(${PROJECT_NAME} PRIVATE MbedTLS::everest)
+    endif ()
+    if (PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2 AND LEVELUP_ENABLE_WEBRTC)
+        target_link_libraries(${PROJECT_NAME} PRIVATE nx m)
+    endif ()
 else ()
     target_link_libraries(${PROJECT_NAME} PRIVATE
             OpenSSL::SSL

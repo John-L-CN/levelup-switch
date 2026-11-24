@@ -18,7 +18,7 @@ Nintendo Switch 1 (Horizon OS / Atmosphere + libnx) 原生 **LevelUp 云游戏�
 ## 开发里程碑 / Milestones
 
 - [x] **M0（工具链基线）**：基于 `devkitpro/devkita64:latest` Docker 工具链拉通 Switch 1 `Moonlight-Switch` 原生 `.nro` 交叉编译与 `NRO0` 产物校验
-- [ ] **M1（WebRTC 库交叉编译）**：交叉编译 `libdatachannel`（`libjuice` / `libsrtp` / `usrsctp` / `mbedtls`）为 `aarch64-none-elf` 静态库并集成进 CMake
+- [x] **M1（WebRTC 库交叉编译）**：交叉编译 `libdatachannel`（`libjuice` / `libsrtp` / `usrsctp` / `mbedtls 3.6.2`）为 `aarch64-none-elf` 静态库并集成进 CMake
 - [ ] **M2（信令与调度层打通）**：实现 LevelUp HTTPS API、YTCX `/v3/union/apply`、BE Protobuf WebSocket 与边缘 `/launch`
 - [ ] **M3（Switch NVDEC 硬解出图出声）**：接通 `libdatachannel` H.264 RTP 重组 → `switch-ffmpeg` NVDEC 硬解 + `deko3d` 渲染 + `Opus` 音频输出 + `cmd=37` 保活
 - [ ] **M4（原生手柄与触屏控制）**：接入 `libnx padUpdate` + `AllocVPad` + 46 字节手柄控制包 + `control` DataChannel 握手与 `1537` 心跳
@@ -38,13 +38,17 @@ cd levelup-switch
 git submodule update --init --recursive extern/borealis extern/moonlight-common-c extern/CImg extern/mdns
 ```
 
-### 2. 使用 Docker `devkitpro/devkita64:latest` 编译 `.nro`
+### 2. 使用 Docker `devkitpro/devkita64:latest` 交叉编译依赖与 `.nro`
 
 ```bash
+# （可选单独运行）拉取并应用 Horizon OS 补丁，交叉编译 MbedTLS 3.6.2 + libdatachannel 静态库
+bash scripts/build_switch1_deps.sh
+
+# 编译 Switch 1 .nro（首次缺少静态库时会自动调用 build_switch1_deps.sh）
 bash scripts/build_switch1_docker.sh
 ```
 
-脚本会自动构建派生镜像 `levelup-switch-devkita64:latest`（移除与 `moonlight-common-c` 内置 `enet` 冲突的 `switch-enet`），执行两遍 CMake 配置与并行编译，并在成功后输出：
+脚本会自动构建派生镜像 `levelup-switch-devkita64:latest`（移除与 `moonlight-common-c` 内置 `enet` 冲突的 `switch-enet`），将 MbedTLS 3.6.2 与 `libdatachannel`（含 `libjuice` Horizon 默认路由探测与数值 candidate 修复、`libsrtp2`、`usrsctp`）静态库安装至 `build/deps/switch/`，执行两遍 CMake 配置与并行编译，并在成功后输出：
 
 - `build/switch/Moonlight.nro`（已校验 `NRO0` 魔数头）
 - `build/switch/Moonlight.elf`

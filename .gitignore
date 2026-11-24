@@ -15,6 +15,7 @@ __pycache__/
 
 # LevelUp-Switch additions
 !scripts/build_switch1_docker.sh
+!scripts/build_switch1_deps.sh
 config.json
 recent_*.json
 *.key
