@@ -118,7 +118,7 @@
 - 关键入参字段：
   - `gid=pkgName`, `userId=realUserID`, `flowId`, `aSessionId`, `vSessionId`, `cSessionId`, `deviceId`
   - `desiredWidth`, `desiredHeight`, `decoderHeightLimited=2160`, `maxFps=60`
-  - `videoLevel=3`, `bitrateGuidanceAdjustMode=1` (`VQ_FIRST`), `clientSupportHevc=0`, `clientType="switch-handheld"`
+  - `videoLevel=3`, `bitrateGuidanceAdjustMode=1` (`VQ_FIRST`), `clientSupportHevc=0`, `clientType="switch-handheld"`, `vibration=true`
   - `supportVideoCodecProfiles=[4096, 8192, 1, 2, 4]`, `supportCodecs=[0, 1]`, `enableSEIInfo=1`
 - 返回关键字段：`webrtcSignalingPort`, `encodedWidth`, `encodedHeight`, `remoteAddr`, `supportInputLabelList`。
 
@@ -259,3 +259,4 @@ offset 8..  : inner[innerLen]
 | `12..13` | 2 | `u16le(highFreq)` | 高频马达强度（`0..255`） |
 
 - **实现建议**：Switch `hidSendVibrationValues` 请做异步合批限频（~60Hz）后再投递、不要同步阻塞 DataChannel 收包线程；收到 `(0, 0)` 立即停震，并加 2~3 秒无新震动包自动归零兜底与退出停震。
+- **Switch HD Rumble 比例驱动铁律**：云端 `0..255` 强度应按 `v <= 255 ? v * 257 : v`（或 `/ 255.0f` 归一化到 `0.0f..1.0f`）缩放。**严禁直接调用 Borealis 自带 `SwitchInputManager::sendRumbleInternal()`**（该函数存在把 `amp_low/amp_high` 硬编码写成 `320.0f` 的缺陷，会被 Horizon 限幅为满幅二值震动）。应直接调用 `libnx` `hidInitializeVibrationDevices` + `hidSendVibrationValues`，以比例振幅 `amp_low = clamp(low_norm * scale, 0.0f, 1.0f)`（`freq_low = 160.0f`）、`amp_high = clamp(high_norm * scale, 0.0f, 1.0f)`（`freq_high = 320.0f`）分别驱动掌机（`HidNpadIdType_Handheld`，双通道）与无线/底座主手柄（`HidNpadIdType_No1`，Pro / JoyDual）。

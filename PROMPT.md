@@ -22,7 +22,9 @@
 ## 2. 目标功能（MVP 到完整版）
 1. **视频**：Tegra X1 **NVDEC 硬件解码 + VIC 色彩转换 + deko3d/GLES 上屏**（Docked 模式默认申请 `1920x1080` @ 60fps，Handheld 模式 `1280x720` @ 60fps；CPU 软解禁止作为主路径）。
 2. **音频**：WebRTC `audio/opus` 48kHz 立体声 → `libopus` 解码 → `audren` / `SDL2_audio` 低延迟播放。
-3. **输入**：`libnx padUpdate` 读取 Joy-Con / Pro Controller 按键、摇杆、ZL/ZR 扳机与触屏事件 → 映射为 46 字节 YTCX 手柄包通过 `control` DataChannel 发送（**注意 Switch 物理 ABXY 天生已是 Nintendo 语义布局，无需 Xbox→Nintendo 反转**）。
+3. **输入与震动**：
+   - `libnx padUpdate` 读取 Joy-Con / Pro Controller 按键、摇杆、ZL/ZR 扳机与触屏事件 → 映射为 46 字节 YTCX 手柄包通过 `control` DataChannel 发送（**注意 Switch 物理 ABXY 天生已是 Nintendo 语义布局，无需 Xbox→Nintendo 反转**）。
+   - 解析云端 `control` 通道下行 `type=518, sub=31`（14 字节 LE）震动包，通过独立异步合批线程（~60Hz）直调 `libnx hidSendVibrationValues` 实现比例振幅 HD Rumble（支持掌机 `HidNpadIdType_Handheld` 与底座/无线主手柄 `HidNpadIdType_No1`，含 3s 超时归零与退出自动停震，并在 M5 提供震动开关/强度设置）。
 4. **大厅 UI**：基于 Moonlight-Switch 自带的 `Borealis` 原生界面框架，实现：
    - 扫码登录界面（将服务端返回的 Base64 JPEG 渲染为原生纹理展示，轮询登录态并持久化到 `sdmc:/switch/levelup-nx/config.json`）
    - 顶栏账号昵称、VIP 到期、HP/MP 算力（分钟）显示
@@ -53,7 +55,7 @@
 - **M1（WebRTC 库交叉编译）**：将 `libdatachannel`（含 `libjuice`, `libsrtp`, `usrsctp`）交叉编译为 `aarch64-none-elf` 静态库并集成进 CMake，编出可链接通过的最小测试 `.nro`。
 - **M2（信令与调度层打通）**：用 C++（`libcurl` + `nlohmann/json` + `mbedtls` + `rtc::WebSocket`）实现 LevelUp HTTP 与 YTCX 调度、BE Protobuf 与 `/launch`，可先在宿主机测试拿到边缘 `onOffer` SDP。
 - **M3（Switch NVDEC 硬解出图出声）**：接通 `libdatachannel` `PeerConnection` 视频 H.264 帧喂入 Moonlight 的 `FFmpeg/NVDEC` 硬解渲染管线 + `Opus` 音频输出 + `cmd=37` 保活。
-- **M4（原生手柄与触屏控制）**：接入 `libnx padUpdate` + `AllocVPad` + 46 字节包 + `control` 通道三连握手。
+- **M4（原生手柄、震动与触屏控制）**：接入 `libnx padUpdate` + `AllocVPad` + 46 字节包 + `control` 通道三连握手 + `type=518/sub=31` 震动解包与 `libnx hidSendVibrationValues` 比例 HD Rumble（60Hz 合批 + 3s 看门狗 + 退出归零）。
 - **M5（Borealis 大厅与全功能封板）**：扫码登录 UI、算力展示、分类、最近游戏、`swkbd` 搜索、Dock/Handheld 自适应，真机 Title Override 10 分钟稳定压测。
 
 现在请先检查本目录文档以及本机 Docker / Git / CMake 构建环境现状，给出 M0 实施方案并立刻开始执行 M0。

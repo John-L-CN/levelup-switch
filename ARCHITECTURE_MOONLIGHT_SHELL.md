@@ -34,7 +34,8 @@ Moonlight-Switch/
    ├─ ytcx_session.{hpp,cpp}      # 编排：stopGame → startGame → union/apply → BE WS → /launch → AllocVPad
    ├─ h264_depacketizer.{hpp,cpp} # RFC 6184 + 扩展头解析 + 单帧 seq 检查（严格对齐 ../go-client/internal/video/h264.go）
    ├─ rtc_session.{hpp,cpp}       # libdatachannel PeerConnection + rtc::WebSocket 信令 + Track/DC 回调
-   ├─ input_packet.{hpp,cpp}      # 1792/773/775 握手 + VQ_FIRST + 1537 心跳 + 46 字节手柄控制包
+   ├─ input_packet.{hpp,cpp}      # 1792/773/775 握手 + VQ_FIRST + 1537 心跳 + 46 字节手柄控制包 + type=518/sub=31 震动解包
+   ├─ rumble_switch.{hpp,cpp}     # 异步 ~60Hz 震动合批工作线程 + 3s 看门狗 + libnx 直驱 HD Rumble（掌机/无线手柄）
    └─ store.{hpp,cpp}             # config.json / recent_<uid>.json / 封面并发预取缓存
 ```
 
@@ -42,6 +43,7 @@ Moonlight-Switch/
 1. **一套 `libdatachannel` 吃掉 WebSocket + WebRTC**：`libdatachannel` 自带完整的 `rtc::WebSocket`（支持 `ws://` 与 `wss://`，且支持 `disableTlsVerification`），可以直接用来连接 **BE 网关 (`ws://`)** 和 **边缘信令 (`wss://`)**，无需再额外引入 Beast / IXWebSocket / libwebsockets！
 2. **首帧出图回调联动**：在 Moonlight 原视频解码回调里首次成功产出 `AVFrame`（准备渲染第 1 帧）时，立即设置 `rtcSession->notifyFirstVideoFrame()` 停止开局 PLI/FIR 轰炸，并在工作线程触发 BE 发送 `cmd=37`（`CGCNtfStreamStatus{status=1}`）。
 3. **搜索功能接入 Switch 原生软键盘**：使用 `brls::Application::getPlatform()->getImeManager()->openForText(...)`（底层封装 `libnx swkbdCreate`），用户输入完中文/英文关键词后直接调用与 `go-client` 完全同构的 `MatchGames()` 过滤游戏名称。
+4. **手柄震动绕过 Borealis `amp=320.0f` 缺陷**：`extern/borealis/library/lib/platforms/switch/switch_input.cpp` 中的 `SwitchInputManager::sendRumbleInternal()` 将 `amp_low`/`amp_high` 写成固定 `320.0f`（在 Horizon 上等同于满幅开关震动，失去细腻强弱层次）。`rumble_switch.{hpp,cpp}` 直接调用 `libnx` `hidInitializeVibrationDevices` 与 `hidSendVibrationValues`，以 `0.0f..1.0f` 比例振幅分别映射低频 `160Hz` 与高频 `320Hz` 马达，配合 `16ms`（~60Hz）异步合批工作线程、收到 `(0, 0)` 立即停震、3 秒无新指令自动归零看门狗以及退出/Home/断开自动停震。
 
 ---
 
