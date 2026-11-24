@@ -330,10 +330,28 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     modeBadge->setMarginRight(14.0f);
     leftGroup->addView(modeBadge);
 
+    m_searchBox = new brls::Box(brls::Axis::ROW);
+    m_searchBox->setHeight(34.0f);
+    m_searchBox->setPadding(0.0f, 14.0f, 0.0f, 14.0f);
+    m_searchBox->setCornerRadius(17.0f);
+    m_searchBox->setHighlightCornerRadius(17.0f);
+    m_searchBox->setBackgroundColor(nvgRGB(30, 41, 59));
+    m_searchBox->setAlignItems(brls::AlignItems::CENTER);
+    m_searchBox->setFocusable(true);
+    m_searchBox->registerClickAction([this](brls::View*) {
+        openSearchIme();
+        return true;
+    });
+    m_searchBox->addGestureRecognizer(new brls::TapGestureRecognizer(m_searchBox, [this]() {
+        openSearchIme();
+    }));
+
     m_searchChip = new brls::Label();
-    m_searchChip->setFontSize(15.0f);
-    m_searchChip->setTextColor(nvgRGB(251, 191, 36));
-    leftGroup->addView(m_searchChip);
+    m_searchChip->setFontSize(14.0f);
+    m_searchChip->setTextColor(nvgRGB(148, 163, 184));
+    m_searchChip->setText("搜索游戏 (按 Y)");
+    m_searchBox->addView(m_searchChip);
+    leftGroup->addView(m_searchBox);
 
     header->addView(leftGroup);
 
@@ -457,6 +475,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
                 m_searchQuery.clear();
                 m_currentPage = 0;
                 updateHeaderUi();
+                rebuildCategoryStrip();
                 rebuildGameGrid();
             } else {
                 refreshOnlineDataAsync(true);
@@ -594,9 +613,17 @@ void LevelUpLobbyActivity::enqueueCover(const GameEntry& game, uint64_t gen, brl
 void LevelUpLobbyActivity::updateHeaderUi() {
     if (m_searchChip) {
         if (m_searchQuery.empty()) {
-            m_searchChip->setText("");
+            m_searchChip->setText("搜索游戏 (按 Y)");
+            m_searchChip->setTextColor(nvgRGB(148, 163, 184));
+            if (m_searchBox) {
+                m_searchBox->setBackgroundColor(nvgRGB(30, 41, 59));
+            }
         } else {
-            m_searchChip->setText("搜索: \"" + m_searchQuery + "\" (-键清除)");
+            m_searchChip->setText("搜索: \"" + m_searchQuery + "\" (Y修改 / -清除)");
+            m_searchChip->setTextColor(nvgRGB(251, 191, 36));
+            if (m_searchBox) {
+                m_searchBox->setBackgroundColor(nvgRGB(51, 65, 85));
+            }
         }
     }
 
@@ -768,6 +795,43 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
         emptyLabel->setFontSize(20.0f);
         emptyLabel->setTextColor(nvgRGB(148, 163, 184));
         emptyBox->addView(emptyLabel);
+
+        if (!m_searchQuery.empty()) {
+            auto* btnRow = new brls::Box(brls::Axis::ROW);
+            btnRow->setMarginTop(18.0f);
+            btnRow->setJustifyContent(brls::JustifyContent::CENTER);
+
+            auto* retrySearchBtn = new brls::Button();
+            retrySearchBtn->setStyle(&brls::BUTTONSTYLE_PRIMARY);
+            retrySearchBtn->setText("重新输入关键词 (Y)");
+            retrySearchBtn->setHeight(46.0f);
+            retrySearchBtn->setMinWidth(180.0f);
+            retrySearchBtn->setMarginRight(12.0f);
+            retrySearchBtn->registerClickAction([this](brls::View*) {
+                openSearchIme();
+                return true;
+            });
+            btnRow->addView(retrySearchBtn);
+
+            auto* clearSearchBtn = new brls::Button();
+            clearSearchBtn->setStyle(&brls::BUTTONSTYLE_DEFAULT);
+            clearSearchBtn->setText("清除搜索 (-)");
+            clearSearchBtn->setHeight(46.0f);
+            clearSearchBtn->setMinWidth(150.0f);
+            clearSearchBtn->registerClickAction([this](brls::View*) {
+                m_searchQuery.clear();
+                m_currentPage = 0;
+                updateHeaderUi();
+                rebuildCategoryStrip();
+                rebuildGameGrid();
+                return true;
+            });
+            btnRow->addView(clearSearchBtn);
+
+            emptyBox->addView(btnRow);
+            firstCard = retrySearchBtn;
+        }
+
         gridBox->addView(emptyBox);
     } else {
         constexpr size_t kCols = 4;
