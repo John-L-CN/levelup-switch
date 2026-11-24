@@ -1190,6 +1190,27 @@ def patch_usrsctp(usrsctp_dir: Path) -> None:
         "defined(__SWITCH__)\nstruct sockaddr_conn",
         "usrsctp.h sockaddr_conn BSD layout for Switch",
     )
+    replace_once(
+        usrsctp_h,
+        "struct sockaddr_conn {\n"
+        "\tuint8_t sconn_len;\n"
+        "\tuint8_t sconn_family;\n"
+        "\tuint16_t sconn_port;\n"
+        "\tvoid *sconn_addr;\n"
+        "};",
+        "struct sockaddr_conn {\n"
+        "\tuint8_t sconn_len;\n"
+        "\tuint8_t sconn_family;\n"
+        "\tuint16_t sconn_port;\n"
+        "\tvoid *sconn_addr;\n"
+        "};\n"
+        "#if defined(__SWITCH__) && !defined(HAVE_SCONN_LEN)\n"
+        "/* SWITCH-HAVE-SCONN-LEN: ensure both usrsctp and libdatachannel populate sconn_len=16 */\n"
+        "#define HAVE_SCONN_LEN 1\n"
+        "#endif",
+        "SWITCH-HAVE-SCONN-LEN",
+        "usrsctp.h define HAVE_SCONN_LEN for Switch",
+    )
 
     user_malloc = usrsctp_dir / "usrsctplib/user_malloc.h"
     replace_once(

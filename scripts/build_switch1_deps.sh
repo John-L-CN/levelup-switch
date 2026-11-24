@@ -78,6 +78,14 @@ docker run --rm \
             -DUSE_SHARED_MBEDTLS_LIBRARY=OFF
         cmake --build /workspace/build/deps/work/mbedtls --target install -j"${NJOBS}"
 
+        if [[ -d /workspace/build/deps/work/libdatachannel ]]; then
+            if ! grep -q "^have_sconn_len:INTERNAL=1$" /workspace/build/deps/work/libdatachannel/CMakeCache.txt 2>/dev/null || \
+               [[ /workspace/build/deps/src/libdatachannel/deps/usrsctp/usrsctplib/usrsctp.h -nt /workspace/build/deps/work/libdatachannel/deps/usrsctp/usrsctplib/libusrsctp.a ]]; then
+                echo ">>> Cleaning stale libdatachannel/usrsctp CMake build tree (sconn_len ABI change)"
+                rm -rf /workspace/build/deps/work/libdatachannel
+            fi
+        fi
+
         cmake -S /workspace/build/deps/src/libdatachannel -B /workspace/build/deps/work/libdatachannel \
             -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake \
             -DCMAKE_BUILD_TYPE=Release \
@@ -150,6 +158,27 @@ docker run --rm \
                 exit 1
             fi
         done
+
+        grep -q -- "-DHAVE_SCONN_LEN" /workspace/build/deps/work/libdatachannel/deps/usrsctp/usrsctplib/CMakeFiles/usrsctp.dir/flags.make
+
+        OBJDUMP=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-objdump
+        "${OBJDUMP}" -d /workspace/build/deps/switch/lib/libdatachannel.a > /tmp/rtc_dis.txt
+        if ! awk "/<_ZN3rtc4impl13SctpTransport15getSockAddrConnEt>:/,/^$/" /tmp/rtc_dis.txt | grep -q "#0x7b10"; then
+            echo "FAIL: SctpTransport::getSockAddrConn did not encode sconn_len=16, sconn_family=123 (#0x7b10)" >&2
+            awk "/<_ZN3rtc4impl13SctpTransport15getSockAddrConnEt>:/,/^$/" /tmp/rtc_dis.txt >&2
+            exit 1
+        fi
+        rm -f /tmp/rtc_dis.txt
+
+        "${OBJDUMP}" -d /workspace/build/deps/switch/lib/libusrsctp.a > /tmp/usrsctp_dis.txt
+        awk "/<usrsctp_register_address>:/,/^$/" /tmp/usrsctp_dis.txt > /tmp/reg_addr.txt
+        if grep -qE "mov[[:space:]]+w[0-9]+,[[:space:]]*#0x7b([^0-9a-fA-F]|$)" /tmp/reg_addr.txt && \
+           ! grep -qE "#0x10([^0-9a-fA-F]|$)|#0x7b10" /tmp/reg_addr.txt; then
+            echo "FAIL: usrsctp_register_address still missing sconn_len=16 (old ABI)!" >&2
+            cat /tmp/reg_addr.txt >&2
+            exit 1
+        fi
+        rm -f /tmp/usrsctp_dis.txt /tmp/reg_addr.txt
 
         ls -lh /workspace/build/deps/switch/lib/*.a
     '
