@@ -1,326 +1,64 @@
-# Moonlight-Switch
+# levelup-switch
 
-Moonlight-Switch is a port of [Moonlight Game Streaming Project](https://github.com/moonlight-stream "Moonlight Game Streaming Project") for Nintendo Switch and Nintendo Switch 2.
+Nintendo Switch 1 (Horizon OS / Atmosphere + libnx) 原生 **LevelUp 云游戏客户端（`.nro`）**，基于开源 [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch)（GPL-3.0）构建底座改造，集成 Tegra X1 `NVDEC + VIC + deko3d` 硬解渲染、`Borealis` 原生界面与 `libdatachannel` WebRTC 串流栈。
 
-## Screenshots
-<details>
-  <summary>Preview</summary>
-  <p float="left">
-  <img width="500" src="https://user-images.githubusercontent.com/9553519/135712658-20382345-2da5-4968-9f57-f9f4470ae819.jpg" />
-  <img width="500" src="https://user-images.githubusercontent.com/9553519/135712664-bf2481b2-2791-490d-99a9-2f968682db76.jpg" />
-  <img width="500" src="https://user-images.githubusercontent.com/9553519/135712669-fd8b2495-e1ea-4357-949f-7fa7312da46f.jpg" />
-  <img width="500" src="https://user-images.githubusercontent.com/9553519/135712672-b9ac3785-bd1c-4948-82b2-9b353019feba.jpg" />
-  <img width="500" src="https://user-images.githubusercontent.com/9553519/135712676-aaa85bb7-9517-4a6d-bc35-070df092383c.jpg" />
-  </p>
-</details>
+> Native **LevelUp Cloud Gaming client (`.nro`)** for Nintendo Switch 1 (Horizon OS / Atmosphere, Title Override Full RAM), forked from `XITRIX/Moonlight-Switch` and adapted with `libdatachannel` WebRTC + LevelUp/YTCX signaling.
 
-# Installing
-### Switch
-1. Download latest Moonlight-Switch [release](https://github.com/XITRIX/Moonlight-Switch/releases).
-2. Rename the Switch 1 release NRO to Moonlight-Switch.nro and put it in sdcard:/switch/Moonlight-Switch;
-3. Launch hbmenu over *Title Redirection* (for FULL RAM access);
-4. Launch moonlight.
+---
 
-Or download it from [HB App Store](https://apps.fortheusers.org/switch/Moonlight-Switch)
+## 核心文档 / Documentation
 
-> [!TIP]
-> To be able to use high bitrate setting especially with 1080p - resolution, you need to overclock CPU/GPU of your console.
->
-> To learn more about that you can take a look at [Sys-Clk homebrew](https://github.com/retronx-team/sys-clk) or entire [Atmosphere build - 4IFIR](https://github.com/rashevskyv/4IFIR/blob/main/README_ENG.md) which includes everything you need to overclock your console
+- [ARCHITECTURE_MOONLIGHT_SHELL.md](ARCHITECTURE_MOONLIGHT_SHELL.md) —— `Moonlight-Switch` 套壳改造架构、模块保留/剥离清单、`libdatachannel` 交叉编译与 Switch 运行约束
+- [PROTOCOL_SPEC.md](PROTOCOL_SPEC.md) —— LevelUp HTTP / YTCX union / BE Protobuf WebSocket / 边缘 `/launch` / WebRTC / 46 字节手柄控制包字节级协议规格
+- [PROMPT.md](PROMPT.md) —— 开发启动主提示词、避坑铁律与 M0–M5 里程碑定义
+- [docs/UPSTREAM_MOONLIGHT_README.md](docs/UPSTREAM_MOONLIGHT_README.md) —— 上游 `XITRIX/Moonlight-Switch` 原始说明归档
 
-> [!WARNING]
-> I DO NOT RESPOSIBLE FOR ANY DAMAGE TO YOUR CONSOLE IF SOMETHING WILL GO WRONG!
->
-> I am using 4IFIR by myself and not find any issue, but everything is possible. So think by you own head and be responsible for what you do with your devices!
+---
 
-### Switch 2
-1. Download latest Moonlight-Switch2 [release](https://github.com/XITRIX/Moonlight-Switch/releases).
-2. Extract Moonlight-Switch2-vX.X.X.zip to the root of your SD card;
-3. Launch hbmenu;
-4. Launch moonlight.
+## 开发里程碑 / Milestones
 
-### iOS, tvOS and macOS
-Accept [invite for TestFlight](https://testflight.apple.com/join/P9EX5vQ5) and download app from there
+- [x] **M0（工具链基线）**：基于 `devkitpro/devkita64:latest` Docker 工具链拉通 Switch 1 `Moonlight-Switch` 原生 `.nro` 交叉编译与 `NRO0` 产物校验
+- [ ] **M1（WebRTC 库交叉编译）**：交叉编译 `libdatachannel`（`libjuice` / `libsrtp` / `usrsctp` / `mbedtls`）为 `aarch64-none-elf` 静态库并集成进 CMake
+- [ ] **M2（信令与调度层打通）**：实现 LevelUp HTTPS API、YTCX `/v3/union/apply`、BE Protobuf WebSocket 与边缘 `/launch`
+- [ ] **M3（Switch NVDEC 硬解出图出声）**：接通 `libdatachannel` H.264 RTP 重组 → `switch-ffmpeg` NVDEC 硬解 + `deko3d` 渲染 + `Opus` 音频输出 + `cmd=37` 保活
+- [ ] **M4（原生手柄与触屏控制）**：接入 `libnx padUpdate` + `AllocVPad` + 46 字节手柄控制包 + `control` DataChannel 握手与 `1537` 心跳
+- [ ] **M5（Borealis 大厅与全功能封板）**：扫码登录 UI、算力展示、游戏分类、最近游戏、`swkbd` 搜索、Dock/Handheld 自适应与真机压测
 
-## Discord
-Feel free to join [Moonlight discord server](https://discord.gg/fmtcVPzaG4), you will find me there in "switch-help" channel 
+---
 
-## Controls
-### Mouse
-With touch screen you can move your coursor, tap to left click, scroll 2 fingers to scroll.
+## 编译构建 / Build (Switch 1 Docker)
 
-While touching screen ZR and ZL buttons will work like left and right mouse buttons.
+### 1. 拉取仓库与 Switch 1 必需子模块
 
-Also while touching screen L and R sticks will work like scrolling wheel.
-
-USB mouse working as well.
-
-### Keyboard
-You can use onscreen keyboard, tap 3 fingers on screen to show it.
-
-USB keyboard working as well.
-
-### Gamepad
-By default, Switch gamepad configured as X360 gamepad (A/B and X/Y swapped). Key mapping available in application settings.
-
-Up to 5 gamepads (includes handheld mode) supported. Half of joycons are also supported.
-
-### SixAxis
-You should configure your Sunshine server to recognise controller as DS4 one to be able to use Gyro and Accelerometer. Only works for player 1 controller.
-
-### Ingame overlay
-To open overlay, press - and + key simultaneously by default or Hold ESC on keyboard.
-
-Key combination and holding time are configurable in settings.
-
-## NSP forwarder
-App supports NSP forwarders to start stream immediately with predefined configuration. Add app you want to launch in Favorites list first. You can generate forwarder using [NSP Forwarder Generator](https://nsp-forwarder.vercel.app/moonlight)
-
-### Manually
-If you'd like to create it manually, without help of generator, you'll need to create forwarder which will pass thees arguments to the application:
-- `--ip` - IP address of your PC
-- `--appid` - ID of the app to launch, it has to be added into "Favorites list" (you could find it in /switch/Moonlight-Switch/settings.json)
-- `--appname` - The name of the app without any spacings
-
-example:
-`--ip=192.168.1.101 --appid=1233211234 --appname=Steam`
-
-## iOS / visionOS forwarder / deep link
-iOS and visionOS builds register the `moonlightswitch://` URL scheme. The supported deep link
-uses the same parameters as the Switch forwarder:
-
-`moonlightswitch://launch?ip=192.168.1.101&appid=1233211234&appname=Steam`
-
-`host` can be used instead of `ip` when launching by host MAC address.
-
-iOS 16+ and visionOS builds also expose Shortcuts actions. `Launch Game` accepts a Moonlight
-`Game` value. Use `Get Favorite Games` to pick from saved favorites, or
-`Create Game` to build a game manually from `Host`, `App ID`, and `App Name`,
-then pass the result to `Launch Game`. Use `Get Game Detail` to extract a
-selected game's `App ID`, `Host`, `App Name`, or `Display Host`, and `Get Game
-Deep Link` to create a `moonlightswitch://` URL from a `Game`. Favorite game rows
-use cached box art when available. `Host` accepts either a paired PC IP address
-or MAC address.
-
-Favorite apps can generate an Apple Shortcut forwarder. The forwarder action opens
-the Shortcuts editor and copies the generated deep link to the clipboard as a
-fallback. Prefer the Moonlight `Launch Game` action on iOS 16+ or visionOS, or
-add an `Open URLs` action and paste the copied `moonlightswitch://` URL on older
-iOS versions. Use Shortcuts' `Add to Home Screen` option to create the icon.
-
-## Localization
-- English (100%)
-- Russian (100%)
-- German (86%)
-- Spanish (72%)
-- Japanese (70%)
-- Chinese (simplified) (86%)
-- Czech (70%) - unsupported yet, as HOS has no such system language
-
-### Contribution
-If you'd like to improve existing language, or add a new one, follow the instruction:
-1. Ask a permission to modify language [here](https://poeditor.com/join/project?hash=9kiCIvN0dc)
-2. Notify me by [creating an issue](https://github.com/XITRIX/Moonlight-Switch/issues/new) with title "[Localization] - {Name of language}", in description write your nickname on POEditor
-3. After translation is done, notify me in issue created earlier
-
-You have 2 options to add that translation:
-1. If you'd like your profile in "contributors" section, you could add that localization by creating a PR
-2. If you don't care, I could do that by myself
-
-If you'd like to test your translation, you could follow build instructions, or ask me to create a build with your localization, I'll attach that build in issue.
-
-> [!WARNING]
-> Currently there is no way to select language inside of app, it takes from system settings, so it is impossible to add locatization, that HOS doesn't support (that happend with Czech language).
-
-## Build Moonlight-Switch
+可跳过仅桌面/Apple 平台使用的 `extern/vcpkg`：
 
 ```bash
-cd 'folder/to/store/the/sources'
-
-# Clone this repo with submodules
-git clone https://github.com/XITRIX/Moonlight-Switch.git --recursive
-cd Moonlight-Switch
+git clone https://github.com/John-L-CN/levelup-switch.git
+cd levelup-switch
+git submodule update --init --recursive extern/borealis extern/moonlight-common-c extern/CImg extern/mdns
 ```
 
-### Switch
-
-To build for Switch, a standard development environment must first be set up. In order to do so, [refer to the Getting Started guide](https://devkitpro.org/wiki/Getting_Started).
+### 2. 使用 Docker `devkitpro/devkita64:latest` 编译 `.nro`
 
 ```bash
-cmake -B build/switch -DPLATFORM_SWITCH=ON
-make -C build/switch Moonlight.nro -j$(nproc)
+bash scripts/build_switch1_docker.sh
 ```
 
-### Switch 2
+脚本会自动构建派生镜像 `levelup-switch-devkita64:latest`（移除与 `moonlight-common-c` 内置 `enet` 冲突的 `switch-enet`），执行两遍 CMake 配置与并行编译，并在成功后输出：
 
-To build for Switch 2, install [ounce-devkit](https://github.com/ouncebrew/ounce-devkit). Set `DEVKITPRO` to the SDK installation directory, then run:
+- `build/switch/Moonlight.nro`（已校验 `NRO0` 魔数头）
+- `build/switch/Moonlight.elf`
 
-```bash
-export DEVKITPRO=/opt/devkitpro
-bash scripts/switch2/build.sh
-```
+---
 
-The resulting package is written to `build/switch2/Moonlight-Switch.nro`.
-Add `--run-tests` to include host regression tests; regular builds skip them.
-Builds automatically reuse downloaded sources, compiled dependencies and app objects.
-Add `--clean-build` to rebuild dependencies and the app from scratch; downloaded
-source archives are retained.
+## 真机运行要求 / Runtime Requirements
 
-### PS Vita
+1. **必须使用 Title Override（Full RAM）模式**：在 Atmosphere 下**按住 `R` 键打开任意已安装游戏**进入 `hbmenu` 后启动 `.nro`（Album Applet 模式内存受限，无法稳定支撑 NVDEC + 1080p 帧缓冲 + WebRTC 栈）。
+2. **本地配置落盘路径**：所有个人登录态、设备 ID、最近游戏与封面缓存均运行时写入 Switch SD 卡 `sdmc:/switch/levelup-nx/`，源码仓库不包含任何个人凭据。
+3. **底座 / 掌机自适应**：Docked 模式默认请求 `1920x1080 @ 60fps`，Handheld 模式默认请求 `1280x720 @ 60fps`。
 
-To build for PS Vita, install [VitaSDK](https://vitasdk.org/) and the Vita dependencies described in the [Borealis PS Vita guide](https://github.com/xfangfang/borealis/wiki/PS-Vita). The SDK must include FFmpeg and SDL2 built with `VIDEO_VITA_PVR` support. Set `VITASDK` to the SDK installation directory, then run:
+---
 
-```bash
-export VITASDK=/opt/vitasdk
-scripts/psv-dev.sh build
-```
+## 致谢与许可 / License & Credits
 
-The resulting package is written to `build/psvita/Moonlight.vpk`. For installing the first VPK, deploying later builds, capturing PrincessLog output, and checking crash dumps, see the [PS Vita development guide](docs/psv-development.md).
-
-### PC (Windows/Linux/MacOS)
-
-To build for PC, the following components are required:
-
-- cmake/make build system
-- A C++ compiler supporting the C++17 standard
-
-Please refer to the usual sources of information for your particular operating system. Usually the commands needed to build this project will look like this:
-
-```bash
-cmake -B build/pc -DPLATFORM_DESKTOP=ON -DCMAKE_BUILD_TYPE=Release
-make -C build/pc -j$(nproc)
-```
-
-Also, please note that the `resources` folder must be available in the working directory, otherwise the program will fail to find the shaders.
-
-On Linux, enabling **Use hardware decoding** makes the FFmpeg decoder try
-VA-API, CUDA, and VDPAU in that order. The selected backend decodes into GPU
-surfaces and copies NV12, P010, or YUV420P frames back for the OpenGL renderer.
-If no compatible device or driver is available, Moonlight automatically falls
-back to software decoding.
-
-#### Linux and SteamOS releases
-
-Linux release builds are available for x86_64 and ARM64 as AppImage, portable
-tar, DEB, and RPM packages. SteamOS builds target Valve's Steam Linux Runtime 4.
-The Linux release configuration embeds resources and requires a VA-API-enabled
-FFmpeg with H.264 and HEVC hardware configurations.
-
-See the [Linux and SteamOS build and installation guide](docs/linux-distribution.md)
-for package selection, Steam Deck setup, local build commands, and the GitHub
-Actions matrix.
-
-#### Windows (MSYS2)
-
-Windows desktop builds are supported through MSYS2 system packages for both x64 and ARM64.
-
-MSYS2 is recommended under `C:\msys64`.
-
-##### x64 (UCRT64)
-
-Install the required packages:
-
-```bash
-pacman -S --needed --noconfirm \
-  mingw-w64-ucrt-x86_64-gcc \
-  mingw-w64-ucrt-x86_64-cmake \
-  mingw-w64-ucrt-x86_64-ninja \
-  mingw-w64-ucrt-x86_64-pkgconf \
-  mingw-w64-ucrt-x86_64-SDL2 \
-  mingw-w64-ucrt-x86_64-ffmpeg \
-  mingw-w64-ucrt-x86_64-curl \
-  mingw-w64-ucrt-x86_64-mbedtls \
-  mingw-w64-ucrt-x86_64-jansson \
-  mingw-w64-ucrt-x86_64-libpng \
-  mingw-w64-ucrt-x86_64-opus \
-  mingw-w64-ucrt-x86_64-expat \
-  mingw-w64-ucrt-x86_64-zstd
-```
-
-Build with the bundled preset:
-
-These Windows presets default to native D3D11 (DirectX 11). Pass `-DUSE_D3D11=OFF` when configuring only if you want to force the legacy OpenGL path.
-
-```bash
-cmake --preset windows-ucrt64-release
-cmake --build --preset windows-ucrt64-release
-```
-
-The resulting executable is placed in `build/windows-ucrt64`. The build stages the required MSYS2 UCRT64 DLLs beside `Moonlight.exe`; keep the generated `resources` directory there as well, because the UCRT64 build uses external resources instead of `libromfs`.
-
-##### ARM64 (CLANGARM64)
-
-To build a native Windows ARM64 executable, install the CLANGARM64 packages:
-
-```bash
-pacman -S --needed --noconfirm \
-  mingw-w64-clang-aarch64-clang \
-  mingw-w64-clang-aarch64-cmake \
-  mingw-w64-clang-aarch64-ninja \
-  mingw-w64-clang-aarch64-pkgconf \
-  mingw-w64-clang-aarch64-SDL2 \
-  mingw-w64-clang-aarch64-ffmpeg \
-  mingw-w64-clang-aarch64-curl \
-  mingw-w64-clang-aarch64-mbedtls \
-  mingw-w64-clang-aarch64-jansson \
-  mingw-w64-clang-aarch64-libpng \
-  mingw-w64-clang-aarch64-opus \
-  mingw-w64-clang-aarch64-expat \
-  mingw-w64-clang-aarch64-zstd
-```
-
-Build with the ARM64 preset:
-
-```bash
-cmake --preset windows-clangarm64-release
-cmake --build --preset windows-clangarm64-release
-```
-
-The resulting executable is placed in `build/windows-clangarm64`. The build stages the required MSYS2 CLANGARM64 DLLs beside `Moonlight.exe`; keep the generated `resources` directory there as well, because the desktop ARM64 build also uses external resources instead of `libromfs`.
-
-### iOS / tvOS:
-
-```shell
-# build libromfs generator
-./build_libromfs_generator.sh
-
-# prepare vcpkg
-./extern/vcpkg/bootstrap-vcpkg.sh
-```
-
-#### 1. Build for arm64 iphoneOS
-
-```shell
-# 1. Generate a Xcode project
-cmake -B build/ios -G Xcode -DPLATFORM_IOS=ON
-
-# 2. open project in Xcode
-open build/ios/*.xcodeproj
-
-# 3. Set up Team and Bundle Identifiers in Xcode, then connect devices to run.
-```
-
-#### 2. Build for arm64 tvOS
-
-```shell
-# 1. Generate a Xcode project
-cmake -B build/tvos -G Xcode -DPLATFORM_TVOS=ON
-
-# 2. open project in Xcode
-open build/tvos/*.xcodeproj
-
-# 3. Set up Team and Bundle Identifiers in Xcode, then connect devices to run.
-```
-
-## Credits
-Thanks a lot to [Rock88](https://github.com/rock88) and his [Moonlight-NX](https://github.com/rock88/moonlight-nx), lots of streaming code has been lend from it 👍.
-
-[Xfangfang](https://github.com/xfangfang) for maintaining [Borealis](https://github.com/xfangfang/borealis) library. iOS port would not be possible without it. 
-
-[Averne](https://github.com/averne) for NVDEC implementation into [FFmpeg](https://github.com/averne/FFmpeg) and useful guidance of how to enable it 
-
-[Azkali](https://gitlab.com/Azkali) and his [Moonlight-NX2](https://gitlab.com/Azkali/moonlight-nx2) for help and assistance with Switch 2 implementation
-
-Also huge thanks to [Cooler3D](https://github.com/Cooler3Ds) for help with Deko3D implementation and solving performance issues
-
-The Switch deko3d upscaling path includes AMD FidelityFX Super Resolution 1.0 EASU and RCAS code translated from the MIT-licensed [GPUOpen FidelityFX-FSR](https://github.com/GPUOpen-Effects/FidelityFX-FSR) reference implementation. Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+本项目基于 [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch) 进行定制改造，沿用上游 **GPL-3.0** 开源许可证（详见 [LICENSE](LICENSE)）。协议与桌面对照实现参考同级项目 [`John-L-CN/levelup-go`](https://github.com/John-L-CN/levelup-go)。

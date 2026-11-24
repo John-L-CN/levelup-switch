@@ -12,3 +12,20 @@ __pycache__/
 !scripts/switch2/build.sh
 !scripts/switch2/build.ps1
 !scripts/switch2/build_vulkan_shaders.py
+
+# LevelUp-Switch additions
+!scripts/build_switch1_docker.sh
+config.json
+recent_*.json
+*.key
+*.pem
+.env
+.env.*
+build/
+dist/
+*.nro
+*.elf
+*.nacp
+*.nso
+*.log
+
