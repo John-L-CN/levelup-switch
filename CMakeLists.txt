@@ -226,7 +226,8 @@ file(GLOB MAIN_SRC CONFIGURE_DEPENDS
 
 if (LEVELUP_ENABLE_WEBRTC)
     file(GLOB LEVELUP_SRC CONFIGURE_DEPENDS
-        app/src/levelup/*.cpp)
+        app/src/levelup/*.cpp
+        app/src/levelup/ui/*.cpp)
     list(APPEND MAIN_SRC ${LEVELUP_SRC})
 endif ()
 
@@ -569,7 +570,7 @@ if(PLATFORM_SWITCH AND NOT PLATFORM_SWITCH2)
 endif ()
 
 if (LEVELUP_ENABLE_WEBRTC)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE LEVELUP_ENABLE_WEBRTC=1)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LEVELUP_ENABLE_WEBRTC=1 LEVELUP_USE_BRLS_LOG=1)
     target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src
         ${CMAKE_CURRENT_SOURCE_DIR}/app/src/levelup

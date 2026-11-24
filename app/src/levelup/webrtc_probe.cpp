@@ -1,4 +1,6 @@
 #include "levelup/webrtc_probe.hpp"
+#include "levelup/api_client.hpp"
+#include "levelup/ytcx_client.hpp"
 
 #include <borealis.hpp>
 #include <curl/curl.h>
@@ -46,6 +48,17 @@ namespace levelup {
     if (curl) {
         curl_easy_cleanup(curl);
     }
+
+    levelup::api::Client apiClient("0123456789abcdef0123456789abcdef");
+    levelup::api::UserInfo ui;
+    std::string probeErr;
+    (void)apiClient.getUserInfo(ui, &probeErr);
+    levelup::ytcx::BEClient beClient;
+    levelup::ytcx::ApplyResult applyRes;
+    (void)levelup::ytcx::unionApply("opaque", 1, "dev", "u", 1280, 720, {}, applyRes, &probeErr);
+    levelup::ytcx::EdgeLaunchParams launchParams;
+    levelup::ytcx::EdgeLaunchResult launchRes;
+    (void)levelup::ytcx::edgeLaunch(launchParams, launchRes, &probeErr);
 
     return true;
 }
