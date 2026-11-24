@@ -8,6 +8,7 @@
 #include <cctype>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
 
 #ifndef LEVELUP_NO_RTC
 #include <nlohmann/json.hpp>
@@ -176,7 +177,9 @@ namespace {
 void initRtcLoggingOnce() {
     static std::once_flag s_once;
     std::call_once(s_once, []() {
-        rtc::InitLogger(rtc::LogLevel::Info, [](rtc::LogLevel level, std::string message) {
+        // Debug level surfaces DTLS handshake / SCTP / Track::open events while the
+        // per-packet spam stays at Verbose.
+        rtc::InitLogger(rtc::LogLevel::Debug, [](rtc::LogLevel level, std::string message) {
             while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
                 message.pop_back();
             }
@@ -219,6 +222,63 @@ void logAnswerSummary(const std::string& sdp) {
         } else if (!h264Pt.empty() &&
                    line.rfind("a=rtcp-fb:" + h264Pt + " ", 0) == 0) {
             logInfo("[RTC] SDP " + line);
+        }
+    }
+}
+
+void logOfferSummary(const std::string& sdp) {
+    std::istringstream iss(sdp);
+    std::string line;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.rfind("m=", 0) == 0 || line.rfind("a=group:", 0) == 0 ||
+            line.rfind("a=mid:", 0) == 0 || line.rfind("a=setup:", 0) == 0 ||
+            line.rfind("a=fingerprint:", 0) == 0 || line.rfind("a=ice-ufrag:", 0) == 0) {
+            logInfo("[RTC] Offer " + line);
+        }
+    }
+}
+
+/// Post-Answer sanity audit: with a correct Answer every mid must be present in
+/// a=group:BUNDLE and no m-line may carry port 0. Any violation means the
+/// libdatachannel side already dropped a track (weak_ptr expiry) and DTLS will
+/// never come up, so make that failure loud instead of silent.
+void auditAnswerBundle(const std::string& sdp) {
+    std::istringstream iss(sdp);
+    std::string line;
+    std::string bundle;
+    std::vector<std::string> mids;
+    bool audioRejected = false;
+    bool videoRejected = false;
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.rfind("a=group:BUNDLE", 0) == 0) {
+            bundle = line;
+        } else if (line.rfind("a=mid:", 0) == 0) {
+            mids.push_back(line.substr(6));
+        } else if (line.rfind("m=audio 0 ", 0) == 0) {
+            audioRejected = true;
+        } else if (line.rfind("m=video 0 ", 0) == 0) {
+            videoRejected = true;
+        }
+    }
+    if (audioRejected) {
+        logError("[RTC] Answer rejected audio (m=audio 0) -> BUNDLE/DTLS transport will fail");
+    }
+    if (videoRejected) {
+        logError("[RTC] Answer rejected video (m=video 0) -> no media will flow");
+    }
+    if (bundle.empty()) {
+        logWarn("[RTC] Answer has no a=group:BUNDLE line");
+        return;
+    }
+    for (const auto& mid : mids) {
+        if (bundle.find(" " + mid) == std::string::npos) {
+            logError("[RTC] Answer BUNDLE omits mid=" + mid + " (" + bundle + ")");
         }
     }
 }
@@ -400,6 +460,13 @@ struct RtcSession::Impl {
     std::mutex trackMu;
     std::shared_ptr<rtc::Track> videoTrack;
     std::shared_ptr<LevelUpRtcpHandler> rtcpHandler;
+    // NOTE: libdatachannel's PeerConnection only keeps a weak_ptr to every received
+    // track, so the track object dies the instant onTrack returns unless we hold a
+    // strong reference. Dropping the audio track made populateLocalDescription()
+    // treat mid=0 as removed -> "a=group:BUNDLE 1 2" + "m=audio 0", which killed
+    // the DTLS/SRTP transport (cloud never answered). Keep both audio handles alive.
+    std::shared_ptr<rtc::Track> audioTrack;
+    std::shared_ptr<rtc::RtcpReceivingSession> audioRtcpHandler;
 
     std::shared_ptr<rtc::Track> getVideoTrack() {
         std::lock_guard lock(trackMu);
@@ -409,6 +476,11 @@ struct RtcSession::Impl {
     std::shared_ptr<LevelUpRtcpHandler> getRtcpHandler() {
         std::lock_guard lock(trackMu);
         return rtcpHandler;
+    }
+
+    std::shared_ptr<rtc::Track> getAudioTrack() {
+        std::lock_guard lock(trackMu);
+        return audioTrack;
     }
 
     std::mutex wsWriteMu;
@@ -539,8 +611,21 @@ struct RtcSession::Impl {
     void handleOffer(const std::string& offerSdp) {
         if (!pc) return;
         try {
+            logOfferSummary(offerSdp);
             rtc::Description offer(offerSdp, rtc::Description::Type::Offer);
             pc->setRemoteDescription(offer);
+            {
+                int mLines = 0;
+                int candLines = 0;
+                std::istringstream ss(offerSdp);
+                std::string l;
+                while (std::getline(ss, l)) {
+                    if (l.rfind("m=", 0) == 0) ++mLines;
+                    else if (l.rfind("a=candidate:", 0) == 0) ++candLines;
+                }
+                logInfo("[RTC] remote offer applied: m-lines=" + std::to_string(mLines) +
+                        " candidates=" + std::to_string(candLines));
+            }
 
             if (auto vt = getVideoTrack()) {
                 auto desc = vt->description();
@@ -609,12 +694,14 @@ struct RtcSession::Impl {
                 try {
                     rtc::Candidate rcand(cs, mid);
                     const int n = remoteCandCount.fetch_add(1) + 1;
+                    pc->addRemoteCandidate(rcand);
+                    // Note: the Candidate object built here is always "unresolved" until
+                    // libjuice resolves it inside addRemoteCandidate, so printing
+                    // isResolved() before the call only ever yielded a misleading 0.
                     if (n <= 16) {
                         logInfo("[RTC] remote candidate #" + std::to_string(n) +
-                                " mid=" + mid + " resolved=" +
-                                std::string(rcand.isResolved() ? "1" : "0") + " " + cs);
+                                " mid=" + mid + " applied " + cs);
                     }
-                    pc->addRemoteCandidate(rcand);
                 } catch (const std::exception& e) {
                     logWarn(std::string("[RTC] addRemoteCandidate rejected (") + cs + "): " + e.what());
                 }
@@ -787,6 +874,7 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         m_impl->sendSignalJson(msg);
         logInfo("[RTC] SDP Answer sent (" + std::to_string(sdp.size()) + " bytes)");
         logAnswerSummary(sdp);
+        auditAnswerBundle(sdp);
     });
 
     m_impl->pc->onLocalCandidate([this](rtc::Candidate cand) {
@@ -881,6 +969,12 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
             }
             track->setMediaHandler(rh);
             m_impl->firstVideoTrackMs.store(unixMillisNow());
+            track->onOpen([this, mid = track->mid()]() {
+                logInfo("[RTC] video track open mid=" + mid);
+            });
+            track->onError([this, mid = track->mid()](std::string err) {
+                logWarn("[RTC] video track error mid=" + mid + ": " + err);
+            });
 
             track->onMessage(
                 [this](rtc::binary bin) {
@@ -907,7 +1001,18 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                 nullptr);
         } else if (kind == "audio") {
             auto audioRtcp = std::make_shared<rtc::RtcpReceivingSession>();
+            {
+                std::lock_guard lock(m_impl->trackMu);
+                m_impl->audioTrack = track;
+                m_impl->audioRtcpHandler = audioRtcp;
+            }
             track->setMediaHandler(audioRtcp);
+            track->onOpen([this, mid = track->mid()]() {
+                logInfo("[RTC] audio track open mid=" + mid);
+            });
+            track->onError([this, mid = track->mid()](std::string err) {
+                logWarn("[RTC] audio track error mid=" + mid + ": " + err);
+            });
             track->onMessage(
                 [this](rtc::binary bin) {
                     levelup::video::ParsedRtpPacket rtp;
@@ -1096,6 +1201,8 @@ void RtcSession::close() {
         std::lock_guard lock(m_impl->trackMu);
         m_impl->videoTrack.reset();
         m_impl->rtcpHandler.reset();
+        m_impl->audioTrack.reset();
+        m_impl->audioRtcpHandler.reset();
     }
     {
         std::lock_guard lock(m_impl->dcMu);
