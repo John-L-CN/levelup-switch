@@ -46,6 +46,12 @@ class DKVideoRenderer : public IVideoRenderer {
 
     int m_frame_width = 0;
     int m_frame_height = 0;
+    int m_crop_left = 0;
+    int m_crop_right = 0;
+    int m_crop_top = 0;
+    int m_crop_bottom = 0;
+    int m_vis_width = 0;
+    int m_vis_height = 0;
     int m_screen_width = 0;
     int m_screen_height = 0;
 

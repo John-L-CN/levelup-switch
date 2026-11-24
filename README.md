@@ -20,7 +20,7 @@ Nintendo Switch 1 (Horizon OS / Atmosphere + libnx) 原生 **LevelUp 云游戏�
 - [x] **M0（工具链基线）**：基于 `devkitpro/devkita64:latest` Docker 工具链拉通 Switch 1 `Moonlight-Switch` 原生 `.nro` 交叉编译与 `NRO0` 产物校验
 - [x] **M1（WebRTC 库交叉编译）**：交叉编译 `libdatachannel`（`libjuice` / `libsrtp` / `usrsctp` / `mbedtls 3.6.2`）为 `aarch64-none-elf` 静态库并集成进 CMake
 - [x] **M2（信令与调度层打通）**：实现 LevelUp HTTPS API、YTCX `/v3/union/apply`、BE Protobuf WebSocket 与边缘 `/launch`
-- [ ] **M3（Switch NVDEC 硬解出图出声）**：接通 `libdatachannel` H.264 RTP 重组 → `switch-ffmpeg` NVDEC 硬解 + `deko3d` 渲染 + `Opus` 音频输出 + `cmd=37` 保活
+- [x] **M3（Switch NVDEC 硬解出图出声）**：接通 `libdatachannel` H.264 RTP 重组 → `switch-ffmpeg` NVDEC 硬解 + `deko3d` 渲染 + `Opus` 音频输出 + `cmd=37` 保活
 - [ ] **M4（原生手柄、震动与触屏控制）**：接入 `libnx padUpdate` + `AllocVPad` + 46 字节手柄控制包 + `control` DataChannel 握手/`1537` 心跳 + `type=518/sub=31` 比例 HD Rumble（60Hz 合批、3s 看门狗、退出归零）
 - [ ] **M5（Borealis 大厅与全功能封板）**：扫码登录 UI、算力展示、游戏分类、最近游戏、`swkbd` 搜索、震动开关与强度设置、Dock/Handheld 自适应与真机压测
 

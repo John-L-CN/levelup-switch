@@ -134,6 +134,36 @@ namespace
         return bits;
     }
 
+    void extractFrameCrop(const AVFrame* frame,
+                          int& outLeft,
+                          int& outRight,
+                          int& outTop,
+                          int& outBottom,
+                          int& outVisW,
+                          int& outVisH) {
+        if (!frame || frame->width <= 0 || frame->height <= 0) {
+            outLeft = outRight = outTop = outBottom = 0;
+            outVisW = outVisH = 0;
+            return;
+        }
+        outLeft = static_cast<int>(frame->crop_left);
+        outRight = static_cast<int>(frame->crop_right);
+        outTop = static_cast<int>(frame->crop_top);
+        outBottom = static_cast<int>(frame->crop_bottom);
+        outVisW = frame->width - outLeft - outRight;
+        outVisH = frame->height - outTop - outBottom;
+        if (outVisW <= 0 || outVisH <= 0) {
+            outLeft = outRight = outTop = outBottom = 0;
+            outVisW = frame->width;
+            outVisH = frame->height;
+        }
+        // Tegra NVDEC decodes 1080p H.264 into 16-byte aligned 1920x1088; crop to 1920x1080 to avoid bottom green bar
+        if (frame->width == 1920 && frame->height == 1088 && outTop == 0 && outBottom == 0) {
+            outBottom = 8;
+            outVisH = 1080;
+        }
+    }
+
     SourceViewport getSourceViewport(int frameWidth, int frameHeight,
                                      int screenWidth, int screenHeight) {
         SourceViewport viewport = {
@@ -169,13 +199,49 @@ namespace
     }
 
     void setTransformUvData(Transformation& transform,
-                            const SourceViewport& viewport,
-                            int frameWidth,
-                            int frameHeight) {
-        transform.uv_data[0] = viewport.offsetX / static_cast<float>(frameWidth);
-        transform.uv_data[1] = viewport.offsetY / static_cast<float>(frameHeight);
-        transform.uv_data[2] = static_cast<float>(frameWidth) / viewport.width;
-        transform.uv_data[3] = static_cast<float>(frameHeight) / viewport.height;
+                            int codedWidth,
+                            int codedHeight,
+                            int cropLeft,
+                            int cropTop,
+                            int visWidth,
+                            int visHeight,
+                            int screenWidth,
+                            int screenHeight) {
+        if (codedWidth <= 0 || codedHeight <= 0 || visWidth <= 0 || visHeight <= 0 ||
+            screenWidth <= 0 || screenHeight <= 0) {
+            transform.uv_data[0] = 0.0f;
+            transform.uv_data[1] = 0.0f;
+            transform.uv_data[2] = 1.0f;
+            transform.uv_data[3] = 1.0f;
+            return;
+        }
+        const float visAspect =
+            static_cast<float>(visHeight) / static_cast<float>(visWidth);
+        const float screenAspect =
+            static_cast<float>(screenHeight) / static_cast<float>(screenWidth);
+
+        float dstX = 0.0f;
+        float dstY = 0.0f;
+        float dstW = 1.0f;
+        float dstH = 1.0f;
+        if (visAspect > screenAspect) {
+            dstW = screenAspect / visAspect;
+            dstX = 0.5f * (1.0f - dstW);
+        } else if (visAspect < screenAspect) {
+            dstH = visAspect / screenAspect;
+            dstY = 0.5f * (1.0f - dstH);
+        }
+
+        transform.uv_data[2] =
+            (static_cast<float>(visWidth) / static_cast<float>(codedWidth)) / dstW;
+        transform.uv_data[3] =
+            (static_cast<float>(visHeight) / static_cast<float>(codedHeight)) / dstH;
+        transform.uv_data[0] =
+            dstX - (static_cast<float>(cropLeft) / static_cast<float>(codedWidth)) /
+                       transform.uv_data[2];
+        transform.uv_data[1] =
+            dstY - (static_cast<float>(cropTop) / static_cast<float>(codedHeight)) /
+                       transform.uv_data[3];
     }
 
     void populateEasuConstants(EasuConstants& constants,
@@ -303,9 +369,11 @@ DKVideoRenderer::~DKVideoRenderer() {
 
 bool DKVideoRenderer::shouldUseUpscaling() const {
 #ifdef SUPPORT_UPSCALING
-    return Settings::instance().upscaling() && m_frame_width > 0 &&
-           m_frame_height > 0 && m_screen_width > 0 && m_screen_height > 0 &&
-           (m_screen_width > m_frame_width || m_screen_height > m_frame_height);
+    const int effW = m_vis_width > 0 ? m_vis_width : m_frame_width;
+    const int effH = m_vis_height > 0 ? m_vis_height : m_frame_height;
+    return Settings::instance().upscaling() && effW > 0 &&
+           effH > 0 && m_screen_width > 0 && m_screen_height > 0 &&
+           (m_screen_width > effW || m_screen_height > effH);
 #else
     return false;
 #endif
@@ -369,6 +437,8 @@ void DKVideoRenderer::checkAndInitialize(int width, int height, AVFrame* frame) 
 
     m_frame_width = frame->width;
     m_frame_height = frame->height;
+    extractFrameCrop(frame, m_crop_left, m_crop_right, m_crop_top, m_crop_bottom,
+                     m_vis_width, m_vis_height);
 
     m_screen_width = width;
     m_screen_height = height;
@@ -820,16 +890,22 @@ void DKVideoRenderer::recordStaticCommands(AVFrame* frame) {
     displayTransformState.offset[3] = 0.0f;
 
     const SourceViewport sourceViewport = getSourceViewport(
-        m_frame_width, m_frame_height, m_screen_width, m_screen_height);
-    setTransformUvData(displayTransformState, sourceViewport, m_frame_width,
-                       m_frame_height);
+        m_vis_width > 0 ? m_vis_width : m_frame_width,
+        m_vis_height > 0 ? m_vis_height : m_frame_height,
+        m_screen_width, m_screen_height);
+    setTransformUvData(displayTransformState, m_frame_width, m_frame_height,
+                       m_crop_left, m_crop_top,
+                       m_vis_width > 0 ? m_vis_width : m_frame_width,
+                       m_vis_height > 0 ? m_vis_height : m_frame_height,
+                       m_screen_width, m_screen_height);
 
     Transformation sourceTransformState = displayTransformState;
-    setTransformUvData(
-        sourceTransformState,
-        SourceViewport{0.0f, 0.0f, static_cast<float>(m_frame_width),
-                       static_cast<float>(m_frame_height)},
-        m_frame_width, m_frame_height);
+    setTransformUvData(sourceTransformState, m_frame_width, m_frame_height,
+                       m_crop_left, m_crop_top,
+                       m_vis_width > 0 ? m_vis_width : m_frame_width,
+                       m_vis_height > 0 ? m_vis_height : m_frame_height,
+                       m_vis_width > 0 ? m_vis_width : m_frame_width,
+                       m_vis_height > 0 ? m_vis_height : m_frame_height);
 
     if (useUpscaling && easuUniformBuffer) {
         EasuConstants easuConstants = {};
@@ -947,8 +1023,15 @@ void DKVideoRenderer::updateRenderState(int width, int height, AVFrame* frame) {
     bool colorFull = false;
     getFrameColorInfo(frame, colorSpace, colorFull);
 
+    int cropL = 0, cropR = 0, cropT = 0, cropB = 0, visW = 0, visH = 0;
+    extractFrameCrop(frame, cropL, cropR, cropT, cropB, visW, visH);
+
     const bool frameSizeChanged =
         m_frame_width != frame->width || m_frame_height != frame->height;
+    const bool cropChanged =
+        m_crop_left != cropL || m_crop_right != cropR ||
+        m_crop_top != cropT || m_crop_bottom != cropB ||
+        m_vis_width != visW || m_vis_height != visH;
     const bool screenSizeChanged =
         m_screen_width != width || m_screen_height != height;
     const bool colorChanged =
@@ -960,19 +1043,21 @@ void DKVideoRenderer::updateRenderState(int width, int height, AVFrame* frame) {
 #else
     const bool requestedDithering = false;
 #endif
+    const int effW = visW > 0 ? visW : frame->width;
+    const int effH = visH > 0 ? visH : frame->height;
     const bool requestedUpscaling =
-        Settings::instance().upscaling() && frame->width > 0 && frame->height > 0 &&
+        Settings::instance().upscaling() && effW > 0 && effH > 0 &&
         width > 0 && height > 0 &&
-        (width > frame->width || height > frame->height);
+        (width > effW || height > effH);
     const bool requestedRcas =
         Settings::instance().rcas() && Settings::instance().rcas_strength() > 0.0f &&
-        frame->width > 0 && frame->height > 0 &&
+        effW > 0 && effH > 0 &&
         width > 0 && height > 0;
     const bool ditheringChanged = m_dithering_requested != requestedDithering;
     const bool upscalingChanged = m_upscaling_requested != requestedUpscaling;
     const bool rcasChanged = m_rcas_requested != requestedRcas;
 
-    if (!frameSizeChanged && !screenSizeChanged && !colorChanged &&
+    if (!frameSizeChanged && !cropChanged && !screenSizeChanged && !colorChanged &&
         !ditheringChanged && !upscalingChanged && !rcasChanged) {
         return;
     }
@@ -986,6 +1071,12 @@ void DKVideoRenderer::updateRenderState(int width, int height, AVFrame* frame) {
         currentMappingIndex = -1;
         updateFrameLayouts();
     }
+    m_crop_left = cropL;
+    m_crop_right = cropR;
+    m_crop_top = cropT;
+    m_crop_bottom = cropB;
+    m_vis_width = visW;
+    m_vis_height = visH;
 
     m_screen_width = width;
     m_screen_height = height;
