@@ -47,26 +47,52 @@
 
 ---
 
-## 3. 当前唯一阻塞点与已确认 100% 根因
+## 3. 阻塞点与根因（两个都已定位，第一个已真机验证修好）
 
-### 现象
-ICE 已成功进入 `connected`，但界面仍停留在「等待云端首帧 H.264 解码...」：
-- `PC state` 停在 `connecting`，DTLS 未完成、`DataChannel: control` 未打开、未收到音视频 RTP 包（约 1.6s 后 BE 网关下发 `cmd=17 gameStatus=17`，约 52s 后退出）。
+### 3.1 音频 Track 弱引用 → Answer 把 mid=0 踢出 BUNDLE（已修，真机验证通过）
+**现象（`fa57eff`）**：ICE `connected` 后界面卡「等待云端首帧 H.264 解码...」，`PC state` 停在 `connecting`，DTLS 不完成、DataChannel 不开、无 RTP。
 
-### 100% 确认的根因（日志 + `libdatachannel` 源码互证）
-对照最新真机日志与 `~/levelup-switch/build/deps/src/libdatachannel/src/impl/peerconnection.cpp:1010-1034`：
+**根因（日志 + `libdatachannel/src/impl/peerconnection.cpp:1010-1034` 互证）**：
 
-1. `libdatachannel` 的 `PeerConnection::mTracks` 只保存 **`std::weak_ptr<rtc::Track>`**；如果用户回调 `onTrack` 没有保留 `std::shared_ptr<rtc::Track>`，回调返回后 Track 对象会被立刻析构。
-2. 查看 [app/src/levelup/rtc_session.cpp](app/src/levelup/rtc_session.cpp)：
-   - `kind == "video"` 分支把 `track` 保存到了 `m_impl->videoTrack`；
-   - **`kind == "audio"` 分支完全没有保存 `track`（也没有保存 `audioRtcp`）**！
-3. 因此 `mid=0` 的 `audio` Track 在 `pc->onTrack` 返回时即刻销毁；紧接着 `pc->setLocalDescription(Answer)` 调用 `populateLocalDescription()`，查到 `mTracks["0"].lock() == nullptr`，于是自动将 `mid=0` 标记为 `removed`！
-4. 最新日志实锤打印出了错误 SDP Answer（第 85–87 行）：
-   - **`a=group:BUNDLE 1 2`**（把 `mid=0` 踢出了 BUNDLE！）
-   - **`m=audio 0 UDP/TLS/RTP/SAVPF ...`**（端口置 0 拒绝了音频，同时把 `m=video 9` 变成了唯一残留媒体）
-5. 云端（Pion/SRS 类服务端）的 Offer 以 `mid=0`（audio）为 BUNDLE 主 tag，且所有候选全部走 `mid=0`。收到 `m=audio 0` + `BUNDLE 1 2` 后服务端无法匹配传输，**不会发回 DTLS ServerHello / 媒体与 DataChannel**，导致客户端 MbedTLS DTLS（`a=setup:active`）一直卡在 `MBEDTLS_ERR_SSL_WANT_READ`。
+1. `PeerConnection::mTracks` 只存 **`std::weak_ptr<rtc::Track>`**，用户 `onTrack` 回调不保留 `shared_ptr` 时 Track 立刻析构。
+2. [app/src/levelup/rtc_session.cpp](app/src/levelup/rtc_session.cpp) 里 `video` 分支保存了 `m_impl->videoTrack`，**`audio` 分支什么都没保存**。
+3. 于是 `mid=0` 的 audio Track 在回调返回时销毁；`setLocalDescription(Answer)` 的 `populateLocalDescription()` 拿到 `mTracks["0"].lock() == nullptr` → 把 mid=0 标记 `removed`。
+4. 错误 Answer：`a=group:BUNDLE 1 2` + `m=audio 0 ...`。云端以 mid=0 为 BUNDLE 主 tag、所有候选都挂 mid=0 → 匹配不到传输，永不回 DTLS ServerHello。
 
-（附注：日志里 `remote candidate #1/#2 resolved=0` 是 `rtc_session.cpp` 里 `rtc::Candidate(cs, mid)` 构造时的初始 `resolved` 日志——此时还未调用 `pc->addRemoteCandidate(rcand)` 触发解析；ICE 已连通说明远端候选在 `libjuice` 中实际解析工作正常，无需再怀疑 `getnameinfo`。）
+**修复（`8c4387b`）**：Impl 持有 `audioTrack` / `audioRtcpHandler`，`close()` 一并释放；另加 `auditAnswerBundle()` 自检 + Track `onOpen/onError` 日志 + `[libRTC]` Debug 级日志 + Offer 摘要日志。
+
+**真机验证（21:02 日志）**：
+```
+[libRTC] populateLocalDescription@1018: Adding media to local description, mid="0", removed=false
+[libRTC] populateLocalDescription@1018: Adding media to local description, mid="1", removed=false
+[RTC] SDP a=group:BUNDLE 0 1 2
+[RTC] SDP m=audio 9 UDP/TLS/RTP/SAVPF 111 106 ...
+[libRTC] DtlsTransport::doRecv@565: DTLS handshake finished      <- 30.158
+```
+即 **DTLS 在 ICE connected 后 ~0.14 秒握手完成**，第一阶段根因确认修复。
+
+### 3.2 `struct sockaddr_conn` 布局与 libnx BSD sockaddr 不匹配 → `usrsctp_bind` 失败 → `std::terminate`（本轮修复）
+**现象（同一份 21:02 日志，DTLS 之后 0.1 秒）**：
+```
+[libRTC] SctpTransport::connect@358: SCTP connecting (local port=5000, remote port=5000)
+[libRTC] SctpTransport::~SctpTransport@318: Destroying SCTP transport
+[libRTC] DtlsTransport::stop@469: Stopping DTLS transport
+[ERROR] [libRTC] PeerConnection::initSctpTransport@360: Could not bind usrsctp socket, errno=106
+[libRTC] PeerConnection::changeState@1381: Changed state to failed
+[FATAL] std::terminate invoked      <- 进程被杀 = 用户看到的「软件已关闭」
+```
+`initSctpTransport` 的 catch 分支在 `changeState(Failed)` 之后 **rethrow**，异常从 libdatachannel 内部线程抛出 → 未捕获 → `std::terminate`。
+
+**100% 确认的根因（三处源码 + 头文件互证）**：
+
+1. `errno=106` 在 **newlib（devkitA64）** 不是 EISCONN，而是 **`EAFNOSUPPORT`**（`sys/errno.h:106`；newlib 的 EISCONN 是 127、EADDRINUSE 是 112、ECONNREFUSED 是 111 —— 全都不等 106）。
+2. `EAFNOSUPPORT` 只能来自 `usrsctp` 的 `sobind()` 的 `default:` 分支：它按 `nam->sa_family` 分派 `AF_INET / AF_INET6 / AF_CONN`。libnx 的 `struct sockaddr` 是 **BSD 布局**（`sa_len` 在偏移 0、`sa_family` 在偏移 1，`/opt/devkitpro/libnx/include/sys/socket.h:289`），usrsctp 的 CMake 也因此探测出 `HAVE_SA_LEN` 并编译进去。
+3. 但 `usrsctp.h` 里 `struct sockaddr_conn` 只有 **Apple/BSD 平台宏** 才用 `{sconn_len, sconn_family, ...}` 布局，`__SWITCH__` 不在名单里 → Switch 用的是 `{uint16_t sconn_family, ...}`。libdatachannel 写 `family=AF_CONN(123)` 落在偏移 0，usrsctplib 从偏移 1 读 `sa_family` → 读到 **0** → `default:` → `EAFNOSUPPORT`。
+
+**修复**：`scripts/switch1/patch_webrtc_deps.py` 的 `patch_usrsctp()` 增加一条幂等补丁，把 `__SWITCH__` 加入 `usrsctp.h` 的 BSD 布局分支（`sconn_len` 由 usrsctp 自己的 `getsockaddr()` 写成 `namelen`，无需 libdatachannel 定义 `HAVE_SCONN_LEN`）。随后必须 **重跑 `scripts/build_switch1_deps.sh`** 重建 `libusrsctp.a` + `libdatachannel.a`（头文件布局变了，两个 TU 都要重编）。
+
+（附注：日志里 `remote candidate #N ... resolved=0` 已改为 `applied`，那个 0 只是 `rtc::Candidate(cs, mid)` 构造后的初始值，不代表解析失败；ICE `completed` 已证伪该怀疑。）
+
 
 ---
 
@@ -96,8 +122,19 @@ python "C:\Users\Administrator\.gemini\antigravity-cli\brain\97afa178-3b1c-406b-
 - 结果：宿主单测（M2/M3/M4/M5）全绿 → Docker 交叉编译 `[100%] Built target LevelUp-NX.nro`（20,106,203 字节，`NRO0` 校验通过）→ ELF 符号门禁 `ELF symbol check PASSED`（含 `dtls`/`audren`/`hid*`/`Curl_ssl_libnx` 等，且无 MbedTLS 2.x 遗留符号）→ 已拉回 `build/switch/LevelUp-NX.nro`。
 - `privacy_audit.py`：`Privacy audit PASSED (0 hits)`。
 
-### Step 3：真机复测（下一步唯一的动作）
-把 `build/switch/LevelUp-NX.nro` 拷到 `sdmc:/switch/LevelUp-NX.nro`，在 Title Override / `appletType=0` 全内存模式下进一次游戏，取回 `sdmc:/switch/levelup-nx/levelup.log`，按第 5 节 checklist 对照。
+### Step 3：重建设备端依赖（Stage 2 修复必需）
+状态：**已完成（2026-11-24 21:16）**
+
+```powershell
+ssh ub "cd ~/levelup-switch && bash scripts/build_switch1_deps.sh"
+```
+
+- 补丁落地证据：`~/levelup-switch/build/deps/src/libdatachannel/deps/usrsctp/usrsctplib/usrsctp.h` 的 `struct sockaddr_conn` 分支已含 `defined(__SWITCH__)`。
+- 依赖产物全部重编：`libusrsctp.a`（867K）、`libdatachannel.a`（7.9M）、`libjuice.a`、`libsrtp2.a` 均为 21:13 时间戳。
+- 注意：改的虽是 deps，仍需同步 `scripts/` 到 ub（`ub_sync_and_run.py sync`），否则 ub 上的补丁脚本还是旧版，会漏掉 `usrsctp.h` 这条。
+
+### Step 4：真机复测（下一步唯一的动作）
+把 `build/switch/LevelUp-NX.nro`（2026-11-24 21:16:23 构建，SHA256 `9FAB25A472B8EDF71CE3611AD8ACDA23FB8499664488E4BBB898D1918C3DB835`）拷到 `sdmc:/switch/LevelUp-NX.nro`，在 Title Override / `appletType=0` 全内存模式下进一次游戏，取回 `sdmc:/switch/levelup-nx/levelup.log`，按第 5 节 checklist 对照。
 
 ---
 
@@ -107,10 +144,14 @@ python "C:\Users\Administrator\.gemini\antigravity-cli\brain\97afa178-3b1c-406b-
   1. `[RTC] Offer m=audio ...` / `[RTC] Offer m=video ...` / `[RTC] Offer a=group:BUNDLE 0 1 2` / `[RTC] remote offer applied: m-lines=3 candidates=N`。
   2. SDP Answer 输出 **`a=group:BUNDLE 0 1 2`** 且 **`m=audio 9 UDP/TLS/RTP/SAVPF ...`**（不再出现 `m=audio 0`，且 `auditAnswerBundle()` 不打印任何 `Answer rejected` / `Answer BUNDLE omits` 错误行）。
   3. `[RTC] ICE state: connected` 之后出现 `[libRTC] ... Starting DTLS transport` → `[libRTC] ... DTLS handshake finished` → `[RTC] video track open mid=1` / `[RTC] audio track open mid=0` → `[RTC] PC state: connected`。
-  4. 触发 `[RTC] DataChannel: control` → `[RTC] control DataChannel open` → `[RTC] control handshake sent (VQ_FIRST=1 ok=1)` → `[RTC] DC 1537 first echo RTT=...ms`。
+  4. **（Stage 2 新增关键位）**`[libRTC] SctpTransport::connect@358: SCTP connecting (local port=5000, remote port=5000)` 之后**不能**出现 `Could not bind usrsctp socket` / `Could not create SCTP socket` / `SCTP transport initialization failed` / `[FATAL] std::terminate`；应出现 `SctpTransport` 关联建立 → `[RTC] DataChannel: control` → `[RTC] control DataChannel open` → `[RTC] control handshake sent (VQ_FIRST=1 ok=1)` → `[RTC] DC 1537 first echo RTT=...ms`。
   5. 触发 `[RTC] first video RTP ...` 与 `[RTC] first audio RTP ...` → 首个 IDR 解码出图 → `[Session] sent BE cmd=37 CGCNtfStreamStatus(playing=1)` → 2s 后 `[Session] vPad allocated`。
-- **若 `BUNDLE 0 1 2` 修正后 DTLS 仍未握手成功**：
-  1. 查看新增的 `[libRTC]` `Debug` 日志，确认 `Starting DTLS transport` 是否触发以及是否有 TLS alert / certificate 错误。
+- **若 DTLS 通了但 SCTP 仍失败**：
+  1. 先看 errno 数值：newlib 下 `106=EAFNOSUPPORT`、`112=EADDRINUSE`、`127=EISCONN`、`119=EINPROGRESS`、`105=ENOBUFS`（与 Linux 完全不同，别照 Linux 语义猜）。
+  2. `EAFNOSUPPORT` = sockaddr 家族没对上（布局问题，见 3.2）；`EADDRINUSE` = `usrsctp_init(0, ...)` 被调了两次（多次 `RtcSession::start` 时检查 `SctpTransport::Start()` 的全局 init 守卫）。
+  3. 二次确认头文件是否真的替换：`grep -A4 'defined(__SWITCH__)' ~/levelup-switch/build/deps/src/libdatachannel/deps/usrsctp/usrsctplib/usrsctp.h`。
+- **若 DTLS 没握手成功**：
+  1. 查看 `[libRTC]` `Debug` 日志，确认 `Starting DTLS transport` 是否触发以及是否有 TLS alert / certificate 错误。
   2. 检查 `~/levelup-switch/build/deps/src/libdatachannel/src/impl/dtlstransport.cpp`（MbedTLS `WriteCallback` / `ReadCallback` / `DoRecv` 定时器重传），必要时对比 `../go-client/internal/rtc/rtc.go` 检查 Offer/Answer 的 `a=setup:active`、SRTP profile 或证书类型（ECDSA P-256 vs RSA）。
 - **画面与控制联调验证点**（出图后逐项检查）：
   - Tegra X1 NVDEC 硬解与 deko3d 渲染裁剪（`1920x1088` -> `1920x1080`，防止底部 8px 绿条：[app/src/levelup/video_pipeline.cpp](app/src/levelup/video_pipeline.cpp)、[app/src/levelup/ui/levelup_stream_view.cpp](app/src/levelup/ui/levelup_stream_view.cpp)）。

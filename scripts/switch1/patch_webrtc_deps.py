@@ -1012,6 +1012,26 @@ def patch_libsrtp(srtp_dir: Path) -> None:
 
 
 def patch_usrsctp(usrsctp_dir: Path) -> None:
+    # Horizon OS (libnx) uses BSD-style sockaddrs: struct sockaddr carries
+    # sa_len at offset 0 and sa_family at offset 1, and usrsctp's CMake detects
+    # sa_len, so usrsctplib is compiled with HAVE_SA_LEN. usrsctp.h however only
+    # switches to the "len + family" sockaddr_conn layout for Apple/BSD targets,
+    # so on Switch the header declared {uint16_t family, port, addr} while the
+    # library read sa_family from offset 1 -> the family came back as 0 and
+    # usrsctp_bind() failed with EAFNOSUPPORT (newlib 106), killing the SCTP
+    # transport right after "DTLS handshake finished".
+    usrsctp_h = usrsctp_dir / "usrsctplib/usrsctp.h"
+    replace_once(
+        usrsctp_h,
+        "#if defined(__APPLE__) || defined(__Bitrig__) || defined(__DragonFly__) || \\\n"
+        "    defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)",
+        "#if defined(__APPLE__) || defined(__Bitrig__) || defined(__DragonFly__) || \\\n"
+        "    defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || \\\n"
+        "    defined(__SWITCH__)",
+        "defined(__SWITCH__)\nstruct sockaddr_conn",
+        "usrsctp.h sockaddr_conn BSD layout for Switch",
+    )
+
     user_malloc = usrsctp_dir / "usrsctplib/user_malloc.h"
     replace_once(
         user_malloc,
