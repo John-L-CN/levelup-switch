@@ -35,9 +35,12 @@ struct GamesLibrary {
 };
 
 struct AppConfig {
+    /// 画质档位不再暴露给用户：固定"高清"（云端口径 0=流畅 1=标清 2=高清 3=超清 4=原画）。
+    static constexpr int kFixedVideoLevel = 2;
+
     std::string deviceId;
     api::Credentials cred;
-    int videoLevel = 3;          // 0..4 (default 3 = UltraHigh)
+    int videoLevel = kFixedVideoLevel; // 固定值，见 kFixedVideoLevel
     bool vqFirst = true;         // default true (VQ_FIRST)
     bool rumbleEnabled = true;   // default true
     int rumbleStrength = 100;    // 0..100

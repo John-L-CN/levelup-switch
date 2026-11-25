@@ -62,6 +62,8 @@ struct SessionStatsSnapshot {
     net::RtcStatsSnapshot rtc{};
     uint64_t audioDecoded = 0;
     uint64_t audioDropped = 0;
+    uint64_t audioConcealed = 0;
+    int audioLatencyMs = 0;
 };
 
 class SessionOrchestrator {

@@ -10,6 +10,7 @@
 
 // Switch include only necessary for demo videos recording
 #ifdef __SWITCH__
+#include <pthread.h>
 #include <switch.h>
 #include <sys/stat.h>
 #endif
@@ -110,7 +111,8 @@ FILE* g_levelupLogFile = nullptr;
 
 [[noreturn]] void levelupTerminateHandler() {
     FILE* out = g_levelupLogFile ? g_levelupLogFile : stderr;
-    std::fprintf(out, "[FATAL] std::terminate invoked\n");
+    std::fprintf(out, "[FATAL] std::terminate invoked (tid=%llu)\n",
+                 static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(pthread_self())));
     if (auto eptr = std::current_exception()) {
         try {
             std::rethrow_exception(eptr);

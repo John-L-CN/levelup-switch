@@ -161,6 +161,7 @@ bool RtcSession::start(int, std::string* errOut) {
     return false;
 }
 void RtcSession::close() {}
+void RtcSession::beginShutdown() {}
 void RtcSession::notifyVideoFrameDecoded() {}
 void RtcSession::requestKeyFrame() {}
 void RtcSession::sendNack(const std::vector<uint16_t>&) {}
@@ -204,6 +205,56 @@ void initRtcLoggingOnce() {
         });
     });
 }
+
+/// libdatachannel objects are never destroyed on Horizon OS.
+///
+/// Session teardown used to hand the retired PeerConnection/WebSocket to a detached
+/// thread that reset them 250ms later. On Switch that path is a landmine: the
+/// destructors run inside libdatachannel's own noexcept teardown code (usrsctp /
+/// juice / mbedtls), and any failure there ends up in std::terminate -> the
+/// "[FATAL] std::terminate invoked" abort seen right after "[RTC] close(): ws.reset()
+/// deferred", which killed the process and left the cloud instance running.
+///
+/// close() therefore only *stops* the transports (close()/forceClose(), callbacks
+/// detached) and parks the shared_ptrs here for the lifetime of the process. A few
+/// hundred KB per session is a cheap price for a teardown that cannot abort the app.
+namespace {
+
+std::mutex& graveyardMu() {
+    static std::mutex mu;
+    return mu;
+}
+
+std::vector<std::shared_ptr<void>>& graveyard() {
+    static std::vector<std::shared_ptr<void>> parked;
+    return parked;
+}
+
+template <typename T>
+void retire(std::shared_ptr<T> obj) {
+    if (!obj) {
+        return;
+    }
+    std::shared_ptr<void> keep = std::move(obj);
+    try {
+        std::lock_guard lock(graveyardMu());
+        graveyard().push_back(keep);
+    } catch (...) {
+        // Out of memory while parking: leak the reference on purpose, never destroy it.
+        new std::shared_ptr<void>(keep);
+    }
+}
+
+size_t graveyardSize() {
+    std::lock_guard lock(graveyardMu());
+    return graveyard().size();
+}
+
+constexpr int kMaxSignalingReconnects = 12;
+constexpr int kSignalingReconnectMs = 4000;
+constexpr int kMediaStallMs = 8000;
+
+} // namespace
 
 void logAnswerSummary(const std::string& sdp) {
     std::istringstream iss(sdp);
@@ -628,7 +679,7 @@ class LevelUpRtcpHandler final : public rtc::RtcpReceivingSession {
 
 } // namespace
 
-struct RtcSession::Impl {
+struct RtcSession::Impl : std::enable_shared_from_this<RtcSession::Impl> {
     RtcConfig cfg;
 
     std::shared_ptr<rtc::WebSocket> ws;
@@ -695,6 +746,18 @@ struct RtcSession::Impl {
     std::atomic<uint64_t> dcRecvCount{0};
     std::atomic<uint64_t> dcPingEchoCount{0};
 
+    // Signaling resilience: the edge WebSocket is only used for SDP/candidate exchange.
+    // Once SRTP media + the control DataChannel are up, losing it must NOT kill the
+    // session (previously it flipped the whole stream to "连接中断" while audio kept
+    // playing). We keep streaming and reconnect the socket in the background.
+    std::atomic<bool> signalingLost{false};
+    std::atomic<int> reconnectAttempts{0};
+    std::atomic<bool> joinedOnce{false};
+    std::atomic<int64_t> lastReconnectMs{0};
+    std::atomic<int64_t> lastVideoRtpMs{0};
+    std::atomic<bool> ignoreOffers{false};
+    std::string joinPayload;
+
     std::mutex localCandMu;
     std::vector<std::string> localCandidates;
 
@@ -727,6 +790,146 @@ struct RtcSession::Impl {
             logWarn(std::string("[RTC] signal send error: ") + e.what());
             return false;
         }
+    }
+
+    bool sendJoinPayload() {
+        std::lock_guard lock(wsWriteMu);
+        if (!ws || !ws->isOpen() || joinPayload.empty()) return false;
+        try {
+            return ws->send(joinPayload);
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+
+    /// Creates a fresh signaling WebSocket and starts connecting.
+    /// Used by start() (with waitForOpen=true) and by the reconnect path in bgLoop().
+    bool openSignaling(bool waitForOpen, int timeoutMs, std::string* errOut) {
+        std::weak_ptr<Impl> weakImpl = weak_from_this();
+
+        std::shared_ptr<rtc::WebSocket> wsNew;
+        try {
+            rtc::WebSocket::Configuration wsCfg;
+            wsCfg.disableTlsVerification = cfg.noTlsVerify;
+            wsCfg.pingInterval = std::chrono::seconds(20);
+            wsCfg.connectionTimeout = std::chrono::milliseconds(timeoutMs);
+            wsNew = std::make_shared<rtc::WebSocket>(wsCfg);
+        } catch (const std::exception& e) {
+            if (errOut) *errOut = std::string("signaling WS create exception: ") + e.what();
+            return false;
+        }
+
+        wsNew->onOpen([weakImpl]() {
+            auto impl = weakImpl.lock();
+            if (!impl || impl->closing.load()) return;
+            impl->wsConnected.store(true);
+            impl->wsOpenDone.store(true);
+            impl->signalingLost.store(false);
+            if (impl->joinedOnce.exchange(true)) {
+                // Reconnect: the edge rebinds this signaling socket to the existing
+                // media session, so re-send the same join payload.
+                impl->stateCv.notify_all();
+                if (impl->sendJoinPayload()) {
+                    logInfo("[RTC] signaling reconnected (attempt " +
+                            std::to_string(impl->reconnectAttempts.load()) + "), join re-sent");
+                } else {
+                    logWarn("[RTC] signaling reconnected but join re-send failed");
+                }
+                return;
+            }
+            impl->stateCv.notify_all();
+        });
+
+        wsNew->onError([weakImpl](std::string err) {
+            auto impl = weakImpl.lock();
+            if (!impl || impl->closing.load()) return;
+            if (!impl->wsConnected.load()) {
+                std::lock_guard lock(impl->stateMu);
+                if (!impl->wsOpenDone.load() && impl->wsOpenError.empty()) {
+                    impl->wsOpenError = err;
+                }
+            }
+            impl->wsOpenDone.store(true);
+            impl->stateCv.notify_all();
+        });
+
+        wsNew->onClosed([weakImpl]() {
+            auto impl = weakImpl.lock();
+            if (!impl || impl->closing.load()) return;
+            const bool wasConn = impl->wsConnected.exchange(false);
+            if (!impl->wsOpenDone.load()) {
+                std::lock_guard lock(impl->stateMu);
+                if (impl->wsOpenError.empty()) {
+                    impl->wsOpenError = "signaling WebSocket closed before open";
+                }
+                impl->wsOpenDone.store(true);
+            }
+            if (wasConn) {
+                // Signaling death is only fatal when there is no media yet.
+                const bool mediaUp = impl->iceConnected.load() && impl->gotFirstFrame.load();
+                if (mediaUp) {
+                    impl->signalingLost.store(true);
+                    logWarn("[RTC] signaling WebSocket closed; media path keeps running, "
+                            "scheduling reconnect");
+                } else {
+                    impl->markDead("边缘信令 WebSocket 已断开");
+                }
+            }
+            impl->stateCv.notify_all();
+        });
+
+        wsNew->onMessage([weakImpl](rtc::message_variant msg) {
+            auto impl = weakImpl.lock();
+            if (!impl || impl->closing.load()) return;
+            if (std::holds_alternative<std::string>(msg)) {
+                impl->handleSignalingText(std::get<std::string>(msg));
+            }
+        });
+
+        const std::string wsUrl =
+            "wss://" + cfg.edgeIp + ":" + std::to_string(cfg.signalingPort) + "/";
+        try {
+            wsNew->open(wsUrl);
+        } catch (const std::exception& e) {
+            if (errOut) *errOut = std::string("signaling WS open exception: ") + e.what();
+            return false;
+        }
+
+        {
+            std::shared_ptr<rtc::WebSocket> previous;
+            {
+                std::lock_guard lock(wsWriteMu);
+                previous = std::move(ws);
+                ws = wsNew;
+            }
+            if (previous) {
+                try {
+                    previous->onOpen(nullptr);
+                    previous->onError(nullptr);
+                    previous->onClosed(nullptr);
+                    previous->onMessage(nullptr);
+                    previous->forceClose();
+                } catch (...) {
+                }
+                retire(std::move(previous));
+            }
+        }
+
+        if (!waitForOpen) {
+            return true;
+        }
+
+        std::unique_lock lock(stateMu);
+        const bool ok = stateCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+                                        [this]() { return wsOpenDone.load(); });
+        if (!ok || !wsConnected.load()) {
+            if (errOut) {
+                *errOut = wsOpenError.empty() ? "signaling WebSocket connect timeout/failed"
+                                              : wsOpenError;
+            }
+            return false;
+        }
+        return true;
     }
 
     void sendLocalCandidateToAllMids(const std::string& candLine) {
@@ -930,7 +1133,13 @@ struct RtcSession::Impl {
             if (msg.contains("offer") && msg["offer"].is_object()) {
                 const std::string sdp = msg["offer"].value("sdp", "");
                 if (!sdp.empty()) {
-                    handleOffer(sdp);
+                    if (ignoreOffers.load()) {
+                        // Media is already flowing; a re-offer after signaling reconnect
+                        // would disturb the established transport, so ignore it.
+                        logInfo("[RTC] re-offer ignored (media already established)");
+                    } else {
+                        handleOffer(sdp);
+                    }
                 }
             }
         } else if (mtype == "onCandidate") {
@@ -1013,7 +1222,8 @@ struct RtcSession::Impl {
                 logInfo("[RTC] alive t=" + std::to_string(uptime) +
                         "ms ice=" + std::string(iceConnected.load() ? "1" : "0") +
                         " ctl=" + std::string(ctlOpen ? "1" : "0") +
-                        " echo=" + std::to_string(dcPingEchoCount.load()) +
+                        " rtt=" + std::to_string(lastRttMs.load()) +
+                        "ms echo=" + std::to_string(dcPingEchoCount.load()) +
                         " dcRecv=" + std::to_string(dcRecvCount.load()) +
                         " rtp=" + std::to_string(rtpRecv) +
                         " kbps=" + std::to_string(kbps) +
@@ -1022,6 +1232,8 @@ struct RtcSession::Impl {
                         " remb=" + std::to_string(rembSent) +
                         " pli=" + std::to_string(pliSent) +
                         " nack=" + std::to_string(nackSent) +
+                        " sig=" + std::string(wsConnected.load() ? "1" : "0") +
+                        " rec=" + std::to_string(reconnectAttempts.load()) +
                         " frame=" + std::string(gotFirstFrame.load() ? "1" : "0"));
             }
 
@@ -1090,6 +1302,38 @@ struct RtcSession::Impl {
                 }
                 if (auto arh = getAudioRtcpHandler()) {
                     arh->sendRrAndRemb();
+                }
+            }
+
+            // Signaling reconnect: the edge WebSocket only carries SDP/candidates, so a
+            // drop must not kill a session whose SRTP media is still flowing.
+            if (!closing.load() && !dead.load() && !wsConnected.load()) {
+                const int attempt = reconnectAttempts.load();
+                const int64_t lastTry = lastReconnectMs.load();
+                if (attempt < kMaxSignalingReconnects &&
+                    (lastTry == 0 || (nowMs - lastTry) >= kSignalingReconnectMs)) {
+                    lastReconnectMs.store(nowMs);
+                    reconnectAttempts.store(attempt + 1);
+                    wsOpenDone.store(false);
+                    {
+                        std::lock_guard lock(stateMu);
+                        wsOpenError.clear();
+                    }
+                    logInfo("[RTC] signaling reconnect attempt " + std::to_string(attempt + 1) +
+                            "/" + std::to_string(kMaxSignalingReconnects) +
+                            " (media=" + std::string(iceConnected.load() ? "up" : "down") + ")");
+                    std::string reconErr;
+                    if (!openSignaling(false, 8000, &reconErr)) {
+                        logWarn("[RTC] signaling reconnect failed: " + reconErr);
+                    }
+                }
+            }
+
+            // Media stall watchdog: signaling drops are survivable, a starved media path is not.
+            if (gotFirstFrame.load() && !dead.load()) {
+                const int64_t lastRtp = lastVideoRtpMs.load();
+                if (lastRtp > 0 && (nowMs - lastRtp) >= kMediaStallMs) {
+                    markDead("视频流已中断 (" + std::to_string((nowMs - lastRtp) / 1000) + "s 无 RTP)");
                 }
             }
 
@@ -1162,6 +1406,13 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
     m_impl->firstVideoTrackMs.store(0);
     m_impl->startMs.store(unixMillisNow());
     m_impl->lastKeyReqMs.store(0);
+    m_impl->signalingLost.store(false);
+    m_impl->reconnectAttempts.store(0);
+    m_impl->joinedOnce.store(false);
+    m_impl->lastReconnectMs.store(0);
+    m_impl->lastVideoRtpMs.store(0);
+    m_impl->ignoreOffers.store(false);
+    m_impl->joinPayload.clear();
     {
         std::lock_guard lock(m_impl->localCandMu);
         m_impl->localCandidates.clear();
@@ -1323,6 +1574,7 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                         std::lock_guard lock(impl2->cbMu);
                         cb = impl2->onVideoRtp;
                     }
+                    impl2->lastVideoRtpMs.store(unixMillisNow());
                     if (!impl2->loggedFirstVideoRtp.exchange(true)) {
                         logInfo("[RTC] first video RTP seq=" + std::to_string(rtp.seq) +
                                 " pt=" + std::to_string(rtp.payloadType) +
@@ -1444,83 +1696,9 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         }
     });
 
-    rtc::WebSocket::Configuration wsCfg;
-    wsCfg.disableTlsVerification = m_impl->cfg.noTlsVerify;
-    wsCfg.pingInterval = std::chrono::seconds(20);
-    wsCfg.connectionTimeout = std::chrono::milliseconds(timeoutMs);
-
-    m_impl->ws = std::make_shared<rtc::WebSocket>(wsCfg);
-
-    m_impl->ws->onOpen([weakImpl]() {
-        auto impl = weakImpl.lock();
-        if (!impl || impl->closing.load()) return;
-        impl->wsConnected.store(true);
-        impl->wsOpenDone.store(true);
-        impl->stateCv.notify_all();
-    });
-
-    m_impl->ws->onError([weakImpl](std::string err) {
-        auto impl = weakImpl.lock();
-        if (!impl || impl->closing.load()) return;
-        {
-            std::lock_guard lock(impl->stateMu);
-            if (!impl->wsOpenDone.load() && impl->wsOpenError.empty()) {
-                impl->wsOpenError = err;
-            }
-        }
-        impl->wsOpenDone.store(true);
-        impl->stateCv.notify_all();
-    });
-
-    m_impl->ws->onClosed([weakImpl]() {
-        auto impl = weakImpl.lock();
-        if (!impl || impl->closing.load()) return;
-        const bool wasConn = impl->wsConnected.exchange(false);
-        if (!impl->wsOpenDone.load()) {
-            std::lock_guard lock(impl->stateMu);
-            if (impl->wsOpenError.empty()) {
-                impl->wsOpenError = "signaling WebSocket closed before open";
-            }
-            impl->wsOpenDone.store(true);
-        }
-        if (wasConn && !impl->closing.load()) {
-            impl->markDead("边缘信令 WebSocket 已断开");
-        }
-        impl->stateCv.notify_all();
-    });
-
-    m_impl->ws->onMessage([weakImpl](rtc::message_variant msg) {
-        auto impl = weakImpl.lock();
-        if (!impl || impl->closing.load()) return;
-        if (std::holds_alternative<std::string>(msg)) {
-            impl->handleSignalingText(std::get<std::string>(msg));
-        }
-    });
-
-    const std::string wsUrl = "wss://" + m_impl->cfg.edgeIp + ":" +
-                              std::to_string(m_impl->cfg.signalingPort) + "/";
-    try {
-        m_impl->ws->open(wsUrl);
-    } catch (const std::exception& e) {
-        if (errOut) *errOut = std::string("signaling WS open exception: ") + e.what();
+    if (!m_impl->openSignaling(true, timeoutMs, errOut)) {
         close();
         return false;
-    }
-
-    {
-        std::unique_lock lock(m_impl->stateMu);
-        const bool ok = m_impl->stateCv.wait_for(
-            lock, std::chrono::milliseconds(timeoutMs),
-            [this]() { return m_impl->wsOpenDone.load(); });
-        if (!ok || !m_impl->wsConnected.load()) {
-            if (errOut) {
-                *errOut = m_impl->wsOpenError.empty() ? "signaling WebSocket connect timeout/failed"
-                                                      : m_impl->wsOpenError;
-            }
-            lock.unlock();
-            close();
-            return false;
-        }
     }
 
     const nlohmann::json joinMsg = {
@@ -1533,7 +1711,8 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         {"disableEncryption", false},
         {"clientSupportHevc", 0},
     };
-    if (!m_impl->sendSignalJson(joinMsg)) {
+    m_impl->joinPayload = joinMsg.dump();
+    if (!m_impl->sendJoinPayload()) {
         if (errOut) *errOut = "failed to send signaling join";
         close();
         return false;
@@ -1555,7 +1734,9 @@ void RtcSession::close() {
         m_impl->bgThread.join();
     }
 
+    std::shared_ptr<rtc::PeerConnection> pcToRetire;
     if (m_impl->pc) {
+        logInfo("[RTC] close(): pc->close()");
         try {
             m_impl->pc->onLocalDescription(nullptr);
             m_impl->pc->onLocalCandidate(nullptr);
@@ -1567,30 +1748,48 @@ void RtcSession::close() {
             m_impl->pc->close();
         } catch (...) {
         }
-        m_impl->pc.reset();
+        pcToRetire = std::move(m_impl->pc);
+        logInfo("[RTC] close(): pc retired (kept alive)");
     }
     {
-        std::lock_guard lock(m_impl->trackMu);
-        if (m_impl->videoTrack) {
+        std::shared_ptr<rtc::Track> retiredVideo;
+        std::shared_ptr<rtc::Track> retiredAudio;
+        std::shared_ptr<LevelUpRtcpHandler> retiredVideoRtcp;
+        std::shared_ptr<LevelUpRtcpHandler> retiredAudioRtcp;
+        {
+            std::lock_guard lock(m_impl->trackMu);
+            retiredVideo = std::move(m_impl->videoTrack);
+            retiredVideoRtcp = std::move(m_impl->rtcpHandler);
+            retiredAudio = std::move(m_impl->audioTrack);
+            retiredAudioRtcp = std::move(m_impl->audioRtcpHandler);
+            m_impl->videoTrack = nullptr;
+            m_impl->rtcpHandler = nullptr;
+            m_impl->audioTrack = nullptr;
+            m_impl->audioRtcpHandler = nullptr;
+        }
+        if (retiredVideo) {
             try {
-                m_impl->videoTrack->onOpen(nullptr);
-                m_impl->videoTrack->onError(nullptr);
-                m_impl->videoTrack->onMessage(nullptr);
+                retiredVideo->onOpen(nullptr);
+                retiredVideo->onError(nullptr);
+                retiredVideo->onMessage(nullptr);
+                retiredVideo->close();
             } catch (...) {
             }
         }
-        if (m_impl->audioTrack) {
+        if (retiredAudio) {
             try {
-                m_impl->audioTrack->onOpen(nullptr);
-                m_impl->audioTrack->onError(nullptr);
-                m_impl->audioTrack->onMessage(nullptr);
+                retiredAudio->onOpen(nullptr);
+                retiredAudio->onError(nullptr);
+                retiredAudio->onMessage(nullptr);
+                retiredAudio->close();
             } catch (...) {
             }
         }
-        m_impl->videoTrack.reset();
-        m_impl->rtcpHandler.reset();
-        m_impl->audioTrack.reset();
-        m_impl->audioRtcpHandler.reset();
+        // Keep every rtc:: object alive: their destructors abort the app on Horizon OS.
+        retire(std::move(retiredVideo));
+        retire(std::move(retiredVideoRtcp));
+        retire(std::move(retiredAudio));
+        retire(std::move(retiredAudioRtcp));
     }
     {
         std::lock_guard lock(m_impl->dcMu);
@@ -1601,26 +1800,52 @@ void RtcSession::close() {
                 m_impl->controlDc->close();
             } catch (...) {
             }
-            m_impl->controlDc.reset();
+            retire(std::move(m_impl->controlDc));
+            m_impl->controlDc = nullptr;
         }
     }
     if (m_impl->ws) {
-        std::lock_guard lock(m_impl->wsWriteMu);
-        try {
-            m_impl->ws->onOpen(nullptr);
-            m_impl->ws->onError(nullptr);
-            m_impl->ws->onClosed(nullptr);
-            m_impl->ws->onMessage(nullptr);
-            m_impl->ws->forceClose();
-        } catch (...) {
+        logInfo("[RTC] close(): ws->forceClose()");
+        std::shared_ptr<rtc::WebSocket> wsToRetire;
+        {
+            std::lock_guard lock(m_impl->wsWriteMu);
+            try {
+                m_impl->ws->onOpen(nullptr);
+                m_impl->ws->onError(nullptr);
+                m_impl->ws->onClosed(nullptr);
+                m_impl->ws->onMessage(nullptr);
+                m_impl->ws->forceClose();
+            } catch (...) {
+            }
+            wsToRetire = std::move(m_impl->ws);
         }
-        m_impl->ws.reset();
+        m_impl->ws = nullptr;
+        retire(std::move(wsToRetire));
+        logInfo("[RTC] close(): ws retired (kept alive, no destructor on Switch)");
+    }
+    m_impl->wsConnected.store(false);
+    retire(std::move(pcToRetire));
+    logInfo("[RTC] close(): transports parked, graveyard=" + std::to_string(graveyardSize()));
+}
+
+void RtcSession::beginShutdown() {
+    if (!m_impl) {
+        return;
+    }
+    // Hard-stop media delivery first: no more video/audio callbacks into the pipelines.
+    m_impl->closing.store(true);
+    m_impl->bgStop.store(true);
+    m_impl->bgCv.notify_all();
+    if (m_impl->bgThread.joinable()) {
+        m_impl->bgThread.join();
     }
     m_impl->wsConnected.store(false);
 }
 
 void RtcSession::notifyVideoFrameDecoded() {
     m_impl->gotFirstFrame.store(true);
+    // Media is up: a signaling re-offer must no longer touch this transport.
+    m_impl->ignoreOffers.store(true);
 }
 
 void RtcSession::requestKeyFrame() {
@@ -1680,6 +1905,9 @@ RtcStatsSnapshot RtcSession::stats() const {
     snap.dcRecvCount = m_impl->dcRecvCount.load();
     snap.rttMs = m_impl->lastRttMs.load();
     snap.controlOpen = isControlConnected();
+    snap.signalingOpen = m_impl->wsConnected.load();
+    snap.signalingReconnects = m_impl->reconnectAttempts.load();
+    snap.mediaAlive = m_impl->gotFirstFrame.load() && !m_impl->dead.load();
     return snap;
 }
 

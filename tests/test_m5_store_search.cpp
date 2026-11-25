@@ -18,7 +18,9 @@ int main() {
     {
         auto c1 = store.loadConfig();
         assert(c1.deviceId.size() == 32);
-        assert(c1.videoLevel == 3 && c1.vqFirst == true);
+        // 画质固定「高清」(2)，不再可配
+        assert(c1.videoLevel == AppConfig::kFixedVideoLevel && c1.videoLevel == 2);
+        assert(c1.vqFirst == true);
         assert(c1.rumbleEnabled == true && c1.rumbleStrength == 100);
 
         c1.cred.sessionKey = "s1";
@@ -26,14 +28,15 @@ int main() {
         c1.cred.userId = 4242;
         c1.cred.nickName = "SwitchTester";
         c1.rumbleStrength = 75;
-        c1.videoLevel = 4;
+        c1.videoLevel = 4; // 旧配置里的档位必须被忽略
         c1.vqFirst = false;
         assert(store.saveConfig(c1));
 
         auto c2 = store.loadConfig();
         assert(c2.deviceId == c1.deviceId);
         assert(c2.cred.sessionKey == "s1" && c2.cred.userId == 4242);
-        assert(c2.rumbleStrength == 75 && c2.videoLevel == 4 && c2.vqFirst == false);
+        assert(c2.rumbleStrength == 75 && c2.vqFirst == false);
+        assert(c2.videoLevel == AppConfig::kFixedVideoLevel);
     }
 
     // 2. Recent games dedup & cap at 12 + per-user file isolation

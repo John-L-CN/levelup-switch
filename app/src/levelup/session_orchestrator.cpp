@@ -3,9 +3,78 @@
 #include "levelup/crypto_util.hpp"
 #include "levelup/log.hpp"
 
+#if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
+#include "AVFrameHolder.hpp"
+#endif
+
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <pthread.h>
+#include <string>
+#include <vector>
 
 namespace levelup {
+
+namespace {
+
+// 云端残留实例的落地标记：进入游戏拿到 startGame 后立刻写盘，释放成功后清除。
+// 进程被强杀/崩溃后下一次启动仍能凭它把上一次的实例收掉（startGame 否则会报 1001
+// 「其他游戏运行中」）。
+constexpr const char* kPendingReleasePath = "sdmc:/switch/levelup-nx/pending-release.txt";
+
+struct PendingRelease {
+    std::string gameId;
+    int64_t pkgName = 0;
+    bool valid() const { return !gameId.empty(); }
+};
+
+PendingRelease readPendingRelease() {
+    PendingRelease out;
+    std::FILE* f = std::fopen(kPendingReleasePath, "rb");
+    if (!f) {
+        return out;
+    }
+    char buf[256] = {0};
+    const size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
+    std::fclose(f);
+    if (n == 0) {
+        return out;
+    }
+    const std::string s(buf, n);
+    const auto bar = s.find('|');
+    if (bar == std::string::npos) {
+        out.gameId = s;
+    } else {
+        out.gameId = s.substr(0, bar);
+        out.pkgName = std::strtoll(s.c_str() + static_cast<long>(bar) + 1, nullptr, 10);
+    }
+    while (!out.gameId.empty() && (out.gameId.back() == '\n' || out.gameId.back() == '\r' ||
+                                   out.gameId.back() == ' ')) {
+        out.gameId.pop_back();
+    }
+    return out;
+}
+
+void writePendingRelease(const std::string& gameId, int64_t pkgName) {
+    if (gameId.empty()) {
+        return;
+    }
+    std::FILE* f = std::fopen(kPendingReleasePath, "wb");
+    if (!f) {
+        return;
+    }
+    const std::string line = gameId + "|" + std::to_string(pkgName) + "\n";
+    std::fwrite(line.data(), 1, line.size(), f);
+    std::fclose(f);
+}
+
+void clearPendingRelease() {
+    std::remove(kPendingReleasePath);
+}
+
+} // namespace
 
 SessionOrchestrator::~SessionOrchestrator() {
     stop();
@@ -93,37 +162,93 @@ void SessionOrchestrator::stop() {
         gid = m_gameId;
     }
 
-    logInfo("[Session] stop(): closing video/audio before rtc");
-    m_video.stop();
-    m_audio.stop();
-    if (rtc) {
-        rtc->close();
+    // Teardown order matters: media stops first, then the *cloud instance* is released,
+    // and only then do we run the heavy libdatachannel teardown. Previously the RTC
+    // teardown ran first, so any hiccup there aborted the process before stopGame/BE
+    // exit were ever sent and the cloud instance stayed alive.
+    try {
+        logInfo("[Session] stop(): closing video/audio before rtc");
+        m_video.stop();
+        m_audio.stop();
+        logInfo("[Session] stop(): video/audio stopped, stopping rtc delivery");
+        if (rtc) {
+            rtc->beginShutdown();
+        }
+        logInfo("[Session] stop(): rtc delivery stopped (tid=" +
+                std::to_string(static_cast<unsigned long long>(
+                    reinterpret_cast<uintptr_t>(pthread_self()))) +
+                ")");
+    } catch (const std::exception& e) {
+        logWarn(std::string("[Session] stop(): media teardown threw: ") + e.what());
+    } catch (...) {
+        logWarn("[Session] stop(): media teardown threw (unknown)");
     }
 
     const bool hadVPad = m_allocatedVPad.exchange(false);
     const int32_t vid = m_vpadId.exchange(0);
-    const uint32_t pkg = m_pkgName.load();
+    const uint32_t pkg = static_cast<uint32_t>(m_pkgName.load());
 
-    if ((be && be->isConnected()) || (api && !gid.empty() && !api->credentials().sessionKey.empty())) {
-        // Offload blocking network teardown (BE exit + HTTPS stopGame) so the UI thread never freezes.
-        auto beShared = std::shared_ptr<ytcx::BEClient>(std::move(be));
-        auto apiShared = std::shared_ptr<api::Client>(std::move(api));
-        std::thread([beShared, apiShared, gid, hadVPad, vid, pkg]() {
-            if (beShared && beShared->isConnected()) {
-                if (hadVPad && vid > 0) {
-                    beShared->releaseVPad(vid);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(60));
-                }
-                beShared->sendExit(pkg);
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                beShared->close();
+    try {
+        if (be && be->isConnected()) {
+            logInfo("[Session] stop(): closing BE");
+            if (hadVPad && vid > 0) {
+                be->releaseVPad(vid);
+                std::this_thread::sleep_for(std::chrono::milliseconds(60));
             }
-            if (apiShared && !gid.empty() && !apiShared->credentials().sessionKey.empty()) {
-                std::string stopErr;
-                (void)apiShared->stopGame(gid, &stopErr);
-            }
-        }).detach();
+            be->sendExit(pkg);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            be->close();
+            logInfo("[Session] stop(): BE closed");
+        }
+    } catch (const std::exception& e) {
+        logWarn(std::string("[Session] stop(): BE teardown threw: ") + e.what());
+    } catch (...) {
+        logWarn("[Session] stop(): BE teardown threw (unknown)");
     }
+
+    bool released = false;
+    try {
+        if (api && !gid.empty() && !api->credentials().sessionKey.empty()) {
+            logInfo("[Session] stop(): calling api->stopGame");
+            std::string stopErr;
+            released = api->stopGame(gid, &stopErr);
+            if (released) {
+                logInfo("[Session] stop(): api->stopGame OK, cloud instance released");
+            } else {
+                logWarn("[Session] stop(): api->stopGame failed: " + stopErr +
+                        " (kept pending marker for next launch)");
+            }
+        }
+    } catch (...) {
+        logWarn("[Session] stop(): stopGame threw (unknown)");
+    }
+    if (released && api && !gid.empty()) {
+        const PendingRelease pending = readPendingRelease();
+        if (!pending.valid() || pending.gameId == gid) {
+            clearPendingRelease();
+        }
+    }
+
+    try {
+        logInfo("[Session] stop(): closing rtc transports");
+        if (rtc) {
+            rtc->close();
+        }
+        rtc.reset();
+        be.reset();
+        api.reset();
+        logInfo("[Session] stop(): rtc transports closed");
+    } catch (const std::exception& e) {
+        logWarn(std::string("[Session] stop(): rtc teardown threw: ") + e.what());
+    } catch (...) {
+        logWarn("[Session] stop(): rtc teardown threw (unknown)");
+    }
+
+    // The video pipeline holds lambdas that reference the RtcSession by reference.
+    m_video.setKeyFrameRequester(nullptr);
+    m_video.setNackRequester(nullptr);
+    m_video.setFirstFrameCallback(nullptr);
+    m_input.setSendCallback(nullptr);
 
     m_active.store(false);
     SessionPhase curPhase;
@@ -134,6 +259,7 @@ void SessionOrchestrator::stop() {
     if (curPhase != SessionPhase::Failed) {
         setPhase(SessionPhase::Stopped, "已退出云游戏");
     }
+    logInfo("[Session] stop(): done");
 }
 
 void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
@@ -153,9 +279,43 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
 
     // 1. Pre-cleanup stale cloud session
     setPhase(SessionPhase::StoppingPrevious, "清理上次残留云端实例...");
-    if (!cfg.gameId.empty()) {
-        std::string tmpErr;
-        m_api->stopGame(cfg.gameId, &tmpErr);
+    {
+        const PendingRelease pending = readPendingRelease();
+        if (pending.valid()) {
+            logInfo("[Session] pending release marker found: gameId=" + pending.gameId +
+                    " pkg=" + std::to_string(pending.pkgName));
+        }
+        std::vector<std::string> targets;
+        if (pending.valid()) {
+            targets.push_back(pending.gameId);
+        }
+        if (!cfg.gameId.empty() &&
+            (targets.empty() || targets.front() != cfg.gameId)) {
+            targets.push_back(cfg.gameId);
+        }
+
+        bool pendingCleared = !pending.valid();
+        for (const auto& gid : targets) {
+            std::string tmpErr;
+            bool ok = m_api->stopGame(gid, &tmpErr);
+            if (!ok && !aborted()) {
+                logWarn("[Session] pre-cleanup stopGame(" + gid + ") failed: " + tmpErr +
+                        ", retrying once");
+                if (sleepInterruptible(700)) {
+                    tmpErr.clear();
+                    ok = m_api->stopGame(gid, &tmpErr);
+                }
+            }
+            logInfo(std::string("[Session] pre-cleanup stopGame(") + gid + ") " +
+                    (ok ? "OK" : ("FAILED: " + tmpErr)));
+            if (ok && pending.valid() && gid == pending.gameId) {
+                pendingCleared = true;
+            }
+        }
+        if (pendingCleared && pending.valid()) {
+            clearPendingRelease();
+            logInfo("[Session] pending release marker cleared");
+        }
     }
     if (!sleepInterruptible(400) || aborted()) {
         return;
@@ -166,13 +326,36 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     api::GameStartInfo startInfo;
     std::string err;
     {
-        std::lock_guard lock(m_compMu);
-        if (!m_api->startGame(cfg.gameId, startInfo, &err)) {
+        bool started = false;
+        {
+            std::lock_guard lock(m_compMu);
+            started = m_api->startGame(cfg.gameId, startInfo, &err);
+        }
+        if (!started && !aborted() &&
+            (err.find("1001") != std::string::npos || err.find("运行中") != std::string::npos ||
+             err.find("running") != std::string::npos)) {
+            // Another instance (usually a session orphaned by a crash) still holds the
+            // account; release everything and retry once.
+            logWarn("[Session] startGame blocked by a running instance: " + err +
+                    " -> forced release + retry");
+            std::string tmpErr;
+            {
+                std::lock_guard lock(m_compMu);
+                m_api->stopGame(cfg.gameId, &tmpErr);
+            }
+            if (sleepInterruptible(900) && !aborted()) {
+                err.clear();
+                std::lock_guard lock(m_compMu);
+                started = m_api->startGame(cfg.gameId, startInfo, &err);
+            }
+        }
+        if (!started) {
             setPhase(SessionPhase::Failed, "申请实例失败", err);
             return;
         }
     }
     m_pkgName.store(startInfo.pkgName);
+    writePendingRelease(cfg.gameId, startInfo.pkgName);
     logInfo("[Session] startGame OK pkg=" + std::to_string(startInfo.pkgName) +
             " user=" + startInfo.userId);
     if (aborted()) return;
@@ -323,8 +506,8 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     rtcSess->setVideoRtpCallback([this](uint16_t seq, uint8_t pt, const uint8_t* pl, size_t len, bool m, uint32_t ts) {
         m_video.pushRtp(seq, pt, pl, len, m, ts);
     });
-    rtcSess->setAudioOpusCallback([this](uint8_t, const uint8_t* pl, size_t len, uint16_t, uint32_t) {
-        m_audio.pushOpusPacket(pl, len);
+    rtcSess->setAudioOpusCallback([this](uint8_t, const uint8_t* pl, size_t len, uint16_t seq, uint32_t ts) {
+        m_audio.pushOpusPacket(pl, len, seq, ts);
     });
     rtcSess->setPacketLossCallback([this](int64_t delta) {
         m_video.onTransportLoss(delta);
@@ -389,7 +572,36 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     });
 
     // Monitor connection health until stop() requested or connection dies
+    int monitorTicks = 0;
     while (!aborted()) {
+        monitorTicks++;
+        if ((monitorTicks % 20) == 0 && m_firstFrame.load()) {
+            const auto vst = m_video.stats();
+            std::string perf = "[Perf] aud(dec=" + std::to_string(m_audio.decodedPackets()) +
+                               " drop=" + std::to_string(m_audio.droppedPackets()) +
+                               " plc=" + std::to_string(m_audio.concealedPackets()) +
+                               " trim=" + std::to_string(m_audio.trimmedPackets()) +
+                               " lat=" + std::to_string(m_audio.latencyMs()) +
+                               "ms) vid(rtp=" + std::to_string(vst.rtpPackets) +
+                               " gaps=" + std::to_string(vst.rtpGaps) +
+                               " oob=" + std::to_string(vst.rtpOutOfOrder) +
+                               " depack=" + std::to_string(vst.framesDepacked) +
+                               " dec=" + std::to_string(vst.decodedFrames) +
+                               " skip=" + std::to_string(vst.skippedFrames) +
+                               " err=" + std::to_string(vst.decodeErrors) + ")";
+#if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
+            auto& avh = AVFrameHolder::instance();
+            perf += " avq(sz=" + std::to_string(avh.getFrameQueueSize()) +
+                    " drop=" + std::to_string(avh.getFrameDropStat()) +
+                    " empty=" + std::to_string(avh.getFrameQueueEmptyStat()) +
+                    " resync=" + std::to_string(avh.getFrameQueuePlayoutResyncStat()) +
+                    " ovf=" + std::to_string(avh.getFrameQueueOverflowDropStat()) +
+                    " pskip=" + std::to_string(avh.getFrameQueuePacingSkipStat()) +
+                    " burst=" + std::to_string(avh.getFrameQueueMaxPushBurstStat()) +
+                    " fps=" + std::to_string(static_cast<int>(avh.getFrameQueueEstimatedSourceFps() + 0.5)) + ")";
+#endif
+            logInfo(perf);
+        }
         std::string deadReason;
         bool dead = false;
         {
@@ -453,6 +665,8 @@ SessionStatsSnapshot SessionOrchestrator::stats() const {
     snap.video = m_video.stats();
     snap.audioDecoded = m_audio.decodedPackets();
     snap.audioDropped = m_audio.droppedPackets();
+    snap.audioConcealed = m_audio.concealedPackets();
+    snap.audioLatencyMs = m_audio.latencyMs();
     {
         std::lock_guard lock(m_compMu);
         if (m_rtc) {

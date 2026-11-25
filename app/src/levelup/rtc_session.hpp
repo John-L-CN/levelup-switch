@@ -37,6 +37,9 @@ struct RtcStatsSnapshot {
     int64_t rttMs = -1;
     uint32_t videoSsrc = 0;
     bool controlOpen = false;
+    bool signalingOpen = false;
+    int signalingReconnects = 0;
+    bool mediaAlive = true;
 };
 
 /// Pure helpers (host-testable)
@@ -66,6 +69,10 @@ class RtcSession {
     void setRumbleCallback(RumbleCallback cb);
 
     bool start(int timeoutMs = 15000, std::string* errOut = nullptr);
+    /// Fast, allocation/exception-free shutdown: stops media delivery and the background
+    /// loop so the orchestrator can release the cloud instance. The heavy libdatachannel
+    /// teardown stays in close(); it never destroys the transport objects (see close()).
+    void beginShutdown();
     void close();
 
     void notifyVideoFrameDecoded();

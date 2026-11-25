@@ -53,14 +53,18 @@ std::string formatStatsLine1(const SessionStatsSnapshot& snap, int w, int h, dou
 std::string formatStatsLine2(const SessionStatsSnapshot& snap, bool rumbleEnabled) {
     char buf[256];
     const char* rumbleState = !rumbleEnabled ? "关" : (snap.rumbleActive ? "震动中" : "待机");
-    const char* linkState = snap.video.needKey ? "恢复IDR中" : (snap.controlReady ? "正常" : "控制重连");
+    const char* linkState = !snap.rtc.signalingOpen
+                                ? "信令重连中(媒体继续)"
+                                : (snap.video.needKey ? "恢复IDR中"
+                                                      : (snap.controlReady ? "正常" : "控制重连"));
     std::snprintf(buf,
                   sizeof(buf),
-                  "vPad#%u | 震动:%s | 音频:%llu/%llu | 视频解码:%llu 跳:%llu | %s",
+                  "vPad#%u | 震动:%s | 音频:%llu 补:%llu 延迟:%dms | 视频解码:%llu 跳:%llu | %s",
                   static_cast<unsigned>(snap.vpadId),
                   rumbleState,
                   static_cast<unsigned long long>(snap.audioDecoded),
-                  static_cast<unsigned long long>(snap.audioDropped),
+                  static_cast<unsigned long long>(snap.audioConcealed),
+                  snap.audioLatencyMs,
                   static_cast<unsigned long long>(snap.video.decodedFrames),
                   static_cast<unsigned long long>(snap.video.skippedFrames),
                   linkState);
@@ -182,7 +186,13 @@ LevelUpStreamView::~LevelUpStreamView() {
     brls::Application::getWindowFocusChangedEvent()->unsubscribe(m_windowFocusSub);
     setBorealisInputsBlocked(false);
 
-    m_orchestrator.stop();
+    try {
+        m_orchestrator.stop();
+    } catch (const std::exception& e) {
+        logWarn(std::string("[StreamView] ~LevelUpStreamView: stop threw: ") + e.what());
+    } catch (...) {
+        logWarn("[StreamView] ~LevelUpStreamView: stop threw (unknown)");
+    }
 
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
     if (m_renderer) {
@@ -343,6 +353,22 @@ void LevelUpStreamView::draw(NVGcontext* vg,
 #endif
 
     const auto snap = m_orchestrator.stats();
+    if (m_uiPhase == SessionPhase::Streaming && snap.firstFrameDecoded) {
+        static auto s_lastDraw = std::chrono::steady_clock::time_point{};
+        static auto s_lastWarn = std::chrono::steady_clock::time_point{};
+        const auto now = std::chrono::steady_clock::now();
+        if (s_lastDraw.time_since_epoch().count() != 0) {
+            const auto gapMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastDraw).count();
+            if (gapMs >= 45 && gapMs < 5000 &&
+                (s_lastWarn.time_since_epoch().count() == 0 ||
+                 now - s_lastWarn >= std::chrono::seconds(2))) {
+                s_lastWarn = now;
+                logWarn("[Perf] UI draw stall " + std::to_string(gapMs) + "ms");
+            }
+        }
+        s_lastDraw = now;
+    }
     const int font = brls::Application::getFont(brls::FONT_REGULAR);
 
     if (!snap.firstFrameDecoded || m_uiPhase != SessionPhase::Streaming) {
@@ -366,10 +392,9 @@ void LevelUpStreamView::draw(NVGcontext* vg,
             char infoBuf[128];
             std::snprintf(infoBuf,
                           sizeof(infoBuf),
-                          "目标分辨率 %dx%d@60fps  |  画质档位 %d  |  按 B 取消",
+                          "目标分辨率 %dx%d@60fps  |  画质 高清  |  按 B 取消",
                           m_targetWidth,
-                          m_targetHeight,
-                          m_cfg.videoLevel);
+                          m_targetHeight);
             nvgFontSize(vg, 18.0f);
             nvgFillColor(vg, nvgRGB(148, 163, 184));
             nvgText(vg, x + width * 0.5f, y + height * 0.58f, infoBuf, nullptr);
@@ -721,7 +746,13 @@ void LevelUpStreamView::exitStream() {
     m_stopping->store(true);
     setBorealisInputsBlocked(false);
 
-    m_orchestrator.stop();
+    try {
+        m_orchestrator.stop();
+    } catch (const std::exception& e) {
+        logWarn(std::string("[StreamView] exitStream: stop threw: ") + e.what());
+    } catch (...) {
+        logWarn("[StreamView] exitStream: stop threw (unknown)");
+    }
     logInfo("[StreamView] exitStream: orchestrator stopped, releasing renderer");
 
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
