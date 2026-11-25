@@ -355,11 +355,35 @@ brls::View* LevelUpLobbyActivity::createContentView() {
 
     header->addView(leftGroup);
 
+    m_accountBox = new brls::Box(brls::Axis::ROW);
+    m_accountBox->setHeight(36.0f);
+    m_accountBox->setPadding(0.0f, 14.0f, 0.0f, 14.0f);
+    m_accountBox->setCornerRadius(18.0f);
+    m_accountBox->setHighlightCornerRadius(18.0f);
+    m_accountBox->setBackgroundColor(nvgRGB(30, 41, 59));
+    m_accountBox->setAlignItems(brls::AlignItems::CENTER);
+    m_accountBox->setFocusable(true);
+    m_accountBox->registerClickAction([this](brls::View*) {
+        if (m_cfg.cred.sessionKey.empty()) {
+            openQrLoginModal();
+        } else {
+            openAccountModal();
+        }
+        return true;
+    });
+    m_accountBox->addGestureRecognizer(new brls::TapGestureRecognizer(m_accountBox, [this]() {
+        if (m_cfg.cred.sessionKey.empty()) {
+            openQrLoginModal();
+        } else {
+            openAccountModal();
+        }
+    }));
+
     m_accountLabel = new brls::Label();
-    m_accountLabel->setFontSize(15.0f);
-    m_accountLabel->setHorizontalAlign(brls::HorizontalAlign::RIGHT);
+    m_accountLabel->setFontSize(14.0f);
     m_accountLabel->setTextColor(nvgRGB(203, 213, 225));
-    header->addView(m_accountLabel);
+    m_accountBox->addView(m_accountLabel);
+    header->addView(m_accountBox);
 
     m_root->addView(header);
 
@@ -385,12 +409,12 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     footer->setJustifyContent(brls::JustifyContent::SPACE_BETWEEN);
     footer->setAlignItems(brls::AlignItems::CENTER);
 
-    auto* hintLabel = new brls::Label();
-    hintLabel->setText(
-        "A 详情/启动  Y 搜索  X 登录  L/R 分类  ZL/ZR 翻页  + 设置  - 刷新");
-    hintLabel->setFontSize(14.0f);
-    hintLabel->setTextColor(nvgRGB(148, 163, 184));
-    footer->addView(hintLabel);
+    m_hintLabel = new brls::Label();
+    m_hintLabel->setText(
+        "A 详情/启动  Y 搜索  X 账号/登录  L/R 分类  ZL/ZR 翻页  + 设置  - 刷新");
+    m_hintLabel->setFontSize(14.0f);
+    m_hintLabel->setTextColor(nvgRGB(148, 163, 184));
+    footer->addView(m_hintLabel);
 
     m_countLabel = new brls::Label();
     m_countLabel->setFontSize(14.0f);
@@ -629,29 +653,45 @@ void LevelUpLobbyActivity::updateHeaderUi() {
 
     if (m_accountLabel) {
         if (m_cfg.cred.sessionKey.empty()) {
-            m_accountLabel->setText("未登录 · 按 X 扫码登录");
-            m_accountLabel->setTextColor(nvgRGB(251, 191, 36));
+            m_accountLabel->setText("🔑 扫码登录 (按 X)");
+            m_accountLabel->setTextColor(nvgRGB(254, 240, 138));
+            if (m_accountBox) {
+                m_accountBox->setBackgroundColor(nvgRGB(146, 64, 14));
+            }
         } else if (m_hasUserInfo) {
             char buf[220];
             const std::string vip =
                 m_userInfo.vipExpireTime.empty() ? "普通" : ("VIP至 " + m_userInfo.vipExpireTime.substr(0, 10));
             const std::string nick =
-                !m_userInfo.nickName.empty() ? m_userInfo.nickName : std::to_string(m_userInfo.userId);
+                !m_userInfo.nickName.empty() ? m_userInfo.nickName : ("UID " + std::to_string(m_userInfo.userId));
             std::snprintf(buf,
                           sizeof(buf),
-                          "%s · %s · HP %d分 / MP %d分",
+                          "👤 %s · %s · HP %d分 · [账号/登出 X]",
                           nick.c_str(),
                           vip.c_str(),
-                          m_userInfo.hpMinutes(),
-                          m_userInfo.mpMinutes());
+                          m_userInfo.hpMinutes());
             m_accountLabel->setText(buf);
-            m_accountLabel->setTextColor(nvgRGB(134, 239, 172));
+            m_accountLabel->setTextColor(nvgRGB(220, 252, 231));
+            if (m_accountBox) {
+                m_accountBox->setBackgroundColor(nvgRGB(20, 83, 45));
+            }
         } else {
             const std::string who = !m_cfg.cred.nickName.empty()
                                         ? m_cfg.cred.nickName
                                         : ("UID " + std::to_string(m_cfg.cred.userId));
-            m_accountLabel->setText("已登录: " + who);
-            m_accountLabel->setTextColor(nvgRGB(134, 239, 172));
+            m_accountLabel->setText("👤 " + who + " · [账号/登出 X]");
+            m_accountLabel->setTextColor(nvgRGB(220, 252, 231));
+            if (m_accountBox) {
+                m_accountBox->setBackgroundColor(nvgRGB(20, 83, 45));
+            }
+        }
+    }
+
+    if (m_hintLabel) {
+        if (m_cfg.cred.sessionKey.empty()) {
+            m_hintLabel->setText("A 详情/启动  Y 搜索  X 扫码登录  L/R 分类  ZL/ZR 翻页  + 设置  - 刷新");
+        } else {
+            m_hintLabel->setText("A 详情/启动  Y 搜索  X 账号/登出  L/R 分类  ZL/ZR 翻页  + 设置  - 刷新");
         }
     }
 }
@@ -1403,7 +1443,7 @@ void LevelUpLobbyActivity::openAccountModal() {
     panel->setAlignItems(brls::AlignItems::STRETCH);
 
     auto* title = new brls::Label();
-    title->setText("LevelUp 账号信息");
+    title->setText("LevelUp 账号管理 (登录/登出)");
     title->setFontSize(24.0f);
     title->setTextColor(theme["brls/text"]);
     title->setHorizontalAlign(brls::HorizontalAlign::CENTER);
@@ -1465,7 +1505,7 @@ void LevelUpLobbyActivity::openAccountModal() {
     });
     panel->addView(refreshBtn);
 
-    auto* rescanBtn = makeBtn("重新扫码切换账号", &brls::BUTTONSTYLE_DEFAULT);
+    auto* rescanBtn = makeBtn("切换账号 (扫码登录新账号)", &brls::BUTTONSTYLE_DEFAULT);
     rescanBtn->registerClickAction([this, alive, closeModal](brls::View*) {
         closeModal([this, alive]() {
             if (alive->load()) {
@@ -1476,8 +1516,8 @@ void LevelUpLobbyActivity::openAccountModal() {
     });
     panel->addView(rescanBtn);
 
-    auto* logoutBtn = makeBtn("退出当前账号", &brls::BUTTONSTYLE_DEFAULT);
-    logoutBtn->setTextColor(nvgRGB(220, 60, 60));
+    auto* logoutBtn = makeBtn("退出登录 (登出当前账号)", &brls::BUTTONSTYLE_DEFAULT);
+    logoutBtn->setTextColor(nvgRGB(239, 68, 68));
     logoutBtn->registerClickAction([this, alive, closeModal](brls::View*) {
         closeModal([this, alive]() {
             if (!alive->load()) {
@@ -1490,7 +1530,7 @@ void LevelUpLobbyActivity::openAccountModal() {
             m_recent = m_store.loadRecent(0);
             updateHeaderUi();
             rebuildGameGrid();
-            brls::Application::notify("已退出登录");
+            brls::Application::notify("已安全退出登录");
         });
         return true;
     });
@@ -1545,6 +1585,86 @@ void LevelUpLobbyActivity::openSettingsModal() {
     auto* list = new brls::Box(brls::Axis::COLUMN);
     list->setHeight(brls::View::AUTO);
     list->setAlignItems(brls::AlignItems::STRETCH);
+
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
+    auto closed = std::make_shared<std::atomic<bool>>(false);
+    auto closeModal = [closed](std::function<void()> afterClose = nullptr) {
+        if (!closed->exchange(true)) {
+            brls::sync([after = std::move(afterClose)]() {
+                brls::Application::popActivity(brls::TransitionAnimation::NONE);
+                if (after) {
+                    after();
+                }
+            });
+        }
+    };
+
+    auto* accountHeader = new brls::Header();
+    accountHeader->setTitle("账号与登录");
+    list->addView(accountHeader);
+
+    auto* accountCell = new brls::DetailCell();
+    if (m_cfg.cred.sessionKey.empty()) {
+        accountCell->setText("当前账号状态");
+        accountCell->setDetailText("未登录 (按 A 扫码登录)");
+        accountCell->setDetailTextColor(nvgRGB(251, 191, 36));
+        accountCell->registerClickAction([this, closeModal](brls::View*) {
+            closeModal([this]() {
+                openQrLoginModal();
+            });
+            return true;
+        });
+        list->addView(accountCell);
+
+        auto* loginCell = new brls::DetailCell();
+        loginCell->setText("微信 / App 扫码登录");
+        loginCell->setDetailText("获取微信/App 登录二维码并登录");
+        loginCell->setDetailTextColor(nvgRGB(56, 189, 248));
+        loginCell->registerClickAction([this, closeModal](brls::View*) {
+            closeModal([this]() {
+                openQrLoginModal();
+            });
+            return true;
+        });
+        list->addView(loginCell);
+    } else {
+        const std::string who = !m_cfg.cred.nickName.empty()
+                                    ? m_cfg.cred.nickName
+                                    : ("UID: " + std::to_string(m_cfg.cred.userId));
+        accountCell->setText("当前账号");
+        accountCell->setDetailText(who + " (按 A 管理/查看详情)");
+        accountCell->setDetailTextColor(nvgRGB(134, 239, 172));
+        accountCell->registerClickAction([this, closeModal](brls::View*) {
+            closeModal([this]() {
+                openAccountModal();
+            });
+            return true;
+        });
+        list->addView(accountCell);
+
+        auto* logoutCell = new brls::DetailCell();
+        logoutCell->setText("退出登录 (登出)");
+        logoutCell->setDetailText("清除本机登录凭据并恢复未登录状态");
+        logoutCell->setDetailTextColor(nvgRGB(248, 113, 113));
+        logoutCell->registerClickAction([this, closeModal](brls::View*) {
+            closeModal([this]() {
+                m_cfg.cred = {};
+                m_hasUserInfo = false;
+                m_userInfo = {};
+                m_store.saveConfig(m_cfg);
+                m_recent = m_store.loadRecent(0);
+                updateHeaderUi();
+                rebuildGameGrid();
+                brls::Application::notify("已安全退出登录");
+            });
+            return true;
+        });
+        list->addView(logoutCell);
+    }
+
+    auto* streamHeader = new brls::Header();
+    streamHeader->setTitle("串流与控制设置");
+    list->addView(streamHeader);
 
     auto* rumbleCell = new brls::BooleanCell();
     rumbleCell->init("HD 手柄震动", m_cfg.rumbleEnabled, [this](bool on) {

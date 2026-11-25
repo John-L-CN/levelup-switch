@@ -577,8 +577,11 @@ void LevelUpStreamView::dismissPauseOverlay(bool requestKeyFrame, bool exitAfter
         m_exiting = true;
         m_stopping->store(true);
         setBorealisInputsBlocked(false);
-        brls::Application::popActivity(brls::TransitionAnimation::NONE);
-        exitStream();
+        // Pop the pause overlay first; only after it has cleanly finished popping from the
+        // Borealis activitiesStack do we pop LevelUpStreamView, preventing double-free / stack corruption.
+        brls::Application::popActivity(brls::TransitionAnimation::NONE, [this]() {
+            exitStream();
+        });
         return;
     }
 
@@ -646,7 +649,7 @@ void LevelUpStreamView::exitStream() {
 #endif
 
     m_orchestrator.stop();
-    brls::Application::popActivity(brls::TransitionAnimation::FADE);
+    brls::Application::popActivity(brls::TransitionAnimation::NONE);
 }
 
 } // namespace levelup::ui

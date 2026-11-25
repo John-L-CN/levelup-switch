@@ -75,7 +75,9 @@ class LevelUpLobbyActivity : public brls::Activity {
     // Owned by Borealis View tree (valid while this Activity is alive)
     brls::Box* m_root = nullptr;
     brls::Box* m_searchBox = nullptr;
+    brls::Box* m_accountBox = nullptr;
     brls::Label* m_accountLabel = nullptr;
+    brls::Label* m_hintLabel = nullptr;
     brls::Label* m_searchChip = nullptr;
     brls::Label* m_countLabel = nullptr;
     brls::Box* m_categoryStrip = nullptr;
