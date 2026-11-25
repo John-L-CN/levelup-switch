@@ -78,6 +78,22 @@ g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src -Ibuild/deps/switch/
     app/src/levelup/proto_lite.cpp app/src/levelup/ytcx_client.cpp -o t_m2 -lpthread && ./t_m2
 ```
 
+### 发布（GitHub Releases）
+
+**Release 页只保留最新一版，且只有一个资产，文件名带版本号：`LevelUp-NX-vX.Y.Z.nro`。**
+
+本仓库是 Switch 1 单平台客户端，上游 `XITRIX/Moonlight-Switch` 的 "All Builds" 多平台产物（Android APK/IPA、Linux AppImage·deb·rpm·tar.gz、macOS、PSVita、SteamOS、Switch2、Windows 以及 100MB 的 Debug ELF）**与本项目无关，已从全部历史 Release 中删除，也不要再加回来**（每份约 860 MB，只会让下载页变乱）。v0.1.2～v0.1.7 的旧 Release 与对应 tag 已一并清理，只留当前版本。
+
+```bash
+# 打包（只产出 LevelUp-NX-v0.2.0.nro）
+python scripts/ci/collect_release.py v0.2.0 build/switch dist
+
+# 发布：创建/复用 tag 对应 Release → 删除所有其它资源 → 上传 LevelUp-NX-v0.2.0.nro → 校验只剩这一个文件
+python scripts/ci/publish_release.py --tag v0.2.0 --apply
+```
+
+`publish_release.py` 的凭据取自 git 凭据管理器（`git credential fill`），不在任何文件里存 PAT；不带 `--apply` 时只做 dry-run；`--nro` 省略则自动取 `build/switch/` 下最新的 `LevelUp-NX*.nro`。打包逻辑有单测覆盖：`python -m unittest discover -s scripts/ci`。
+
 ---
 
 ## 使用说明
@@ -90,8 +106,8 @@ g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src -Ibuild/deps/switch/
 
 ### 2. 安装
 
-1. 把 `LevelUp-NX.nro` 拷到 SD 卡：`sdmc:/switch/LevelUp-NX/LevelUp-NX.nro`
-   （目录名随意，保持一致即可；程序会在 `sdmc:/switch/levelup-nx/` 建自己的配置目录。）
+1. 从 [Releases](https://github.com/John-L-CN/levelup-switch/releases) 下载 `LevelUp-NX-vX.Y.Z.nro`，拷到 SD 卡：`sdmc:/switch/LevelUp-NX/`
+   （文件名带版本号，方便保留旧版回滚；放进去的文件名随意，程序会在 `sdmc:/switch/levelup-nx/` 建自己的配置目录。）
 2. 桌面图标（可选）：启动客户端后 `+` 进设置 → **安装到 Switch 主界面（桌面图标）**，返回桌面即可看到入口（需要大气层签名补丁 / `sys-patch`）。
 3. **必须以 Title Override（全内存）模式运行**：按住 `R` 键点开任意已安装游戏进入 `hbmenu`，再启动本程序。
    直接用相册（Album Applet）启动内存不够，大厅顶部会弹橙色提示，串流会失败。
