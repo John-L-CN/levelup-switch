@@ -335,6 +335,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     m_searchBox->setPadding(0.0f, 14.0f, 0.0f, 14.0f);
     m_searchBox->setCornerRadius(17.0f);
     m_searchBox->setHighlightCornerRadius(17.0f);
+    m_searchBox->setHideHighlightBackground(true);
     m_searchBox->setBackgroundColor(nvgRGB(30, 41, 59));
     m_searchBox->setAlignItems(brls::AlignItems::CENTER);
     m_searchBox->setFocusable(true);
@@ -360,6 +361,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     m_accountBox->setPadding(0.0f, 14.0f, 0.0f, 14.0f);
     m_accountBox->setCornerRadius(18.0f);
     m_accountBox->setHighlightCornerRadius(18.0f);
+    m_accountBox->setHideHighlightBackground(true);
     m_accountBox->setBackgroundColor(nvgRGB(30, 41, 59));
     m_accountBox->setAlignItems(brls::AlignItems::CENTER);
     m_accountBox->setFocusable(true);
@@ -890,6 +892,7 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
                 card->setMargins(6.0f, 8.0f, 6.0f, 8.0f);
                 card->setCornerRadius(12.0f);
                 card->setHighlightCornerRadius(12.0f);
+                card->setHideHighlightBackground(true);
                 card->setBackgroundColor(nvgRGB(27, 37, 56));
                 card->setFocusable(true);
 
@@ -908,6 +911,8 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
                 auto* info = new brls::Box(brls::Axis::COLUMN);
                 info->setPadding(8.0f, 12.0f, 8.0f, 12.0f);
                 info->setJustifyContent(brls::JustifyContent::CENTER);
+                info->setBackgroundColor(nvgRGB(27, 37, 56));
+                info->setCornerRadius(10.0f);
                 info->setGrow(1.0f);
 
                 auto* title = new brls::Label();

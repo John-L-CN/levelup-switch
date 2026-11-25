@@ -325,7 +325,21 @@ void VideoPipeline::onDepacked(DepackedFrame&& df) {
 }
 
 void VideoPipeline::watchdogLoop() {
+    int ticks = 0;
     while (m_running.load()) {
+        ticks++;
+        if (!m_firstFrameFired.load() && (ticks % 3) == 0) {
+            const auto st = stats();
+            logInfo("[Video] waiting first frame: rtp=" + std::to_string(st.rtpPackets) +
+                    " gaps=" + std::to_string(st.rtpGaps) +
+                    " depacked=" + std::to_string(st.framesDepacked) +
+                    " skipped=" + std::to_string(st.skippedFrames) +
+                    " fed=" + std::to_string(st.fedFrames) +
+                    " decoded=" + std::to_string(st.decodedFrames) +
+                    " err=" + std::to_string(st.decodeErrors) +
+                    " needKey=" + std::to_string(st.needKey ? 1 : 0));
+        }
+
         std::string reason;
         SelfHealPolicy::WatchdogAction act = SelfHealPolicy::WatchdogAction::None;
         {

@@ -1040,13 +1040,15 @@ struct RtcSession::Impl {
                 candResendIdx++;
             }
 
-            // Pre-first-frame boost: send PLI+FIR every 500ms for first 8s until first video frame arrives
+            // Pre-first-frame boost: send PLI+FIR every 500ms for first 8s, then every 1500ms until first frame decodes
             const int64_t trackMs = firstVideoTrackMs.load();
-            if (trackMs > 0 && !gotFirstFrame.load() && (nowMs - trackMs) < 8000 &&
-                (prevBootPliMs == 0 || (nowMs - prevBootPliMs) >= 500)) {
-                prevBootPliMs = nowMs;
-                if (auto rh = getRtcpHandler()) {
-                    rh->sendPliAndFir();
+            if (trackMs > 0 && !gotFirstFrame.load()) {
+                const int64_t pliInterval = ((nowMs - trackMs) < 8000) ? 500 : 1500;
+                if (prevBootPliMs == 0 || (nowMs - prevBootPliMs) >= pliInterval) {
+                    prevBootPliMs = nowMs;
+                    if (auto rh = getRtcpHandler()) {
+                        rh->sendPliAndFir();
+                    }
                 }
             }
 
@@ -1550,6 +1552,20 @@ void RtcSession::close() {
         m_impl->onRumble = nullptr;
     }
 
+    if (m_impl->pc) {
+        try {
+            m_impl->pc->onLocalDescription(nullptr);
+            m_impl->pc->onLocalCandidate(nullptr);
+            m_impl->pc->onGatheringStateChange(nullptr);
+            m_impl->pc->onStateChange(nullptr);
+            m_impl->pc->onIceStateChange(nullptr);
+            m_impl->pc->onTrack(nullptr);
+            m_impl->pc->onDataChannel(nullptr);
+            m_impl->pc->close();
+        } catch (...) {
+        }
+        m_impl->pc.reset();
+    }
     {
         std::lock_guard lock(m_impl->trackMu);
         if (m_impl->videoTrack) {
@@ -1596,20 +1612,6 @@ void RtcSession::close() {
         } catch (...) {
         }
         m_impl->ws.reset();
-    }
-    if (m_impl->pc) {
-        try {
-            m_impl->pc->onLocalDescription(nullptr);
-            m_impl->pc->onLocalCandidate(nullptr);
-            m_impl->pc->onGatheringStateChange(nullptr);
-            m_impl->pc->onStateChange(nullptr);
-            m_impl->pc->onIceStateChange(nullptr);
-            m_impl->pc->onTrack(nullptr);
-            m_impl->pc->onDataChannel(nullptr);
-            m_impl->pc->close();
-        } catch (...) {
-        }
-        m_impl->pc.reset();
     }
     m_impl->wsConnected.store(false);
 }
