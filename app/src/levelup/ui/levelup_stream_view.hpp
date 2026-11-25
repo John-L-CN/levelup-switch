@@ -77,6 +77,11 @@ class LevelUpStreamView : public brls::Box {
     int m_targetWidth = 1280;
     int m_targetHeight = 720;
 
+    // 视频实际绘制的像素尺寸（= 内容单位 × Application::windowScale）。底座下 windowScale=1.5
+    // 而内容区仍是 1280x720，直接用内容单位当像素会把视频挤到 1920x1080 framebuffer 左上角。
+    int m_videoSurfaceW = 0;
+    int m_videoSurfaceH = 0;
+
     std::chrono::steady_clock::time_point m_lastHudUpdate{};
     uint64_t m_prevDecodedFrames = 0;
     double m_fpsEstimate = 0.0;

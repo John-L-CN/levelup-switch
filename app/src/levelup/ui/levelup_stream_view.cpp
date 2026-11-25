@@ -1,9 +1,11 @@
 #include "levelup/ui/levelup_stream_view.hpp"
 
 #include "levelup/log.hpp"
+#include "levelup/rumble_switch.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdio>
 #include <mutex>
@@ -203,6 +205,9 @@ LevelUpStreamView::~LevelUpStreamView() {
 #endif
 
     brls::Application::getPlatform()->disableScreenDimming(false);
+    // 退出串流后把震动彻底归零：云端震动包可能在收尾阶段还在路上，
+    // 且 borealis 的 clearVibration() 在 style 变化时会把满幅写进手柄。
+    input::zeroAllVibrationDevices("stream-exit");
 #ifdef __SWITCH__
     appletSetMediaPlaybackState(false);
 #endif
@@ -345,9 +350,31 @@ void LevelUpStreamView::draw(NVGcontext* vg,
     if (!m_renderer) {
         m_renderer = std::make_unique<DKVideoRenderer>();
     }
-    AVFrameHolder::instance().get([this, vg, width, height](AVFrame* frame) {
+
+    // NOTE (docked fullscreen fix): draw() 收到的 width/height 是 Borealis 的**内容单位**，
+    // 不是像素。底座模式下 Application::windowScale = 1.5，内容区仍是 1280x720，而真正的
+    // framebuffer 是 1920x1080。DKVideoRenderer 会把这两个数字当成 deko3d 视口尺寸（EASU /
+    // RCAS / dithering 的后处理 present pass 以及离屏 target 分配全部用它），于是底座下视频
+    // 只画进 1920x1080 画面的左上角 1280x720 区域 —— 也就是「大厅全屏、游戏不全屏」。
+    // 掌机下 windowScale=1.0，内容单位 == 像素，所以只有底座暴露这个问题。
+    const float uiScale = brls::Application::windowScale > 0.0f ? brls::Application::windowScale : 1.0f;
+    const int surfaceW = std::max(1, static_cast<int>(std::lround(width * uiScale)));
+    const int surfaceH = std::max(1, static_cast<int>(std::lround(height * uiScale)));
+    if (surfaceW != m_videoSurfaceW || surfaceH != m_videoSurfaceH) {
+        m_videoSurfaceW = surfaceW;
+        m_videoSurfaceH = surfaceH;
+        logInfo("[StreamView] video surface " + std::to_string(surfaceW) + "x" +
+                std::to_string(surfaceH) + " px (content " +
+                std::to_string(static_cast<int>(width)) + "x" +
+                std::to_string(static_cast<int>(height)) + ", uiScale " +
+                std::to_string(uiScale) + ")");
+    }
+
+    const int surfaceWidth = m_videoSurfaceW;
+    const int surfaceHeight = m_videoSurfaceH;
+    AVFrameHolder::instance().get([this, vg, surfaceWidth, surfaceHeight](AVFrame* frame) {
         if (m_renderer) {
-            m_renderer->draw(vg, static_cast<int>(width), static_cast<int>(height), frame, 0);
+            m_renderer->draw(vg, surfaceWidth, surfaceHeight, frame, 0);
         }
     });
 #endif

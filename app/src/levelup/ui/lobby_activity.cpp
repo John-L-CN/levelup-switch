@@ -2,6 +2,7 @@
 
 #include "levelup/crypto_util.hpp"
 #include "levelup/log.hpp"
+#include "levelup/rumble_switch.hpp"
 #include "levelup/ui/levelup_stream_view.hpp"
 
 #include <borealis/core/touch/tap_gesture.hpp>
@@ -658,6 +659,9 @@ void LevelUpLobbyActivity::onContentAvailable() {
 }
 
 void LevelUpLobbyActivity::onResume() {
+    // 回到大厅时把震动归零一次：上一局串流的强度、或 borealis clearVibration() 在
+    // 手柄 style 变化时误写的满幅，都会让手柄在大厅里一直震。
+    input::zeroAllVibrationDevices("lobby-resume");
     m_recent = m_store.loadRecent(m_cfg.cred.userId);
     updateHeaderUi();
     if (m_selectedCategory == "__RECENT__" || m_needsGridRebuild) {
