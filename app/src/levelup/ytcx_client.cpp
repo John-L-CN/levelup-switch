@@ -468,6 +468,7 @@ bool edgeLaunch(const EdgeLaunchParams& params, EdgeLaunchResult& out, std::stri
 // ---------------- BEClient ----------------
 
 BEClient::~BEClient() {
+    m_alive->store(false);
     close();
 }
 
@@ -525,14 +526,17 @@ bool BEClient::connect(std::string_view host,
     cfg.connectionTimeout = std::chrono::milliseconds(timeoutMs);
 
     m_ws = std::make_shared<rtc::WebSocket>(cfg);
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
 
-    m_ws->onOpen([this]() {
+    m_ws->onOpen([this, alive]() {
+        if (!alive->load()) return;
         m_connected.store(true);
         m_openDone.store(true);
         m_stateCv.notify_all();
     });
 
-    m_ws->onError([this](std::string err) {
+    m_ws->onError([this, alive](std::string err) {
+        if (!alive->load()) return;
         {
             std::lock_guard lock(m_stateMu);
             if (!m_openDone.load() && m_openError.empty()) {
@@ -543,7 +547,8 @@ bool BEClient::connect(std::string_view host,
         m_stateCv.notify_all();
     });
 
-    m_ws->onClosed([this]() {
+    m_ws->onClosed([this, alive]() {
+        if (!alive->load()) return;
         const bool wasConnected = m_connected.exchange(false);
         const bool expectedClose = m_closing.load();
         if (!m_openDone.load()) {
@@ -575,7 +580,8 @@ bool BEClient::connect(std::string_view host,
         }
     });
 
-    m_ws->onMessage([this](rtc::message_variant msg) {
+    m_ws->onMessage([this, alive](rtc::message_variant msg) {
+        if (!alive->load()) return;
         if (std::holds_alternative<rtc::binary>(msg)) {
             const auto& bin = std::get<rtc::binary>(msg);
             handleIncomingBinary(reinterpret_cast<const uint8_t*>(bin.data()), bin.size());
@@ -621,6 +627,10 @@ void BEClient::close() {
     }
     if (ws) {
         try {
+            ws->onOpen(nullptr);
+            ws->onError(nullptr);
+            ws->onClosed(nullptr);
+            ws->onMessage(nullptr);
             ws->forceClose();
         } catch (...) {
         }

@@ -177,6 +177,7 @@ class BEClient {
     std::atomic<bool> m_openDone{false};
     std::atomic<bool> m_connected{false};
     std::atomic<bool> m_closing{false};
+    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
     std::string m_openError;
 
     bool m_hasResource = false;

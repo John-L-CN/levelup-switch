@@ -93,11 +93,12 @@ void SessionOrchestrator::stop() {
         gid = m_gameId;
     }
 
+    logInfo("[Session] stop(): closing video/audio before rtc");
+    m_video.stop();
+    m_audio.stop();
     if (rtc) {
         rtc->close();
     }
-    m_video.stop();
-    m_audio.stop();
 
     if (be && be->isConnected()) {
         if (m_allocatedVPad.load()) {

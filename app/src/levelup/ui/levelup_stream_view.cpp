@@ -574,13 +574,18 @@ void LevelUpStreamView::dismissPauseOverlay(bool requestKeyFrame, bool exitAfter
     }
 
     if (exitAfter) {
+        logInfo("[StreamView] dismissPauseOverlay: exitAfter=true");
         m_exiting = true;
         m_stopping->store(true);
         setBorealisInputsBlocked(false);
-        // Pop the pause overlay first; only after it has cleanly finished popping from the
-        // Borealis activitiesStack do we pop LevelUpStreamView, preventing double-free / stack corruption.
-        brls::Application::popActivity(brls::TransitionAnimation::NONE, [this]() {
-            exitStream();
+        std::shared_ptr<std::atomic<bool>> alive = m_alive;
+        LevelUpStreamView* self = this;
+        brls::Application::popActivity(brls::TransitionAnimation::NONE, [self, alive]() {
+            brls::sync([self, alive]() {
+                if (alive->load()) {
+                    self->exitStream();
+                }
+            });
         });
         return;
     }
@@ -635,10 +640,14 @@ void LevelUpStreamView::exitStream() {
     if (m_popRequested) {
         return;
     }
+    logInfo("[StreamView] exitStream: stopping orchestrator");
     m_popRequested = true;
     m_exiting = true;
     m_stopping->store(true);
     setBorealisInputsBlocked(false);
+
+    m_orchestrator.stop();
+    logInfo("[StreamView] exitStream: orchestrator stopped, releasing renderer");
 
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
     if (m_renderer) {
@@ -648,7 +657,7 @@ void LevelUpStreamView::exitStream() {
     AVFrameHolder::instance().cleanup();
 #endif
 
-    m_orchestrator.stop();
+    logInfo("[StreamView] exitStream: popping StreamActivity");
     brls::Application::popActivity(brls::TransitionAnimation::NONE);
 }
 

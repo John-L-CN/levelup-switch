@@ -147,7 +147,7 @@ struct RtcSession::Impl {
     RtcConfig cfg;
 };
 
-RtcSession::RtcSession(RtcConfig cfg) : m_impl(std::make_unique<Impl>()) {
+RtcSession::RtcSession(RtcConfig cfg) : m_impl(std::make_shared<Impl>()) {
     m_impl->cfg = std::move(cfg);
 }
 RtcSession::~RtcSession() = default;
@@ -1096,7 +1096,7 @@ struct RtcSession::Impl {
     }
 };
 
-RtcSession::RtcSession(RtcConfig cfg) : m_impl(std::make_unique<Impl>()) {
+RtcSession::RtcSession(RtcConfig cfg) : m_impl(std::make_shared<Impl>()) {
     m_impl->cfg = std::move(cfg);
 }
 
@@ -1161,40 +1161,47 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
     pcCfg.iceServers.emplace_back("stun:stun.chat.bilibili.com:3478");
 
     m_impl->pc = std::make_shared<rtc::PeerConnection>(pcCfg);
+    std::weak_ptr<Impl> weakImpl = m_impl;
 
-    m_impl->pc->onLocalDescription([this](rtc::Description desc) {
+    m_impl->pc->onLocalDescription([weakImpl](rtc::Description desc) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         const std::string sdp = injectH264FeedbackAndProfile(desc.generateSdp(), true);
         std::string curPeer;
         {
-            std::lock_guard lock(m_impl->peerMu);
-            curPeer = m_impl->peer;
+            std::lock_guard lock(impl->peerMu);
+            curPeer = impl->peer;
         }
         const nlohmann::json msg = {
-            {"uid", m_impl->cfg.uid},
+            {"uid", impl->cfg.uid},
             {"peer", curPeer},
             {"token", ""},
             {"answer", {{"type", "answer"}, {"sdp", sdp}}},
         };
-        m_impl->sendSignalJson(msg);
+        impl->sendSignalJson(msg);
         logInfo("[RTC] SDP Answer sent (" + std::to_string(sdp.size()) + " bytes)");
         logAnswerSummary(sdp);
         auditAnswerBundle(sdp);
     });
 
-    m_impl->pc->onLocalCandidate([this](rtc::Candidate cand) {
+    m_impl->pc->onLocalCandidate([weakImpl](rtc::Candidate cand) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         const std::string candLine = ensureCandidatePrefix(cand.candidate());
-        const int n = m_impl->localCandCount.fetch_add(1) + 1;
+        const int n = impl->localCandCount.fetch_add(1) + 1;
         logInfo("[RTC] local candidate #" + std::to_string(n) +
                 " resolved=" + std::string(cand.isResolved() ? "1" : "0") +
                 " " + candLine);
         {
-            std::lock_guard lock(m_impl->localCandMu);
-            m_impl->localCandidates.push_back(candLine);
+            std::lock_guard lock(impl->localCandMu);
+            impl->localCandidates.push_back(candLine);
         }
-        m_impl->sendLocalCandidateToAllMids(candLine);
+        impl->sendLocalCandidateToAllMids(candLine);
     });
 
-    m_impl->pc->onGatheringStateChange([this](rtc::PeerConnection::GatheringState st) {
+    m_impl->pc->onGatheringStateChange([weakImpl](rtc::PeerConnection::GatheringState st) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         const char* name = "unknown";
         switch (st) {
         case rtc::PeerConnection::GatheringState::New: name = "new"; break;
@@ -1204,7 +1211,9 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         logInfo(std::string("[RTC] ICE gathering: ") + name);
     });
 
-    m_impl->pc->onStateChange([this](rtc::PeerConnection::State st) {
+    m_impl->pc->onStateChange([weakImpl](rtc::PeerConnection::State st) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         const char* name = "unknown";
         switch (st) {
         case rtc::PeerConnection::State::New: name = "new"; break;
@@ -1212,38 +1221,40 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         case rtc::PeerConnection::State::Connected: name = "connected"; break;
         case rtc::PeerConnection::State::Disconnected:
             name = "disconnected";
-            m_impl->markDead("WebRTC PeerConnection disconnected");
+            impl->markDead("WebRTC PeerConnection disconnected");
             break;
         case rtc::PeerConnection::State::Failed:
             name = "failed";
-            m_impl->markDead("WebRTC PeerConnection failed");
+            impl->markDead("WebRTC PeerConnection failed");
             break;
         case rtc::PeerConnection::State::Closed:
             name = "closed";
-            m_impl->markDead("WebRTC PeerConnection closed");
+            impl->markDead("WebRTC PeerConnection closed");
             break;
         }
         logInfo(std::string("[RTC] PC state: ") + name);
         StateCallback cb;
         {
-            std::lock_guard lock(m_impl->cbMu);
-            cb = m_impl->onState;
+            std::lock_guard lock(impl->cbMu);
+            cb = impl->onState;
         }
         if (cb) cb(std::string("pc:") + name);
     });
 
-    m_impl->pc->onIceStateChange([this](rtc::PeerConnection::IceState st) {
+    m_impl->pc->onIceStateChange([weakImpl](rtc::PeerConnection::IceState st) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         const char* name = "unknown";
         switch (st) {
         case rtc::PeerConnection::IceState::New: name = "new"; break;
         case rtc::PeerConnection::IceState::Checking: name = "checking"; break;
         case rtc::PeerConnection::IceState::Connected:
             name = "connected";
-            m_impl->iceConnected.store(true);
+            impl->iceConnected.store(true);
             break;
         case rtc::PeerConnection::IceState::Completed:
             name = "completed";
-            m_impl->iceConnected.store(true);
+            impl->iceConnected.store(true);
             break;
         case rtc::PeerConnection::IceState::Failed: name = "failed"; break;
         case rtc::PeerConnection::IceState::Disconnected: name = "disconnected"; break;
@@ -1252,14 +1263,15 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         logInfo(std::string("[RTC] ICE state: ") + name);
         StateCallback cb;
         {
-            std::lock_guard lock(m_impl->cbMu);
-            cb = m_impl->onState;
+            std::lock_guard lock(impl->cbMu);
+            cb = impl->onState;
         }
         if (cb) cb(std::string("ice:") + name);
     });
 
-    m_impl->pc->onTrack([this](std::shared_ptr<rtc::Track> track) {
-        if (!track) return;
+    m_impl->pc->onTrack([weakImpl](std::shared_ptr<rtc::Track> track) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load() || !track) return;
         const auto desc = track->description();
         const std::string kind = desc.type();
         logInfo("[RTC] Track mid=" + track->mid() + " kind=" + kind);
@@ -1267,35 +1279,41 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         if (kind == "video") {
             auto rh = std::make_shared<LevelUpRtcpHandler>(true, 20000000U);
             {
-                std::lock_guard lock(m_impl->trackMu);
-                m_impl->videoTrack = track;
-                m_impl->rtcpHandler = rh;
+                std::lock_guard lock(impl->trackMu);
+                impl->videoTrack = track;
+                impl->rtcpHandler = rh;
             }
             track->setMediaHandler(rh);
-            m_impl->firstVideoTrackMs.store(unixMillisNow());
-            track->onOpen([this, mid = track->mid()]() {
+            impl->firstVideoTrackMs.store(unixMillisNow());
+            track->onOpen([weakImpl, mid = track->mid()]() {
+                auto impl2 = weakImpl.lock();
+                if (!impl2 || impl2->closing.load()) return;
                 logInfo("[RTC] video track open mid=" + mid);
             });
-            track->onError([this, mid = track->mid()](std::string err) {
+            track->onError([weakImpl, mid = track->mid()](std::string err) {
+                auto impl2 = weakImpl.lock();
+                if (!impl2 || impl2->closing.load()) return;
                 logWarn("[RTC] video track error mid=" + mid + ": " + err);
             });
 
             track->onMessage(
-                [this](rtc::binary bin) {
+                [weakImpl](rtc::binary bin) {
+                    auto impl2 = weakImpl.lock();
+                    if (!impl2 || impl2->closing.load()) return;
                     levelup::video::ParsedRtpPacket rtp;
                     if (!levelup::video::parseRtpPacket(
                             reinterpret_cast<const uint8_t*>(bin.data()), bin.size(), rtp)) {
                         return;
                     }
-                    if (!m_impl->loggedFirstVideoRtp.exchange(true)) {
+                    if (!impl2->loggedFirstVideoRtp.exchange(true)) {
                         logInfo("[RTC] first video RTP seq=" + std::to_string(rtp.seq) +
                                 " pt=" + std::to_string(rtp.payloadType) +
                                 " len=" + std::to_string(rtp.payloadLen));
                     }
                     VideoRtpCallback cb;
                     {
-                        std::lock_guard lock(m_impl->cbMu);
-                        cb = m_impl->onVideoRtp;
+                        std::lock_guard lock(impl2->cbMu);
+                        cb = impl2->onVideoRtp;
                     }
                     if (cb) {
                         cb(rtp.seq, rtp.payloadType, rtp.payload, rtp.payloadLen,
@@ -1306,33 +1324,39 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         } else if (kind == "audio") {
             auto audioRtcp = std::make_shared<LevelUpRtcpHandler>(false, 0);
             {
-                std::lock_guard lock(m_impl->trackMu);
-                m_impl->audioTrack = track;
-                m_impl->audioRtcpHandler = audioRtcp;
+                std::lock_guard lock(impl->trackMu);
+                impl->audioTrack = track;
+                impl->audioRtcpHandler = audioRtcp;
             }
             track->setMediaHandler(audioRtcp);
-            track->onOpen([this, mid = track->mid()]() {
+            track->onOpen([weakImpl, mid = track->mid()]() {
+                auto impl2 = weakImpl.lock();
+                if (!impl2 || impl2->closing.load()) return;
                 logInfo("[RTC] audio track open mid=" + mid);
             });
-            track->onError([this, mid = track->mid()](std::string err) {
+            track->onError([weakImpl, mid = track->mid()](std::string err) {
+                auto impl2 = weakImpl.lock();
+                if (!impl2 || impl2->closing.load()) return;
                 logWarn("[RTC] audio track error mid=" + mid + ": " + err);
             });
             track->onMessage(
-                [this](rtc::binary bin) {
+                [weakImpl](rtc::binary bin) {
+                    auto impl2 = weakImpl.lock();
+                    if (!impl2 || impl2->closing.load()) return;
                     levelup::video::ParsedRtpPacket rtp;
                     if (!levelup::video::parseRtpPacket(
                             reinterpret_cast<const uint8_t*>(bin.data()), bin.size(), rtp)) {
                         return;
                     }
-                    if (!m_impl->loggedFirstAudioRtp.exchange(true)) {
+                    if (!impl2->loggedFirstAudioRtp.exchange(true)) {
                         logInfo("[RTC] first audio RTP seq=" + std::to_string(rtp.seq) +
                                 " pt=" + std::to_string(rtp.payloadType) +
                                 " len=" + std::to_string(rtp.payloadLen));
                     }
                     AudioOpusCallback cb;
                     {
-                        std::lock_guard lock(m_impl->cbMu);
-                        cb = m_impl->onAudioOpus;
+                        std::lock_guard lock(impl2->cbMu);
+                        cb = impl2->onAudioOpus;
                     }
                     if (cb && rtp.payloadLen > 0) {
                         cb(rtp.payloadType, rtp.payload, rtp.payloadLen, rtp.seq, rtp.timestamp);
@@ -1342,20 +1366,23 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
         }
     });
 
-    m_impl->pc->onDataChannel([this](std::shared_ptr<rtc::DataChannel> dc) {
-        if (!dc) return;
+    m_impl->pc->onDataChannel([weakImpl](std::shared_ptr<rtc::DataChannel> dc) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load() || !dc) return;
         logInfo("[RTC] DataChannel: " + dc->label());
         if (dc->label() != "control") {
             return;
         }
         {
-            std::lock_guard lock(m_impl->dcMu);
-            m_impl->controlDc = dc;
+            std::lock_guard lock(impl->dcMu);
+            impl->controlDc = dc;
         }
 
-        dc->onMessage([this](rtc::message_variant msg) {
+        dc->onMessage([weakImpl](rtc::message_variant msg) {
+            auto impl2 = weakImpl.lock();
+            if (!impl2 || impl2->closing.load()) return;
             if (!std::holds_alternative<rtc::binary>(msg)) {
-                m_impl->dcRecvCount.fetch_add(1);
+                impl2->dcRecvCount.fetch_add(1);
                 return;
             }
             const auto& bin = std::get<rtc::binary>(msg);
@@ -1364,11 +1391,11 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
 
             uint64_t sentMs = 0;
             if (input::isHeartbeatEcho1537(data, len, &sentMs)) {
-                const uint64_t n = m_impl->dcPingEchoCount.fetch_add(1) + 1;
-                const int64_t uptimeMs = std::max<int64_t>(0, unixMillisNow() - m_impl->startMs.load());
+                const uint64_t n = impl2->dcPingEchoCount.fetch_add(1) + 1;
+                const int64_t uptimeMs = std::max<int64_t>(0, unixMillisNow() - impl2->startMs.load());
                 const int64_t rtt = uptimeMs - static_cast<int64_t>(sentMs);
                 if (rtt >= 0 && rtt < 10000) {
-                    m_impl->lastRttMs.store(rtt);
+                    impl2->lastRttMs.store(rtt);
                 }
                 if (n == 1) {
                     logInfo("[RTC] DC 1537 first echo RTT=" + std::to_string(rtt) + "ms");
@@ -1380,24 +1407,26 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
             if (input::parseRumble(data, len, rumble)) {
                 RumbleCallback cb;
                 {
-                    std::lock_guard lock(m_impl->cbMu);
-                    cb = m_impl->onRumble;
+                    std::lock_guard lock(impl2->cbMu);
+                    cb = impl2->onRumble;
                 }
                 if (cb) cb(rumble);
                 return;
             }
 
-            m_impl->dcRecvCount.fetch_add(1);
+            impl2->dcRecvCount.fetch_add(1);
         });
 
-        dc->onOpen([this]() {
+        dc->onOpen([weakImpl]() {
+            auto impl2 = weakImpl.lock();
+            if (!impl2 || impl2->closing.load()) return;
             logInfo("[RTC] control DataChannel open");
-            m_impl->sendControlReadyHandshake();
+            impl2->sendControlReadyHandshake();
         });
 
         if (dc->isOpen()) {
             logInfo("[RTC] control DataChannel already open");
-            m_impl->sendControlReadyHandshake();
+            impl->sendControlReadyHandshake();
         }
     });
 
@@ -1408,41 +1437,49 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
 
     m_impl->ws = std::make_shared<rtc::WebSocket>(wsCfg);
 
-    m_impl->ws->onOpen([this]() {
-        m_impl->wsConnected.store(true);
-        m_impl->wsOpenDone.store(true);
-        m_impl->stateCv.notify_all();
+    m_impl->ws->onOpen([weakImpl]() {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
+        impl->wsConnected.store(true);
+        impl->wsOpenDone.store(true);
+        impl->stateCv.notify_all();
     });
 
-    m_impl->ws->onError([this](std::string err) {
+    m_impl->ws->onError([weakImpl](std::string err) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         {
-            std::lock_guard lock(m_impl->stateMu);
-            if (!m_impl->wsOpenDone.load() && m_impl->wsOpenError.empty()) {
-                m_impl->wsOpenError = err;
+            std::lock_guard lock(impl->stateMu);
+            if (!impl->wsOpenDone.load() && impl->wsOpenError.empty()) {
+                impl->wsOpenError = err;
             }
         }
-        m_impl->wsOpenDone.store(true);
-        m_impl->stateCv.notify_all();
+        impl->wsOpenDone.store(true);
+        impl->stateCv.notify_all();
     });
 
-    m_impl->ws->onClosed([this]() {
-        const bool wasConn = m_impl->wsConnected.exchange(false);
-        if (!m_impl->wsOpenDone.load()) {
-            std::lock_guard lock(m_impl->stateMu);
-            if (m_impl->wsOpenError.empty()) {
-                m_impl->wsOpenError = "signaling WebSocket closed before open";
+    m_impl->ws->onClosed([weakImpl]() {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
+        const bool wasConn = impl->wsConnected.exchange(false);
+        if (!impl->wsOpenDone.load()) {
+            std::lock_guard lock(impl->stateMu);
+            if (impl->wsOpenError.empty()) {
+                impl->wsOpenError = "signaling WebSocket closed before open";
             }
-            m_impl->wsOpenDone.store(true);
+            impl->wsOpenDone.store(true);
         }
-        if (wasConn && !m_impl->closing.load()) {
-            m_impl->markDead("边缘信令 WebSocket 已断开");
+        if (wasConn && !impl->closing.load()) {
+            impl->markDead("边缘信令 WebSocket 已断开");
         }
-        m_impl->stateCv.notify_all();
+        impl->stateCv.notify_all();
     });
 
-    m_impl->ws->onMessage([this](rtc::message_variant msg) {
+    m_impl->ws->onMessage([weakImpl](rtc::message_variant msg) {
+        auto impl = weakImpl.lock();
+        if (!impl || impl->closing.load()) return;
         if (std::holds_alternative<std::string>(msg)) {
-            m_impl->handleSignalingText(std::get<std::string>(msg));
+            impl->handleSignalingText(std::get<std::string>(msg));
         }
     });
 
@@ -1494,6 +1531,9 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
 }
 
 void RtcSession::close() {
+    if (!m_impl) {
+        return;
+    }
     m_impl->closing.store(true);
     m_impl->bgStop.store(true);
     m_impl->bgCv.notify_all();
@@ -1502,7 +1542,32 @@ void RtcSession::close() {
     }
 
     {
+        std::lock_guard lock(m_impl->cbMu);
+        m_impl->onVideoRtp = nullptr;
+        m_impl->onAudioOpus = nullptr;
+        m_impl->onState = nullptr;
+        m_impl->onPacketLoss = nullptr;
+        m_impl->onRumble = nullptr;
+    }
+
+    {
         std::lock_guard lock(m_impl->trackMu);
+        if (m_impl->videoTrack) {
+            try {
+                m_impl->videoTrack->onOpen(nullptr);
+                m_impl->videoTrack->onError(nullptr);
+                m_impl->videoTrack->onMessage(nullptr);
+            } catch (...) {
+            }
+        }
+        if (m_impl->audioTrack) {
+            try {
+                m_impl->audioTrack->onOpen(nullptr);
+                m_impl->audioTrack->onError(nullptr);
+                m_impl->audioTrack->onMessage(nullptr);
+            } catch (...) {
+            }
+        }
         m_impl->videoTrack.reset();
         m_impl->rtcpHandler.reset();
         m_impl->audioTrack.reset();
@@ -1512,6 +1577,8 @@ void RtcSession::close() {
         std::lock_guard lock(m_impl->dcMu);
         if (m_impl->controlDc) {
             try {
+                m_impl->controlDc->onOpen(nullptr);
+                m_impl->controlDc->onMessage(nullptr);
                 m_impl->controlDc->close();
             } catch (...) {
             }
@@ -1521,6 +1588,10 @@ void RtcSession::close() {
     if (m_impl->ws) {
         std::lock_guard lock(m_impl->wsWriteMu);
         try {
+            m_impl->ws->onOpen(nullptr);
+            m_impl->ws->onError(nullptr);
+            m_impl->ws->onClosed(nullptr);
+            m_impl->ws->onMessage(nullptr);
             m_impl->ws->forceClose();
         } catch (...) {
         }
@@ -1528,6 +1599,13 @@ void RtcSession::close() {
     }
     if (m_impl->pc) {
         try {
+            m_impl->pc->onLocalDescription(nullptr);
+            m_impl->pc->onLocalCandidate(nullptr);
+            m_impl->pc->onGatheringStateChange(nullptr);
+            m_impl->pc->onStateChange(nullptr);
+            m_impl->pc->onIceStateChange(nullptr);
+            m_impl->pc->onTrack(nullptr);
+            m_impl->pc->onDataChannel(nullptr);
             m_impl->pc->close();
         } catch (...) {
         }
