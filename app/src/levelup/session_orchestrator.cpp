@@ -100,22 +100,29 @@ void SessionOrchestrator::stop() {
         rtc->close();
     }
 
-    if (be && be->isConnected()) {
-        if (m_allocatedVPad.load()) {
-            const int32_t vid = m_vpadId.load();
-            if (vid > 0) {
-                be->releaseVPad(vid);
-                std::this_thread::sleep_for(std::chrono::milliseconds(60));
-            }
-        }
-        be->sendExit(m_pkgName.load());
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        be->close();
-    }
+    const bool hadVPad = m_allocatedVPad.exchange(false);
+    const int32_t vid = m_vpadId.exchange(0);
+    const uint32_t pkg = m_pkgName.load();
 
-    if (api && !gid.empty() && !api->credentials().sessionKey.empty()) {
-        std::string stopErr;
-        (void)api->stopGame(gid, &stopErr);
+    if ((be && be->isConnected()) || (api && !gid.empty() && !api->credentials().sessionKey.empty())) {
+        // Offload blocking network teardown (BE exit + HTTPS stopGame) so the UI thread never freezes.
+        auto beShared = std::shared_ptr<ytcx::BEClient>(std::move(be));
+        auto apiShared = std::shared_ptr<api::Client>(std::move(api));
+        std::thread([beShared, apiShared, gid, hadVPad, vid, pkg]() {
+            if (beShared && beShared->isConnected()) {
+                if (hadVPad && vid > 0) {
+                    beShared->releaseVPad(vid);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+                }
+                beShared->sendExit(pkg);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                beShared->close();
+            }
+            if (apiShared && !gid.empty() && !apiShared->credentials().sessionKey.empty()) {
+                std::string stopErr;
+                (void)apiShared->stopGame(gid, &stopErr);
+            }
+        }).detach();
     }
 
     m_active.store(false);

@@ -30,7 +30,7 @@ int main() {
         c1.vqFirst = false;
         assert(store.saveConfig(c1));
 
-        const auto c2 = store.loadConfig();
+        auto c2 = store.loadConfig();
         assert(c2.deviceId == c1.deviceId);
         assert(c2.cred.sessionKey == "s1" && c2.cred.userId == 4242);
         assert(c2.rumbleStrength == 75 && c2.videoLevel == 4 && c2.vqFirst == false);

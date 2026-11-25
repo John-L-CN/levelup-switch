@@ -16,6 +16,17 @@ __pycache__/
 # LevelUp-Switch additions
 !scripts/build_switch1_docker.sh
 !scripts/build_switch1_deps.sh
+# 官方 APK 样本目录（不入库，仅供本地反查询证）
+.android/
+# 编辑器 / 本地工具产生的目录，不入库
+.idea/
+.vscode/
+.log/
+
+# 内部开发资料与本地工具：只在本地留存，不随仓库分发
+AGENTS.md
+.devdocs/
+.devtools/
 config.json
 recent_*.json
 *.key

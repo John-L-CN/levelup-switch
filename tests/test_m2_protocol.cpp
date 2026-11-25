@@ -50,9 +50,17 @@ int main() {
         Credentials cred;
         cred.sessionKey = "test_sess_key";
         cred.ciKey = "test_ci_key";
+
+        // 公共参数 + 固定密钥参与签名：基准向量（改动任何公共参数都会让它失配）
         const auto params = buildSignedParams(
             nlohmann::json{{"gameId", "2zkaqmg1"}}, devId, cred, 1700000000123LL);
-        assert(params.at("sig") == "b828bd6019b8feb7fb5847bc584db428");
+        assert(params.at("sig") == "41e03a44e4733400adb7b82fd9f985b9");
+
+        const auto payloadJson = nlohmann::json::parse(
+            buildSignedPayloadJson(nlohmann::json{{"gameId", "2zkaqmg1"}}, devId, cred, 1700000000123LL));
+        assert(payloadJson.at("apiKey") == kApiKey);
+        assert(payloadJson.at("appVer") == kAppVer);
+        assert(payloadJson.at("sig") == "41e03a44e4733400adb7b82fd9f985b9");
 
         const std::map<std::string, std::string> prefixCase = {{"a", "9"}, {"a2", "1"}};
         assert(signParams(prefixCase) == "5515236751bece33f340b4e28ed5673a");

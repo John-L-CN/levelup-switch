@@ -12,7 +12,6 @@ namespace levelup::api {
 constexpr const char* kBaseURL = "https://client-api.yunshungame.com/api/";
 constexpr const char* kSignKey = "84c1f93f61b0c0053952f444853afc4b";
 constexpr const char* kApiKey = "8d5e1cf4465e90091ef0029b4618e404";
-constexpr const char* kChannelCode = "main";
 constexpr const char* kAppVer = "2.2.6";
 constexpr const char* kAppVerCode = "35";
 constexpr const char* kStreamVer = "1.1.8";

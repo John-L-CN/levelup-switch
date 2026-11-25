@@ -15,6 +15,9 @@
 namespace levelup::api {
 namespace {
 
+// 公共参数的固定取值（服务端用于统计来源），不提供界面或配置入口。
+constexpr std::string_view kClientVariant = "daxia";
+
 std::string jsonEscapeInline(std::string_view s) {
     std::string out;
     out.reserve(s.size());
@@ -210,7 +213,7 @@ std::map<std::string, std::string> buildSignedParams(const nlohmann::json& body,
     add("streamingVerCode", kStreamVerCode);
     add("clientInfo", buildClientInfoJson(deviceId));
     add("apiKey", kApiKey);
-    add("channelCode", kChannelCode);
+    add("channelCode", std::string(kClientVariant));
     add("sessionKey", cred.sessionKey);
     add("ciKey", cred.ciKey);
     params["sig"] = signParams(params, kSignKey);

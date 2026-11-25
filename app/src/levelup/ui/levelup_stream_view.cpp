@@ -182,6 +182,8 @@ LevelUpStreamView::~LevelUpStreamView() {
     brls::Application::getWindowFocusChangedEvent()->unsubscribe(m_windowFocusSub);
     setBorealisInputsBlocked(false);
 
+    m_orchestrator.stop();
+
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
     if (m_renderer) {
         m_renderer->invalidateHardwareResources();
@@ -189,8 +191,6 @@ LevelUpStreamView::~LevelUpStreamView() {
     }
     AVFrameHolder::instance().cleanup();
 #endif
-
-    m_orchestrator.stop();
 
     brls::Application::getPlatform()->disableScreenDimming(false);
 #ifdef __SWITCH__

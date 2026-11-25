@@ -186,6 +186,9 @@ void initRtcLoggingOnce() {
             if (message.empty()) {
                 return;
             }
+            if (message.find("dropping incoming message, no receive callback") != std::string::npos) {
+                return;
+            }
             switch (level) {
             case rtc::LogLevel::Fatal:
             case rtc::LogLevel::Error:

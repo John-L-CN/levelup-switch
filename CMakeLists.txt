@@ -82,7 +82,7 @@ set(PACKAGE_NAME "ru.xitrix.Moonlight")
 set(PSN_TITLE_ID  "MNTL00000")
 set(PSN_VERSION  "01.06")
 set(PROJECT_AUTHOR "XITRIX")
-set(PROJECT_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/img/moonlight_icon.jpg)
+set(PROJECT_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/img/levelup_icon.jpg)
 set(PROJECT_RESOURCES ${CMAKE_CURRENT_SOURCE_DIR}/resources)
 
 if (PLATFORM_DESKTOP AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT USE_LIBROMFS)
@@ -857,7 +857,7 @@ if (PLATFORM_DESKTOP AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
         COMPONENT Runtime)
     install(FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/resources/img/moonlight_96.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/img/levelup_96.png"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/96x96/apps"
         RENAME "ru.xitrix.Moonlight.png"
         COMPONENT Runtime)

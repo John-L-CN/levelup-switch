@@ -147,7 +147,8 @@ class RtpReorderBuffer {
     uint64_t m_gaps = 0;
 };
 
-/// Pure testable 3-layer automatic self-healing state machine matching PROTOCOL_SPEC 5.2 rule #4.
+/// Pure testable 3-layer automatic self-healing state machine:
+/// packet-loss detection -> silent PLI/FIR refresh -> decoder reset on sustained failure.
 class SelfHealPolicy {
   public:
     struct Config {

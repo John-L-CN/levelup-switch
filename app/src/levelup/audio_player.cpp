@@ -22,8 +22,8 @@ namespace {
 constexpr int kSampleRate = 48000;
 constexpr int kChannels = 2;
 constexpr int kMaxFrameSamples = 2880; // supports up to 60ms Opus frame @ 48kHz (WebRTC default is 960 = 20ms)
-constexpr int kBufferCount = 8;
-constexpr int kMaxQueuedMs = 80;
+constexpr int kBufferCount = 12;
+constexpr int kMaxQueuedMs = 160;
 constexpr uint8_t kSinkChannels[2] = {0, 1};
 
 const AudioRendererConfig kAudioConfig = {
