@@ -208,6 +208,8 @@ std::pair<int, int> LevelUpStreamView::detectTargetResolution() const {
 }
 
 void LevelUpStreamView::startSession() {
+    m_orchestrator.stop();
+
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
     if (m_renderer) {
         m_renderer->invalidateHardwareResources();
@@ -607,33 +609,106 @@ void LevelUpStreamView::showFailureDialog(const std::string& stageText, const st
     setBorealisInputsBlocked(false);
     m_orchestrator.setPausedForOverlay(true);
 
-    std::string msg = "云游戏连接异常\n\n" + stageText;
+    std::string msg = stageText;
     if (!errText.empty()) {
         msg += "\n" + errText;
     }
 
+    auto* backdrop = new brls::Box(brls::Axis::COLUMN);
+    backdrop->setJustifyContent(brls::JustifyContent::CENTER);
+    backdrop->setAlignItems(brls::AlignItems::CENTER);
+    backdrop->setBackgroundColor(nvgRGBA(8, 12, 20, 205));
+
+    auto* panel = new brls::Box(brls::Axis::COLUMN);
+    panel->setWidth(560.0f);
+    panel->setPadding(24.0f);
+    panel->setCornerRadius(16.0f);
+    panel->setBackgroundColor(nvgRGB(24, 32, 48));
+    panel->setAlignItems(brls::AlignItems::STRETCH);
+
+    auto* title = new brls::Label();
+    title->setText("云游戏连接异常");
+    title->setFontSize(24.0f);
+    title->setTextColor(nvgRGB(248, 113, 113));
+    title->setHorizontalAlign(brls::HorizontalAlign::CENTER);
+    title->setMarginBottom(12.0f);
+    panel->addView(title);
+
+    auto* msgLabel = new brls::Label();
+    msgLabel->setText(msg);
+    msgLabel->setFontSize(17.0f);
+    msgLabel->setSingleLine(false);
+    msgLabel->setTextColor(nvgRGB(226, 232, 240));
+    msgLabel->setHorizontalAlign(brls::HorizontalAlign::CENTER);
+    msgLabel->setMarginBottom(20.0f);
+    panel->addView(msgLabel);
+
+    LevelUpStreamView* self = this;
     std::shared_ptr<std::atomic<bool>> alive = m_alive;
-    auto* dialog = new brls::Dialog(msg);
-    dialog->setCancelable(false);
-    dialog->addButton("重试", [this, alive]() {
-        brls::sync([this, alive]() {
-            if (!alive->load() || m_exiting) {
+    auto closed = std::make_shared<std::atomic<bool>>(false);
+
+    auto closeFailureOverlay = [closed](std::function<void()> after) {
+        if (!closed->exchange(true)) {
+            brls::Application::popActivity(brls::TransitionAnimation::NONE, [fn = std::move(after)]() {
+                brls::sync([fn2 = std::move(fn)]() {
+                    if (fn2) fn2();
+                });
+            });
+        }
+    };
+
+    auto* retryBtn = new brls::Button();
+    retryBtn->setStyle(&brls::BUTTONSTYLE_PRIMARY);
+    retryBtn->setText("重试");
+    retryBtn->setHeight(48.0f);
+    retryBtn->setMarginBottom(8.0f);
+    retryBtn->registerClickAction([self, alive, closeFailureOverlay](brls::View*) {
+        closeFailureOverlay([self, alive]() {
+            if (!alive->load() || self->m_exiting) {
                 return;
             }
-            m_errorDialogOpen = false;
-            startSession();
+            self->m_errorDialogOpen = false;
+            self->startSession();
         });
+        return true;
     });
-    dialog->addButton("返回大厅", [this, alive]() {
-        brls::sync([this, alive]() {
+    panel->addView(retryBtn);
+
+    auto* backBtn = new brls::Button();
+    backBtn->setStyle(&brls::BUTTONSTYLE_DEFAULT);
+    backBtn->setText("返回大厅");
+    backBtn->setHeight(48.0f);
+    backBtn->registerClickAction([self, alive, closeFailureOverlay](brls::View*) {
+        self->m_exiting = true;
+        self->m_stopping->store(true);
+        closeFailureOverlay([self, alive]() {
             if (!alive->load()) {
                 return;
             }
-            m_errorDialogOpen = false;
-            exitStream();
+            self->m_errorDialogOpen = false;
+            self->exitStream();
         });
+        return true;
     });
-    dialog->open();
+    panel->addView(backBtn);
+
+    backdrop->addView(panel);
+    backdrop->registerAction("返回大厅", brls::BUTTON_B, [self, alive, closeFailureOverlay](brls::View*) {
+        self->m_exiting = true;
+        self->m_stopping->store(true);
+        closeFailureOverlay([self, alive]() {
+            if (!alive->load()) {
+                return;
+            }
+            self->m_errorDialogOpen = false;
+            self->exitStream();
+        });
+        return true;
+    });
+
+    brls::Application::pushActivity(new TranslucentOverlayActivity(backdrop),
+                                    brls::TransitionAnimation::NONE);
+    brls::Application::giveFocus(retryBtn);
 }
 
 void LevelUpStreamView::exitStream() {

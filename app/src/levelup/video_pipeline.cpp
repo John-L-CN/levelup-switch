@@ -215,7 +215,13 @@ void VideoPipeline::pushRtp(uint16_t seq,
                             size_t len,
                             bool marker,
                             uint32_t ts) {
-    if (!m_running.load()) return;
+    if (!m_running.load()) {
+        static std::atomic<bool> loggedStopped{false};
+        if (!loggedStopped.exchange(true)) {
+            logWarn("[Video] pushRtp dropped: m_running=false seq=" + std::to_string(seq));
+        }
+        return;
+    }
 
     ReorderCallbacks rcb;
     rcb.deliver = [this](const uint8_t* pl, size_t plen, bool m, uint32_t rts, uint16_t rseq, uint8_t) {
@@ -239,6 +245,10 @@ void VideoPipeline::pushRtp(uint16_t seq,
     };
 
     std::lock_guard lock(m_rtpMu);
+    if (m_reorder.packetsReceived() == 0) {
+        logInfo("[Video] first pushRtp entering reorder seq=" + std::to_string(seq) +
+                " pt=" + std::to_string(pt) + " len=" + std::to_string(len));
+    }
     m_reorder.push(seq, pt, payload, len, marker, ts, unixMillisNow(), rcb);
 }
 

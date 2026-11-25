@@ -1307,15 +1307,16 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
                             reinterpret_cast<const uint8_t*>(bin.data()), bin.size(), rtp)) {
                         return;
                     }
-                    if (!impl2->loggedFirstVideoRtp.exchange(true)) {
-                        logInfo("[RTC] first video RTP seq=" + std::to_string(rtp.seq) +
-                                " pt=" + std::to_string(rtp.payloadType) +
-                                " len=" + std::to_string(rtp.payloadLen));
-                    }
                     VideoRtpCallback cb;
                     {
                         std::lock_guard lock(impl2->cbMu);
                         cb = impl2->onVideoRtp;
+                    }
+                    if (!impl2->loggedFirstVideoRtp.exchange(true)) {
+                        logInfo("[RTC] first video RTP seq=" + std::to_string(rtp.seq) +
+                                " pt=" + std::to_string(rtp.payloadType) +
+                                " len=" + std::to_string(rtp.payloadLen) +
+                                " cb=" + std::to_string(cb ? 1 : 0));
                     }
                     if (cb) {
                         cb(rtp.seq, rtp.payloadType, rtp.payload, rtp.payloadLen,
