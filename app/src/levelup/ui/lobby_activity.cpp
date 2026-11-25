@@ -1734,19 +1734,6 @@ void LevelUpLobbyActivity::openSettingsModal() {
         });
     list->addView(volCell);
 
-    std::shared_ptr<std::atomic<bool>> alive = m_alive;
-    auto closed = std::make_shared<std::atomic<bool>>(false);
-    auto closeModal = [closed](std::function<void()> afterClose = nullptr) {
-        if (!closed->exchange(true)) {
-            brls::sync([after = std::move(afterClose)]() {
-                brls::Application::popActivity(brls::TransitionAnimation::NONE);
-                if (after) {
-                    after();
-                }
-            });
-        }
-    };
-
     auto makeActionBtn = [](const std::string& label, const brls::ButtonStyle* style) {
         auto* btn = new brls::Button();
         btn->setStyle(style);
