@@ -1104,6 +1104,14 @@ RtcSession::RtcSession(RtcConfig cfg) : m_impl(std::make_shared<Impl>()) {
 
 RtcSession::~RtcSession() {
     close();
+    if (m_impl) {
+        std::lock_guard lock(m_impl->cbMu);
+        m_impl->onVideoRtp = nullptr;
+        m_impl->onAudioOpus = nullptr;
+        m_impl->onState = nullptr;
+        m_impl->onPacketLoss = nullptr;
+        m_impl->onRumble = nullptr;
+    }
 }
 
 void RtcSession::setVideoRtpCallback(VideoRtpCallback cb) {
@@ -1542,15 +1550,6 @@ void RtcSession::close() {
     m_impl->bgCv.notify_all();
     if (m_impl->bgThread.joinable()) {
         m_impl->bgThread.join();
-    }
-
-    {
-        std::lock_guard lock(m_impl->cbMu);
-        m_impl->onVideoRtp = nullptr;
-        m_impl->onAudioOpus = nullptr;
-        m_impl->onState = nullptr;
-        m_impl->onPacketLoss = nullptr;
-        m_impl->onRumble = nullptr;
     }
 
     if (m_impl->pc) {
