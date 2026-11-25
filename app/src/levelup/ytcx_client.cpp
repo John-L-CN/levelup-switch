@@ -1,6 +1,7 @@
 #include "levelup/ytcx_client.hpp"
 
 #include "levelup/crypto_util.hpp"
+#include "levelup/exit_guard.hpp"
 #include "levelup/log.hpp"
 
 #include <algorithm>
@@ -41,6 +42,20 @@ size_t curlWriteCb(char* ptr, size_t size, size_t nmemb, void* userdata) {
     return total;
 }
 
+// 退出请求到达后立刻中断在途请求，避免退出路径 join 网络线程时把系统关闭超时拖爆。
+int curlAbortOnExitCb(void* clientp,
+                      curl_off_t dltotal,
+                      curl_off_t dlnow,
+                      curl_off_t ultotal,
+                      curl_off_t ulnow) {
+    (void)clientp;
+    (void)dltotal;
+    (void)dlnow;
+    (void)ultotal;
+    (void)ulnow;
+    return (isExiting() && !inCriticalRequest()) ? 1 : 0;
+}
+
 bool curlPostJson(const std::string& url,
                   const std::string& body,
                   const char* userAgent,
@@ -65,6 +80,8 @@ bool curlPostJson(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlAbortOnExitCb);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     if (userAgent) {

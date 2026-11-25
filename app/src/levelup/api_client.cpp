@@ -1,6 +1,7 @@
 #include "levelup/api_client.hpp"
 
 #include "levelup/crypto_util.hpp"
+#include "levelup/exit_guard.hpp"
 #include "levelup/log.hpp"
 
 #include <algorithm>
@@ -88,6 +89,22 @@ size_t curlWriteCallback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     return total;
 }
 
+// 系统发出退出请求（Horizon「关闭软件」）后立刻中断在途请求：退出路径上要 join
+// 后台线程，curl 卡住会把系统关闭超时拖爆（后台关不掉的直接成因之一）。
+int curlAbortOnExitCallback(void* clientp,
+                            curl_off_t dltotal,
+                            curl_off_t dlnow,
+                            curl_off_t ultotal,
+                            curl_off_t ulnow) {
+    (void)clientp;
+    (void)dltotal;
+    (void)dlnow;
+    (void)ultotal;
+    (void)ulnow;
+    // 关键请求（如 stopGame 释放云端实例）不打断，其余在途请求退出时立即取消。
+    return (isExiting() && !inCriticalRequest()) ? 1 : 0;
+}
+
 bool performCurlRequest(const std::string& url,
                         const std::string* postBody,
                         const char* userAgent,
@@ -117,6 +134,8 @@ bool performCurlRequest(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlAbortOnExitCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     if (userAgent && userAgent[0] != '\0') {
@@ -504,6 +523,8 @@ bool Client::startGame(std::string_view gameId, GameStartInfo& out, std::string*
 }
 
 bool Client::stopGame(std::string_view gameId, std::string* errOut) const {
+    // 释放云端实例是"关键请求"：即使正在退出也要跑完，不能被退出时的 curl 中断取消。
+    CriticalRequestScope critical;
     nlohmann::json body = nlohmann::json::object();
     if (!gameId.empty()) {
         body["gameId"] = std::string(gameId);

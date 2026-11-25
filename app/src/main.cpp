@@ -46,6 +46,8 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 
 #ifdef LEVELUP_ENABLE_WEBRTC
 #include <curl/curl.h>
+#include "levelup/exit_guard.hpp"
+#include "levelup/rumble_switch.hpp"
 #include "levelup/ui/lobby_activity.hpp"
 #include "levelup/webrtc_probe.hpp"
 #endif
@@ -229,6 +231,12 @@ int main(int argc, char* argv[]) {
 #ifdef LEVELUP_ENABLE_WEBRTC
     brls::Application::createWindow("LevelUp-NX");
     brls::Logger::info("[BOOT] 5. createWindow ok");
+
+    // 后台关不掉的兜底：退出请求 → 3 秒内必结束进程；失焦时降帧，避免主循环卡在 present。
+    levelup::installExitGuard();
+    levelup::installBackgroundFrameLimiter();
+    // 空闲震动看门狗：大厅里把震动维持在 0（borealis clearVibration 在 style 变化时误发满幅）。
+    levelup::input::startIdleVibrationGuard();
 #else
     brls::Application::createWindow("title"_i18n);
 #endif
@@ -306,6 +314,10 @@ int main(int argc, char* argv[]) {
         }
 #endif
     }
+
+#ifdef LEVELUP_ENABLE_WEBRTC
+    brls::Logger::info("[EXIT] main loop returned, tearing down");
+#endif
 
 #ifdef LEVELUP_ENABLE_WEBRTC
     } catch (const std::exception& e) {
