@@ -28,17 +28,21 @@ class LevelUpLobbyActivity : public brls::Activity {
     void onResume() override;
 
   private:
+    /// 掌机/底座切换（UI 缩放变化）后按新的实际像素重解码封面
+    void handleDisplayScaleChanged();
     struct CoverTask {
         std::string gameId;
         std::string url;
         uint64_t generation = 0;
         brls::Image* target = nullptr;
+        int texMaxW = 320;
+        int texMaxH = 180;
     };
 
     void startCoverWorker();
     void stopCoverWorker();
     void coverWorkerLoop();
-    void enqueueCover(const GameEntry& game, uint64_t gen, brls::Image* target);
+    void enqueueCover(const GameEntry& game, uint64_t gen, brls::Image* target, int texMaxW, int texMaxH);
 
     void updateHeaderUi();
     void rebuildCategoryStrip();
@@ -98,6 +102,13 @@ class LevelUpLobbyActivity : public brls::Activity {
     std::atomic<bool> m_qrCancel{false};
 
     std::optional<GameEntry> m_pendingLaunchGame;
+
+    // 上次重建封面网格时的 UI 缩放（掌机 1.0 / 底座 1.5），用于插拔底座后按新尺寸重解码
+    float m_coverTexScale = 0.0f;
+
+    // 窗口尺寸/UI 缩放变化事件订阅（borealis 的 Activity::onWindowSizeChanged 不是虚函数）
+    brls::VoidEvent::Subscription m_windowSizeSub;
+    bool m_windowSizeSubValid = false;
 };
 
 } // namespace levelup::ui

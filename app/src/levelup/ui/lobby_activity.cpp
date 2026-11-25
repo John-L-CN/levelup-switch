@@ -139,6 +139,46 @@ bool decodeDownscaleToRgba(const uint8_t* data,
     const int dstH = std::max(1, static_cast<int>(std::lround(srcH * scale)));
 
     outRgba.resize(static_cast<size_t>(dstW) * static_cast<size_t>(dstH) * 4);
+
+    // 大比例缩小时用面积平均（box filter），避免双线性点采样丢失细节/产生摩尔纹；
+    // 小比例缩小仍走双线性（更快也更平滑）。
+    if (scale < 0.55) {
+        const double stepX = static_cast<double>(srcW) / static_cast<double>(dstW);
+        const double stepY = static_cast<double>(srcH) / static_cast<double>(dstH);
+        for (int dy = 0; dy < dstH; ++dy) {
+            const int sy0 = std::clamp(static_cast<int>(dy * stepY), 0, srcH - 1);
+            const int sy1 = std::clamp(static_cast<int>(std::ceil((dy + 1) * stepY)), sy0 + 1, srcH);
+            for (int dx = 0; dx < dstW; ++dx) {
+                const int sx0 = std::clamp(static_cast<int>(dx * stepX), 0, srcW - 1);
+                const int sx1 = std::clamp(static_cast<int>(std::ceil((dx + 1) * stepX)), sx0 + 1, srcW);
+
+                uint32_t acc[4] = {0, 0, 0, 0};
+                for (int sy = sy0; sy < sy1; ++sy) {
+                    const uint8_t* row = pixels + (static_cast<size_t>(sy) * srcW + sx0) * 4;
+                    for (int sx = sx0; sx < sx1; ++sx) {
+                        for (int c = 0; c < 4; ++c) {
+                            acc[c] += row[(sx - sx0) * 4 + c];
+                        }
+                    }
+                }
+                const uint32_t n =
+                    static_cast<uint32_t>((sx1 - sx0) * (sy1 - sy0));
+                uint8_t* dst = outRgba.data() + (static_cast<size_t>(dy) * dstW + dx) * 4;
+                for (int c = 0; c < 4; ++c) {
+                    dst[c] = static_cast<uint8_t>(acc[c] / (n > 0 ? n : 1));
+                }
+            }
+        }
+
+        {
+            std::lock_guard lock(stbiDecodeMutex());
+            stbi_image_free(pixels);
+        }
+        outW = dstW;
+        outH = dstH;
+        return true;
+    }
+
     for (int dy = 0; dy < dstH; ++dy) {
         const double fy = dstH > 1
                               ? (static_cast<double>(dy) + 0.5) * static_cast<double>(srcH) /
@@ -199,6 +239,43 @@ void applyRgbaTexture(brls::Image* img, const std::vector<uint8_t>& rgba, int w,
         img->innerSetImage(tex);
     }
 }
+
+/// 封面纹理的解码上限：按控件在屏上的**实际像素**算，而不是写死 320x180。
+///
+/// 卡片里的封面控件是 290x152（逻辑像素），Borealis 在底座 1080p 下用
+/// `windowScale = 1.5` 把整个 UI 放大绘制，于是实际占 435x228 物理像素。
+/// 竖版封面（云游戏封面基本是 3:4）在 contain-fit 下被"高度"卡住，旧代码
+/// 320x180 只会解出约 135x180 的纹理，再被 FILL 拉到 435x228 上屏 —— 这就是糊的根因。
+///
+/// 现在按 宽度 = 控件物理宽度 × 1.1、高度给到 2.2 倍宽度（足够容纳竖版）来解码，
+/// 纹理上屏时基本 1:1 或轻微降采样，清晰度直接吃满源图。
+struct CoverTexBounds {
+    int maxW = 320;
+    int maxH = 180;
+};
+
+CoverTexBounds coverTextureBounds(float frameLogicalWidth) {
+    float scale = 1.0f;
+#ifdef __SWITCH__
+    scale = brls::Application::windowScale;
+#endif
+    if (!(scale > 0.0f) || scale > 3.0f) {
+        scale = 1.0f;
+    }
+    constexpr float kOversample = 1.1f; // 少量过采样，FILL 裁切 + 缩放后仍清晰
+    CoverTexBounds b;
+    b.maxW = static_cast<int>(std::lround(frameLogicalWidth * scale * kOversample));
+    b.maxH = static_cast<int>(std::lround(frameLogicalWidth * scale * kOversample * 2.2f));
+    b.maxW = std::clamp(b.maxW, 320, 768);
+    b.maxH = std::clamp(b.maxH, 180, 1024);
+    return b;
+}
+
+// 大厅卡片封面控件的逻辑尺寸（与 rebuildGameGrid 里的布局保持一处定义）
+constexpr float kCardCoverWidth = 290.0f;
+constexpr float kCardCoverHeight = 152.0f;
+constexpr float kDetailCoverWidth = 260.0f;
+constexpr float kDetailCoverHeight = 146.0f;
 
 std::string truncateUtf8(const std::string& s, size_t maxBytes) {
     if (s.size() <= maxBytes) {
@@ -263,6 +340,10 @@ LevelUpLobbyActivity::LevelUpLobbyActivity() = default;
 LevelUpLobbyActivity::~LevelUpLobbyActivity() {
     m_alive->store(false);
     m_qrCancel.store(true);
+    if (m_windowSizeSubValid) {
+        brls::Application::getWindowSizeChangedEvent()->unsubscribe(m_windowSizeSub);
+        m_windowSizeSubValid = false;
+    }
     stopCoverWorker();
     if (m_qrThread.joinable()) {
         m_qrThread.join();
@@ -304,6 +385,52 @@ brls::View* LevelUpLobbyActivity::createContentView() {
         m_root->addView(banner);
     }
 #endif
+
+    // 大厅最上方：B站 UP主 署名条
+    auto* creditBar = new brls::Box(brls::Axis::ROW);
+    creditBar->setHeight(38.0f);
+    creditBar->setBackgroundColor(nvgRGB(19, 25, 39));
+    creditBar->setPadding(0.0f, 24.0f, 0.0f, 24.0f);
+    creditBar->setAlignItems(brls::AlignItems::CENTER);
+    creditBar->setFocusable(true);
+    creditBar->setHideHighlightBackground(true);
+    creditBar->setHighlightCornerRadius(6.0f);
+
+    auto* biliBadge = new brls::Box(brls::Axis::ROW);
+    biliBadge->setPadding(2.0f, 9.0f, 2.0f, 9.0f);
+    biliBadge->setCornerRadius(6.0f);
+    biliBadge->setBackgroundColor(nvgRGB(251, 114, 153));
+    biliBadge->setMarginRight(10.0f);
+    auto* biliBadgeLabel = new brls::Label();
+    biliBadgeLabel->setText("bilibili");
+    biliBadgeLabel->setFontSize(13.0f);
+    biliBadgeLabel->setTextColor(nvgRGB(255, 255, 255));
+    biliBadge->addView(biliBadgeLabel);
+    creditBar->addView(biliBadge);
+
+    auto* creditPrefix = new brls::Label();
+    creditPrefix->setText("B站 UP主：");
+    creditPrefix->setFontSize(15.0f);
+    creditPrefix->setTextColor(nvgRGB(203, 213, 225));
+    creditBar->addView(creditPrefix);
+
+    auto* creditName = new brls::Label();
+    creditName->setText("牛巨眼");
+    creditName->setFontSize(16.0f);
+    creditName->setTextColor(nvgRGB(251, 114, 153));
+    creditBar->addView(creditName);
+
+    auto* creditSuffix = new brls::Label();
+    creditSuffix->setText("  ·  客户端由 UP 主制作分享，欢迎关注支持");
+    creditSuffix->setFontSize(14.0f);
+    creditSuffix->setTextColor(nvgRGB(148, 163, 184));
+    creditBar->addView(creditSuffix);
+
+    creditBar->registerAction("查看 UP 主", brls::BUTTON_A, [](brls::View*) {
+        brls::Application::notify("B站 搜索：牛巨眼");
+        return true;
+    });
+    m_root->addView(creditBar);
 
     // Top Header Bar
     auto* header = new brls::Box(brls::Axis::ROW);
@@ -510,6 +637,12 @@ brls::View* LevelUpLobbyActivity::createContentView() {
         },
         true);
 
+    // 掌机/底座切换后按新的实际像素重解码封面（Activity::onWindowSizeChanged 非虚函数）
+    m_windowSizeSub = brls::Application::getWindowSizeChangedEvent()->subscribe([this]() {
+        handleDisplayScaleChanged();
+    });
+    m_windowSizeSubValid = true;
+
     return m_root;
 }
 
@@ -536,6 +669,25 @@ void LevelUpLobbyActivity::onResume() {
             rebuildGameGrid();
         });
     }
+}
+
+void LevelUpLobbyActivity::handleDisplayScaleChanged() {
+    // 掌机 720p (uiScale 1.0) <-> 底座 1080p (uiScale 1.5) 切换后，卡片实际像素变了，
+    // 按旧预算解码的封面会发糊，这里重建网格并按新预算重解码封面纹理。
+    // 该回调由 Application::onWindowResized 通过 brls::delay 投递，运行在主线程。
+    if (!m_scrollFrame) {
+        return;
+    }
+    const auto& stack = brls::Application::getActivitiesStack();
+    if (stack.empty() || stack.back() != this) {
+        return; // 串流/弹窗期间不折腾纹理
+    }
+    const float scale = brls::Application::windowScale;
+    if (std::fabs(m_coverTexScale - scale) <= 0.01f) {
+        return;
+    }
+    logInfo("[Lobby] UI scale changed to " + std::to_string(scale) + ", re-decoding covers");
+    rebuildGameGrid();
 }
 
 void LevelUpLobbyActivity::startCoverWorker() {
@@ -602,7 +754,13 @@ void LevelUpLobbyActivity::coverWorkerLoop() {
         std::vector<uint8_t> rgba;
         int imgW = 0;
         int imgH = 0;
-        if (!decodeDownscaleToRgba(bytes.data(), bytes.size(), 320, 180, rgba, imgW, imgH)) {
+        if (!decodeDownscaleToRgba(bytes.data(),
+                                   bytes.size(),
+                                   task.texMaxW > 0 ? task.texMaxW : 320,
+                                   task.texMaxH > 0 ? task.texMaxH : 180,
+                                   rgba,
+                                   imgW,
+                                   imgH)) {
             continue;
         }
 
@@ -622,7 +780,8 @@ void LevelUpLobbyActivity::coverWorkerLoop() {
     }
 }
 
-void LevelUpLobbyActivity::enqueueCover(const GameEntry& game, uint64_t gen, brls::Image* target) {
+void LevelUpLobbyActivity::enqueueCover(
+    const GameEntry& game, uint64_t gen, brls::Image* target, int texMaxW, int texMaxH) {
     if (!target || (game.gameId.empty() && game.coverUrl.empty())) {
         return;
     }
@@ -631,7 +790,14 @@ void LevelUpLobbyActivity::enqueueCover(const GameEntry& game, uint64_t gen, brl
         if (m_coverStop) {
             return;
         }
-        m_coverQueue.push_back(CoverTask{game.gameId, game.coverUrl, gen, target});
+        CoverTask task;
+        task.gameId = game.gameId;
+        task.url = game.coverUrl;
+        task.generation = gen;
+        task.target = target;
+        task.texMaxW = texMaxW;
+        task.texMaxH = texMaxH;
+        m_coverQueue.push_back(std::move(task));
     }
     m_coverCv.notify_one();
 }
@@ -878,6 +1044,14 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
         gridBox->addView(emptyBox);
     } else {
         constexpr size_t kCols = 4;
+        // 卡片封面控件逻辑尺寸 290x152；按当前 UI 缩放换算成实际像素来解码封面纹理
+        const CoverTexBounds covBounds = coverTextureBounds(kCardCoverWidth);
+        if (std::fabs(m_coverTexScale - brls::Application::windowScale) > 0.01f) {
+            m_coverTexScale = brls::Application::windowScale;
+            logInfo("[Lobby] cover texture budget " + std::to_string(covBounds.maxW) + "x" +
+                    std::to_string(covBounds.maxH) + " (uiScale=" +
+                    std::to_string(m_coverTexScale) + ")");
+        }
         for (size_t i = startIdx; i < endIdx; i += kCols) {
             auto* row = new brls::Box(brls::Axis::ROW);
             row->setHeight(brls::View::AUTO);
@@ -898,12 +1072,12 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
                 card->setFocusable(true);
 
                 auto* imgFrame = new brls::Box(brls::Axis::COLUMN);
-                imgFrame->setWidth(290.0f);
-                imgFrame->setHeight(152.0f);
+                imgFrame->setWidth(kCardCoverWidth);
+                imgFrame->setHeight(kCardCoverHeight);
                 imgFrame->setBackgroundColor(nvgRGB(19, 26, 40));
 
                 auto* img = new brls::Image();
-                img->setDimensions(290.0f, 152.0f);
+                img->setDimensions(kCardCoverWidth, kCardCoverHeight);
                 img->setScalingType(brls::ImageScalingType::FILL);
                 img->setCornerRadius(10.0f);
                 imgFrame->addView(img);
@@ -943,7 +1117,7 @@ void LevelUpLobbyActivity::rebuildGameGrid() {
                 }
                 row->addView(card);
 
-                enqueueCover(game, gen, img);
+                enqueueCover(game, gen, img, covBounds.maxW, covBounds.maxH);
             }
             gridBox->addView(row);
         }
@@ -1084,7 +1258,7 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     topRow->setMarginBottom(16.0f);
 
     auto* cover = new brls::Image();
-    cover->setDimensions(260.0f, 146.0f);
+    cover->setDimensions(kDetailCoverWidth, kDetailCoverHeight);
     cover->setScalingType(brls::ImageScalingType::FILL);
     cover->setCornerRadius(10.0f);
     cover->setMarginRight(18.0f);
@@ -1093,9 +1267,17 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
         std::vector<uint8_t> rgba;
         int imgW = 0;
         int imgH = 0;
-        if (decodeDownscaleToRgba(
-                coverBytes.data(), coverBytes.size(), 320, 180, rgba, imgW, imgH)) {
+        const CoverTexBounds detailBounds = coverTextureBounds(kDetailCoverWidth);
+        if (decodeDownscaleToRgba(coverBytes.data(),
+                                  coverBytes.size(),
+                                  detailBounds.maxW,
+                                  detailBounds.maxH,
+                                  rgba,
+                                  imgW,
+                                  imgH)) {
             applyRgbaTexture(cover, rgba, imgW, imgH);
+        } else {
+            logWarn("[Lobby] detail cover decode failed: " + game.gameId);
         }
     }
     topRow->addView(cover);
@@ -1141,10 +1323,8 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     char cfgBuf[160];
     std::snprintf(cfgBuf,
                   sizeof(cfgBuf),
-                  "输出: %s · 画质档位: %d (%s) · HD震动: %s (%d%%)",
+                  "输出: %s · 画质: 高清 · HD震动: %s (%d%%)",
                   detectDisplayBadge().c_str(),
-                  m_cfg.videoLevel,
-                  m_cfg.vqFirst ? "VQ_FIRST" : "默认",
                   m_cfg.rumbleEnabled ? "开" : "关",
                   m_cfg.rumbleStrength);
     auto* cfgLbl = new brls::Label();
@@ -1690,16 +1870,12 @@ void LevelUpLobbyActivity::openSettingsModal() {
         });
     list->addView(rumbleStrCell);
 
-    auto* levelCell = new brls::SelectorCell();
-    levelCell->init(
-        "云端视频画质档位",
-        {"0 - 流畅", "1 - 标清", "2 - 高清", "3 - 超清 (推荐)", "4 - 原画"},
-        std::clamp(m_cfg.videoLevel, 0, 4),
-        [this](int idx) {
-            m_cfg.videoLevel = std::clamp(idx, 0, 4);
-            m_store.saveConfig(m_cfg);
-        });
-    list->addView(levelCell);
+    // 画质档位不再提供选项：固定「高清」（见 AppConfig::kFixedVideoLevel）。
+    auto* qualityCell = new brls::DetailCell();
+    qualityCell->setText("画质");
+    qualityCell->setDetailText("高清（固定，默认最佳体验）");
+    qualityCell->setDetailTextColor(nvgRGB(148, 163, 184));
+    list->addView(qualityCell);
 
     auto* vqCell = new brls::BooleanCell();
     vqCell->init("画质优先模式 (VQ_FIRST)", m_cfg.vqFirst, [this](bool on) {
