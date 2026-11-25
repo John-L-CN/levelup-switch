@@ -94,6 +94,19 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 `publish_release.py` 的凭据取自 git 凭据管理器（`git credential fill`），不在任何文件里存 PAT；不带 `--apply` 时只做 dry-run；`--nro` 省略则自动取 `build/switch/` 下最新的 `LevelUp-NX*.nro`。打包逻辑有单测覆盖：`python -m unittest discover -s scripts/ci`。
 
+### 变更记录
+
+#### v0.1.9（2026-11-25）
+
+- **无线 Joy-Con 一进程序就小幅持续震动**：`borealis` 的 `SwitchInputManager::clearVibration()` 把频率（160/320）当成电机强度传给 `sendRumbleInternal()`，实际写出 `amp = 320`（`HidVibrationValue` 的幅值区间是 0~1，1.0 即满幅）配上 160/204 ≈ 0.78 Hz、320/204 ≈ 1.57 Hz 的次共振频率 —— 线性谐振马达这样驱动只会**微弱而持续地抖**，不是满幅狂震。它在控制器 style set 变化时被调用，正好命中「手柄已取下（无线连接）+ 启动程序」的时机；按 HOME 回桌面再进来 style 不再变、不再调用它，所以"出去再进来就好了"。现在：配置期打补丁把它改成真正的幅值 0；空闲震动看门狗重做为 45 个句柄全枚举（`Handheld` + `No1..No8` × `FullKey/JoyDual/Handheld/JoyLeft/JoyRight`）、不再因 `hidInitializeVibrationDevices()` 激活失败而放弃发送、启动后 ~60 Hz 突发补零并在 style 变化时重来、每秒回读实际幅值写进日志。
+- **底座模式串流画面不全屏**：`LevelUpStreamView::draw()` 拿到的是 Borealis 内容单位而不是像素，底座下 `windowScale = 1.5` 时视频只画进 1920×1080 framebuffer 左上角的 1280×720 区域。现在按 `Application::windowScale` 换算出真实像素尺寸。
+- **按 HOME 退出后系统提示「软件无法关闭」**：新增退出守卫（`OnExitRequest` → 撤回媒体播放声明、停震动看门狗并归零、3 秒硬退出兜底），退出时取消在途 curl 请求（`stopGame` 走关键请求通道，保证云端实例被释放），窗口失焦时降到 5 fps，避免主循环卡在 present。
+- **串流中 HD 震动可能整段哑掉**：不再因震动设备激活失败而放弃发送。
+
+#### v0.1.8（2026-11-24）
+
+- 首页前向器（Home forwarder）换成官方图标；封面按控件实际像素解码；信号丢失时保留媒体、退出前先释放云端实例。
+
 ---
 
 ## 使用说明
