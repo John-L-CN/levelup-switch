@@ -358,7 +358,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
 
     m_accountBox = new brls::Box(brls::Axis::ROW);
     m_accountBox->setHeight(36.0f);
-    m_accountBox->setPadding(0.0f, 14.0f, 0.0f, 14.0f);
+    m_accountBox->setPadding(0.0f, 12.0f, 0.0f, 12.0f);
     m_accountBox->setCornerRadius(18.0f);
     m_accountBox->setHighlightCornerRadius(18.0f);
     m_accountBox->setHideHighlightBackground(true);
@@ -382,7 +382,7 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     }));
 
     m_accountLabel = new brls::Label();
-    m_accountLabel->setFontSize(14.0f);
+    m_accountLabel->setFontSize(13.5f);
     m_accountLabel->setTextColor(nvgRGB(203, 213, 225));
     m_accountBox->addView(m_accountLabel);
     header->addView(m_accountBox);
@@ -661,17 +661,18 @@ void LevelUpLobbyActivity::updateHeaderUi() {
                 m_accountBox->setBackgroundColor(nvgRGB(146, 64, 14));
             }
         } else if (m_hasUserInfo) {
-            char buf[220];
+            char buf[240];
             const std::string vip =
                 m_userInfo.vipExpireTime.empty() ? "普通" : ("VIP至 " + m_userInfo.vipExpireTime.substr(0, 10));
             const std::string nick =
                 !m_userInfo.nickName.empty() ? m_userInfo.nickName : ("UID " + std::to_string(m_userInfo.userId));
             std::snprintf(buf,
                           sizeof(buf),
-                          "👤 %s · %s · HP %d分 · [账号/登出 X]",
+                          "👤 %s · %s · HP %d分 · MP %d分 [X]",
                           nick.c_str(),
                           vip.c_str(),
-                          m_userInfo.hpMinutes());
+                          m_userInfo.hpMinutes(),
+                          m_userInfo.mpMinutes());
             m_accountLabel->setText(buf);
             m_accountLabel->setTextColor(nvgRGB(220, 252, 231));
             if (m_accountBox) {
