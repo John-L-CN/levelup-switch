@@ -123,6 +123,11 @@ def main() -> int:
     )
     parser.add_argument("--repo", default=DEFAULT_REPO)
     parser.add_argument("--notes", type=Path, help="markdown file for the release notes")
+    parser.add_argument(
+        "--prerelease",
+        action="store_true",
+        help="mark the release as a pre-release (experimental build)",
+    )
     parser.add_argument("--apply", action="store_true", help="actually touch GitHub")
     args = parser.parse_args()
 
@@ -157,7 +162,12 @@ def main() -> int:
         api.request(
             "PATCH",
             f"/repos/{args.repo}/releases/{release['id']}",
-            payload={"name": f"LevelUp-NX {args.tag}", "body": body, "draft": False},
+            payload={
+                "name": f"LevelUp-NX {args.tag}",
+                "body": body,
+                "draft": False,
+                "prerelease": bool(args.prerelease),
+            },
         )
     else:
         print(f"creating release {args.tag}")
@@ -170,7 +180,7 @@ def main() -> int:
                 "name": f"LevelUp-NX {args.tag}",
                 "body": body,
                 "draft": False,
-                "prerelease": False,
+                "prerelease": bool(args.prerelease),
             },
         )
 

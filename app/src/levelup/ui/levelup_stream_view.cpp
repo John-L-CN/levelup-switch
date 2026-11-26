@@ -177,6 +177,26 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
         });
     });
 
+    // union 选址学到的 LP uuid / pkgName 落盘：大厅预热测速（/v1/speed/dialpoints）需要它们
+    m_orchestrator.setLearnedUnionCallback([this, alive](const std::string& lpUuid, int64_t pkg) {
+        brls::sync([this, alive, lpUuid, pkg]() {
+            if (!alive->load()) {
+                return;
+            }
+            if (m_cfg.lpUuid == lpUuid && m_cfg.lastPkgName == pkg) {
+                return;
+            }
+            m_cfg.lpUuid = lpUuid;
+            m_cfg.lastPkgName = pkg;
+            m_store.saveConfig(m_cfg);
+            if (m_onConfigChanged) {
+                m_onConfigChanged(m_cfg);
+            }
+            logInfo("[StreamView] learned union ids lpUuid=" + lpUuid +
+                    " pkg=" + std::to_string(pkg));
+        });
+    });
+
     startSession();
 }
 

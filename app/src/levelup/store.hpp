@@ -40,6 +40,10 @@ struct AppConfig {
 
     std::string deviceId;
     api::Credentials cred;
+    // union 选址用：LP 侧用户号（apply 响应 body.uuid）与最近一次开过的游戏 pkgName。
+    // 两者都是大厅预热测速（/v1/speed/dialpoints）的必要参数，学到后持久化。
+    std::string lpUuid;
+    int64_t lastPkgName = 0;
     int videoLevel = kFixedVideoLevel; // 固定值，见 kFixedVideoLevel
     bool vqFirst = true;         // default true (VQ_FIRST)
     bool rumbleEnabled = true;   // default true

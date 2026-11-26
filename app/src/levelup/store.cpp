@@ -368,6 +368,8 @@ AppConfig Store::loadConfig() const {
                 cfg.cred.userId = j.value("userId", int64_t{0});
                 cfg.cred.nickName = j.value("nickName", "");
                 cfg.cred.mobile = j.value("mobile", "");
+                cfg.lpUuid = j.value("lpUuid", "");
+                cfg.lastPkgName = j.value("lastPkgName", int64_t{0});
                 // 画质档位已固定为「高清」，旧配置里的数值一律忽略（保持索引不变，
                 // 免得旧 version 的 JSON 反复被覆写）。
                 (void)j.value("videoLevel", AppConfig::kFixedVideoLevel);
@@ -401,6 +403,8 @@ bool Store::saveConfig(const AppConfig& cfg) const {
         {"userId", cfg.cred.userId},
         {"nickName", cfg.cred.nickName},
         {"mobile", cfg.cred.mobile},
+        {"lpUuid", cfg.lpUuid},
+        {"lastPkgName", cfg.lastPkgName},
         {"videoLevel", AppConfig::kFixedVideoLevel},
         {"vqFirst", cfg.vqFirst},
         {"rumbleEnabled", cfg.rumbleEnabled},

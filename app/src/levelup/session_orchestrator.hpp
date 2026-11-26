@@ -70,6 +70,8 @@ class SessionOrchestrator {
   public:
     using PhaseCallback = std::function<void(SessionPhase phase, const std::string& text)>;
     using OverlayComboCallback = std::function<void()>;
+    // union 选址学到的持久化信息（LP uuid / 游戏 pkgName），由上层写入 config.json
+    using LearnedUnionCallback = std::function<void(const std::string& lpUuid, int64_t pkgName)>;
 
     SessionOrchestrator() = default;
     ~SessionOrchestrator();
@@ -79,6 +81,7 @@ class SessionOrchestrator {
 
     void setPhaseCallback(PhaseCallback cb);
     void setOverlayComboCallback(OverlayComboCallback cb);
+    void setLearnedUnionCallback(LearnedUnionCallback cb);
     void setBeforeVideoCodecCloseCallback(video::VideoPipeline::BeforeCodecCloseCallback cb);
 
     void start(const SessionLaunchConfig& cfg);
@@ -108,6 +111,7 @@ class SessionOrchestrator {
     std::mutex m_cbMu;
     PhaseCallback m_phaseCb;
     OverlayComboCallback m_overlayCb;
+    LearnedUnionCallback m_learnedUnionCb;
 
     std::atomic<bool> m_stopRequested{false};
     std::atomic<bool> m_active{false};
@@ -126,8 +130,13 @@ class SessionOrchestrator {
     std::string m_flowId;
     std::string m_lpUuid;
     std::string m_currentDialWsUrl;
+    std::string m_clientIp;
     int64_t m_unionPkg = 0;
     int m_areaType = 0;
+    int m_areaIdc = 0;
+    int m_preferredArea = 0;
+    std::atomic<int64_t> m_applyOkMs{0};
+    std::atomic<int64_t> m_firstFrameMs{-1};
 
     // Owned streaming components
     std::unique_ptr<api::Client> m_api;

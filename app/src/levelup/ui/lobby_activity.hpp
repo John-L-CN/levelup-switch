@@ -101,6 +101,12 @@ class LevelUpLobbyActivity : public brls::Activity {
     std::thread m_qrThread;
     std::atomic<bool> m_qrCancel{false};
 
+    // 大厅预热测速：无实例、无 flow，纯探测，不消耗云游戏时长。
+    // 取消标志用 shared_ptr 持有，线程即使脱离本对象也能安全退出。
+    std::shared_ptr<std::atomic<bool>> m_prewarmCancel;
+    std::atomic<bool> m_prewarmStarted{false};
+    void startDialPrewarm();
+
     std::optional<GameEntry> m_pendingLaunchGame;
 
     // 上次重建封面网格时的 UI 缩放（掌机 1.0 / 底座 1.5），用于插拔底座后按新尺寸重解码

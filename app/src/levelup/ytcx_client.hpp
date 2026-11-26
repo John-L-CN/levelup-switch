@@ -40,6 +40,14 @@ constexpr const char* kUnionReleaseURL =
 constexpr int kDialTimeoutMs = 200;       // 单次探测 >200ms 记失败
 constexpr int kDialFailMs = 999;          // 官方失败哨兵值
 constexpr size_t kDialCacheEntries = 10;  // 本地缓存只留最近 10 条
+constexpr int kDialAttemptsDefault = 3;   // 每点采样次数（3 次时 p95≈最大值，足够排序）
+constexpr int kDialParallelDefault = 2;   // 并发探测路数（不冲击 Wi-Fi 队列）
+constexpr const char* kDialCachePath = "sdmc:/switch/levelup-nx/dial_rtt.json";
+
+// 打分口径：越小越好；kDialScoreNoData 表示该区域没有任何可用数据
+constexpr int kDialScoreNoData = 0x7fffffff;
+constexpr int kDialScoreTrustLimit = 900;  // 超过它就不主动指定 area_type（交给服务端）
+constexpr int64_t kDialProbeMaxAgeMs = 24LL * 60 * 60 * 1000;  // 探测数据 24h 后降权
 
 struct ApplyResult {
     std::string flowId;
@@ -59,10 +67,15 @@ struct ApplyResult {
     std::string lpUuid;
     // body.dialpoint.rtt_ws_url = 当前实例自身的测速地址（后台测速时要跳过自己）
     std::string currentDialWsUrl;
+    // body.queue_info：rank>0 说明该区域在排队（负信号）
+    int queueRank = 0;
+    int queueTotal = 0;
     std::string rawJson;
 };
 
 // 一条多区域测速记录，对应官方 CacheIpRttBean / dialtest_history_data 的一项。
+// live* 字段是本客户端新增的「真实会话质量回流」：探测值只是代理指标，
+// 真正可信的是上一局在同一个 area/idc 上打下来的 WebRTC RTT、丢包和首帧耗时。
 struct DialSample {
     std::string clientIp;   // 缓存 key 第一段：客户端公网 IP
     int areaType = 0;
@@ -74,7 +87,16 @@ struct DialSample {
     std::string rttWsUrl;   // 官方探测目标 ws://host:port/...
     std::string rttPingUrl; // 服务的 rtt_ping_address（curl 不可用时的兜底探测目标）
     int rtt95 = kDialFailMs;
-    int64_t ts = 0;         // 毫秒时间戳
+    int64_t ts = 0;         // 探测时间（毫秒时间戳）
+    // 真实会话回流
+    int liveRttMs = 0;      // 0 = 没有 live 数据
+    int lossPermille = -1;  // 千分比；-1 = 未知
+    int firstFrameMs = -1;  // -1 = 未知
+    bool liveOk = true;     // 该次会话是否成功（未中途 Failed）
+    int64_t liveTs = 0;
+    // 调度反馈
+    int rejects = 0;        // 请求该区域但服务端没给的次数
+    int queueRank = 0;      // 最近一次该区域的排队名次（0 = 没排队）
 };
 
 struct EdgeLaunchParams {
@@ -164,6 +186,28 @@ std::vector<DialSample> mergeDialCache(std::vector<DialSample> cache,
                                       const std::vector<DialSample>& fresh,
                                       size_t maxEntries = kDialCacheEntries);
 
+// ---- 选址打分（纯函数，主机可测）----
+int dialScore(const DialSample& s, int64_t nowMs);
+// 返回 0 表示「不主动指定 area_type，交给服务端」；否则返回首选区域号
+int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs,
+                      int* outScoreMs = nullptr);
+// 真实会话质量回流到对应 area/idc 条目（没有则新建）
+std::vector<DialSample> recordLiveResult(std::vector<DialSample> cache,
+                                        std::string_view clientIp,
+                                        int areaType,
+                                        int idc,
+                                        int rttMs,
+                                        int lossPermille,
+                                        int firstFrameMs,
+                                        bool sessionOk);
+std::vector<DialSample> recordAreaRejected(std::vector<DialSample> cache,
+                                          int areaType,
+                                          int idc);
+std::vector<DialSample> recordQueueRank(std::vector<DialSample> cache,
+                                       int areaType,
+                                       int idc,
+                                       int rank);
+
 std::string buildEdgeLaunchBodyJson(const EdgeLaunchParams& params);
 bool parseEdgeLaunchResponse(std::string_view rawJson,
                              int basePort,
@@ -205,11 +249,19 @@ bool dialFetchPoints(std::string_view lpUuid,
 int dialProbeOnceMs(std::string_view host, int port, int timeoutMs = kDialTimeoutMs);
 
 // 逐点探测 attempts 次、丢 >=999 的超时样本后取 p95，写回 sample.rtt95。
-// stopFlag 非空时每轮检查一次，退出流程可立刻打断。
+// parallel 路并发（默认 2），stopFlag 非空时每轮检查一次，退出流程可立刻打断。
 std::vector<DialSample> dialProbe(std::vector<DialSample> points,
-                                  int attempts = 5,
+                                  int attempts = kDialAttemptsDefault,
                                   int timeoutMs = kDialTimeoutMs,
-                                  const std::atomic<bool>* stopFlag = nullptr);
+                                  const std::atomic<bool>* stopFlag = nullptr,
+                                  int parallel = kDialParallelDefault);
+
+// 大厅预热：无实例、无 flow 时拉 dialpoints + 探测，合并进 cachePath 指向的缓存。
+// 返回合并后的条目数；0 表示没做（缺 uuid/ugid、失败或被取消）。
+int dialPrewarm(std::string_view lpUuid,
+                int64_t ugid,
+                const std::string& cachePath,
+                const std::atomic<bool>* cancel = nullptr);
 
 bool edgeLaunch(const EdgeLaunchParams& params,
                 EdgeLaunchResult& out,

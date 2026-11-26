@@ -13,7 +13,7 @@ Nintendo Switch 1（Horizon OS / Atmosphere + libnx）上的 **LevelUp 云游戏
 - **输入**：Joy-Con / Pro 手柄原生 Nintendo 语义直通（**无 ABXY 反转**）、单指触屏绝对坐标映射、HD 震动（比例振幅，60 Hz 合批 + 3 s 归零）。
 - **大厅**：顶栏账号 / VIP 到期 / HP·MP 时长，分类切换、中文搜索、最近游戏、游戏详情、设置面板；封面异步下载并缓存到 SD 卡，**按卡片在屏上的实际像素解码**（掌机 720p / 底座 1080p 自动切换预算，插拔底座会重解码），不再被固定小尺寸拉伸糊掉。最上方固定展示 **B站 UP主「牛巨眼」** 署名条。
 - **健壮性**：BE 心跳双保活、首帧上报、丢包后自动补 PLI/FIR、解码异常自动重建；**信令 WebSocket 断开不再中断串流**（媒体走 SRTP/UDP 独立通道，后台自动重连信令）；退出/掉线均先释放云端实例再拆传输层，**退出游戏不再闪退**；上次残留实例靠落盘标记在下次启动时强制回收。
-- **边缘节点选路（v0.2.0）**：与原客户端同逻辑——开流稳定后后台对「除当前节点外」的各区域机房做延迟探测（`/v1/speed/dialpoints` 拉表 → 逐点建连测 RTT → p95），结果落盘 `dial_rtt.json`（最多 10 条），下一次申请实例时随 `dialtest_history_data` 上报给调度，让服务端按实测延迟挑最近的边缘机房；同时解析 `spare_address`（主接入地址连不上时按序尝试）与 `area_stun_address`（作为首个 ICE STUN），退出时补上 `/v3/union/release`。
+- **边缘节点选路（v0.2.0 起，v0.3.0 实验版加强）**：开流稳定后后台对「除当前节点外」的各区域机房做延迟探测（`/v1/speed/dialpoints` 拉表 → 逐点建连测 RTT → p95），结果落盘 `dial_rtt.json`（最多 10 条），下一次申请实例时随 `dialtest_history_data` 上报给调度；v0.3.0 起还会在**大厅空闲时预热测速**（无实例、无 flow，不消耗时长），并把上一局真实的 WebRTC RTT / 丢包 / 首帧耗时回流进缓存给区域打分，apply 时按打分带上 `area_type`。同时解析 `spare_address`（主接入地址连不上时按序尝试）与 `area_stun_address`（作为首个 ICE STUN），退出时补上 `/v3/union/release`。
 
 ---
 
@@ -102,6 +102,18 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 `publish_release.py` 的凭据取自 git 凭据管理器（`git credential fill`），不在任何文件里存 PAT；不带 `--apply` 时只做 dry-run；`--nro` 省略则自动取 `build/switch/` 下最新的 `LevelUp-NX*.nro`。打包逻辑有单测覆盖：`python -m unittest discover -s scripts/ci`。
 
 ### 变更记录
+
+#### v0.3.0（2026-11-26，**实验性** / pre-release）
+
+> 这一版是「优选边缘节点」的实验分支：核心逻辑全在本地，起流链路零等待，但 `area_type` 是否被服务端采纳仍需实测。日志里 `askedArea=` 与 `area=` 的对照就是判据。
+
+- **大厅预热测速**：学到 LP `uuid` 与游戏 `pkgName` 后（`config.json` 持久化），一进大厅就在后台拉 `dialpoints` 并对各区域探测——此时**既没有云实例也没有 flow，完全不消耗云游戏时长**。于是「点启动」之前手里就是新鲜的全区延迟表，不再像 v0.2.0 那样要等玩过一局才有数据。
+- **真实会话质量回流**：退出时把这一局在命中 `area/idc` 上的 WebRTC RTT、丢包千分比、首帧耗时写回 `dial_rtt.json`。打分权重 **live 0.6 / probe 0.4**；丢包 ≥1% 加 200、≥5% 加 800，首帧 >8s 加 100，会话直接失败加 3000。
+- **申请时按打分表态**：`area_type` 取综合得分最优区域。数据不足、得分超过信任阈值（900）、被服务端拒过两次、或该区域在排队 → **不指定**，回落到官方行为（`area_type=0` 交给服务端）。服务端没给到请求的区域 → `rejects++`；响应 `queue_info.rank>0` → 排队惩罚。两者都写回缓存影响下次排序。
+- **后台复测节奏**：改成「首帧之后再等 10s」才启动，采样 5 次 → **3 次**、并发 2 路，最坏耗时从 ~13s 压到 ~5s，且不与首帧抢 Wi-Fi 队列。
+- **配置/缓存兼容**：`config.json` 新增 `lpUuid`、`lastPkgName`；`dial_rtt.json` 新增 `live_rtt / loss_permille / first_frame_ms / live_ok / live_ts / rejects / queue_rank`，旧文件缺字段按默认值读取，不会丢已有数据。
+- **日志**：`[Lobby] dial prewarm start|skipped`、`[Dial] prewarm points=/done entries=/bestArea=`、`[Session] dial history= pickArea= score=`、`unionApply OK … area= idc= queue= askedArea=`、`scheduler ignored asked area=`、`[Dial] live area= rtt= loss= first= ok=`。
+- 单测 `test_m7_dial_rtt.cpp` 扩到：打分权重/惩罚、区域选择与回退、拒绝与排队记账、真实会话回流、旧缓存兼容。
 
 #### v0.2.0（2026-11-26）
 
@@ -213,12 +225,12 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 | 文件 | 作用 |
 | --- | --- |
-| `config.json` | `deviceId`（设备指纹，**不要随便清空**）、登录态（`sessionKey` / `ciKey`）、账号信息与全部设置项 |
+| `config.json` | `deviceId`（设备指纹，**不要随便清空**）、登录态（`sessionKey` / `ciKey`）、账号信息与全部设置项；v0.3.0 起还存 `lpUuid` / `lastPkgName`（大厅预热测速用，学到后自动写入） |
 | `recent_<uid>.json` | 该账号的最近游戏（最多 12 条，按账号隔离） |
 | `games_library.json` | 在线目录落盘缓存（离线时展示用；程序内置一份 romfs 兜底库） |
 | `covers/` | 游戏封面缓存 |
 | `pending-release.txt` | 起流成功后写入的「待释放」标记（`gameId\|pkgName`），云端实例释放成功后自动删除；下次启动会据此强制回收 |
-| `dial_rtt.json` | 多区域测速缓存（`key = "<公网IP>-<area_type>-<idc>"`，最多 10 条，含 `rtt_95`）。开流稳定后由后台探测写入，下一次申请实例时作为 `dialtest_history_data` 交给调度 |
+| `dial_rtt.json` | 多区域测速缓存（`key = "<公网IP>-<area_type>-<idc>"`，最多 10 条）。v0.3.0 起每条还带真实会话回流（`live_rtt` / `loss_permille` / `first_frame_ms` / `live_ok`）与调度反馈（`rejects` / `queue_rank`），用于区域打分 |
 | `levelup.log` | 运行日志（起流各阶段、ICE/DTLS、首帧、音频延迟/补帧、丢帧统计），排障时看这个 |
 
 ### 9. 常见问题

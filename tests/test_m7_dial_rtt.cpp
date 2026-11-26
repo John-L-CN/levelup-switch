@@ -242,6 +242,115 @@ int main() {
         assert(!parseUnionApplyResponse(R"({"ret":{"code":0},"body":{}})", res, &err));
     }
 
+    // ---- 7. 打分 / 选址 / 学习（v0.3.0）----
+    {
+        const int64_t now = 1700000000000LL;
+        // 无数据
+        {
+            DialSample s = makeSample("1.1.1.1", 3, 12, kDialFailMs, now);
+            assert(dialScore(s, now) == kDialScoreNoData);
+        }
+        // 只有探测值
+        {
+            DialSample s = makeSample("1.1.1.1", 3, 12, 40, now);
+            assert(dialScore(s, now) == 40);
+        }
+        // 探测值过期（>24h）→ +1500 降权
+        {
+            DialSample s = makeSample("1.1.1.1", 3, 12, 40, now - kDialProbeMaxAgeMs - 1000);
+            assert(dialScore(s, now) == 1540);
+        }
+        // live 0.6 / probe 0.4
+        {
+            DialSample s = makeSample("1.1.1.1", 3, 12, 50, now);
+            s.liveRttMs = 20;
+            s.liveTs = now;
+            s.lossPermille = 0;
+            assert(dialScore(s, now) == (20 * 3 + 50 * 2) / 5);
+        }
+        // 丢包惩罚 + 失败惩罚 + 排队惩罚 + 被拒惩罚
+        {
+            DialSample s = makeSample("1.1.1.1", 3, 12, 40, now);
+            s.liveRttMs = 40;
+            s.liveTs = now;
+            s.lossPermille = 60;   // +800
+            s.liveOk = false;      // +3000
+            s.rejects = 2;         // +800
+            s.queueRank = 3;       // +300 + 60
+            assert(dialScore(s, now) == 40 + 800 + 3000 + 800 + 360);
+        }
+    }
+    {
+        const int64_t now = 1700000000000LL;
+        std::vector<DialSample> cache = {
+            makeSample("1.1.1.1", 3, 12, 80, now),   // 80ms
+            makeSample("1.1.1.1", 7, 12, 35, now),   // 35ms ← 最优
+            makeSample("1.1.1.1", 9, 12, kDialFailMs, now),
+        };
+        int score = 0;
+        assert(pickPreferredArea(cache, now, &score) == 7);
+        assert(score == 35);
+        // 最优区域被服务端拒过两次 → 罚 800 后超过信任阈值，改选次优
+        cache = recordAreaRejected(std::move(cache), 7, 0);
+        cache = recordAreaRejected(std::move(cache), 7, 0);
+        assert(pickPreferredArea(cache, now, &score) == 3);
+        // 全部不可信 → 0（交给服务端）
+        std::vector<DialSample> bad = {makeSample("1.1.1.1", 3, 12, kDialFailMs, now)};
+        assert(pickPreferredArea(bad, now, &score) == 0);
+        assert(score == kDialScoreNoData);
+    }
+    {
+        const int64_t now = 1700000000000LL;
+        std::vector<DialSample> cache = {makeSample("1.1.1.1", 3, 12, 60, now)};
+        cache = recordLiveResult(std::move(cache), "1.1.1.1", 3, 12, 22, 3, 1200, true);
+        assert(cache.size() == 1);
+        assert(cache[0].liveRttMs == 22);
+        assert(cache[0].lossPermille == 3);
+        assert(cache[0].firstFrameMs == 1200);
+        assert(cache[0].liveOk);
+        assert(cache[0].liveTs > 0);
+        // 没有对应 area/idc 条目时新建（用 apply 回显的公网 IP 作 key）
+        cache = recordLiveResult(std::move(cache), "1.1.1.1", 5, 21, 45, 0, 2000, true);
+        assert(cache.size() == 2);
+        bool sawNew = false;
+        for (const auto& s : cache) {
+            if (s.areaType == 5 && s.idc == 21) {
+                sawNew = true;
+                assert(s.liveRttMs == 45 && s.rtt95 == 45);
+            }
+        }
+        assert(sawNew);
+    }
+    {
+        // 排队记账
+        std::vector<DialSample> cache = {makeSample("1.1.1.1", 3, 12, 60, 1700000000000LL)};
+        cache = recordQueueRank(std::move(cache), 3, 12, 7);
+        assert(cache[0].queueRank == 7);
+        cache = recordQueueRank(std::move(cache), 3, 12, 0);
+        assert(cache[0].queueRank == 0);
+    }
+
+    // ---- 8. 旧缓存兼容：只有官方字段的文件仍可读，新字段取默认值 ----
+    {
+        const std::string legacy = R"({"1.2.3.4-3-12":{"ts":1700000000000,"ip":"1.2.3.4",
+            "isp":"电信","country":"CN","province":"山西","city":"太原",
+            "area_type":3,"idc":12,"rtt_95":42}})";
+        std::vector<DialSample> back;
+        assert(dialCacheFromJson(legacy, back));
+        assert(back.size() == 1);
+        assert(back[0].rtt95 == 42);
+        assert(back[0].liveRttMs == 0);
+        assert(back[0].lossPermille == -1);
+        assert(back[0].firstFrameMs == -1);
+        assert(back[0].liveOk);
+        assert(back[0].rejects == 0);
+        assert(back[0].queueRank == 0);
+        // 再写回去要带上新字段（老 readers 忽略即可）
+        auto root = nlohmann::json::parse(dialCacheToJson(back));
+        assert(root["1.2.3.4-3-12"].contains("live_rtt"));
+        assert(root["1.2.3.4-3-12"].contains("queue_rank"));
+    }
+
     std::cout << "test_m7_dial_rtt: all assertions passed\n";
     return 0;
 }

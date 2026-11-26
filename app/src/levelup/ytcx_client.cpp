@@ -374,6 +374,11 @@ bool parseUnionApplyResponse(std::string_view rawJson, ApplyResult& out, std::st
     if (body.contains("client_info") && body["client_info"].is_object()) {
         out.clientAddress = body["client_info"].value("address", "");
     }
+    if (body.contains("queue_info") && body["queue_info"].is_object()) {
+        // 排队信息：rank>0 说明目标区域吃紧，选址时作为负信号
+        out.queueRank = body["queue_info"].value("rank", 0);
+        out.queueTotal = body["queue_info"].value("total", 0);
+    }
     if (body.contains("dialpoint") && body["dialpoint"].is_object()) {
         out.currentDialWsUrl = body["dialpoint"].value("rtt_ws_url", "");
     }
@@ -444,8 +449,117 @@ std::vector<DialSample> mergeDialCache(std::vector<DialSample> cache,
     return trimDialCache(std::move(cache), maxEntries);
 }
 
+// ---------------- 选址打分 / 学习 ----------------
+
+int dialScore(const DialSample& s, int64_t nowMs) {
+    const bool hasLive = s.liveTs > 0 && s.liveRttMs > 0;
+    const bool probeOk = s.rtt95 > 0 && s.rtt95 < kDialFailMs;
+    int score = 0;
+    if (hasLive) {
+        // live 权重 0.6 / probe 权重 0.4：真实通路的 WebRTC RTT 比 TCP 探测可信
+        score = (s.liveRttMs * 3 + (probeOk ? s.rtt95 : s.liveRttMs) * 2) / 5;
+    } else if (probeOk) {
+        score = s.rtt95;
+    } else {
+        return kDialScoreNoData;
+    }
+    if (!hasLive && s.ts > 0 && nowMs - s.ts > kDialProbeMaxAgeMs) {
+        score += 1500;  // 探测数据超过 24h（可能换了网络/城市）→ 大幅降权
+    }
+    if (hasLive) {
+        if (s.lossPermille >= 50) {
+            score += 800;
+        } else if (s.lossPermille >= 10) {
+            score += 200;
+        }
+        if (s.firstFrameMs > 8000) score += 100;
+        if (!s.liveOk) score += 3000;  // 上次在这个区域直接失败过
+    }
+    score += s.rejects * 400;                       // 服务端没给过这个区域
+    if (s.queueRank > 0) score += 300 + s.queueRank * 20;  // 该区域在排队
+    return score;
+}
+
+int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs, int* outScoreMs) {
+    int best = kDialScoreNoData;
+    int bestArea = 0;
+    for (const auto& s : cache) {
+        const int sc = dialScore(s, nowMs);
+        if (sc == kDialScoreNoData) continue;
+        if (sc < best) {
+            best = sc;
+            bestArea = s.areaType;
+        }
+    }
+    if (outScoreMs) *outScoreMs = best;
+    if (bestArea <= 0 || best > kDialScoreTrustLimit) {
+        return 0;  // 数据不足/全部不可信 → 不指定，交给服务端（等价官方行为）
+    }
+    return bestArea;
+}
+
+static DialSample* findDialSample(std::vector<DialSample>& cache, int areaType, int idc) {
+    for (auto& s : cache) {
+        if (s.areaType == areaType && s.idc == idc) return &s;
+    }
+    return nullptr;
+}
+
+std::vector<DialSample> recordLiveResult(std::vector<DialSample> cache,
+                                        std::string_view clientIp,
+                                        int areaType,
+                                        int idc,
+                                        int rttMs,
+                                        int lossPermille,
+                                        int firstFrameMs,
+                                        bool sessionOk) {
+    DialSample* s = findDialSample(cache, areaType, idc);
+    if (!s) {
+        DialSample fresh;
+        fresh.clientIp = std::string(clientIp);
+        fresh.areaType = areaType;
+        fresh.idc = idc;
+        if (rttMs > 0) fresh.rtt95 = std::clamp(rttMs, 1, kDialFailMs - 1);
+        fresh.ts = unixMillisNow();
+        fresh.liveRttMs = rttMs > 0 ? rttMs : 0;
+        fresh.lossPermille = 0;
+        fresh.firstFrameMs = firstFrameMs;
+        fresh.liveOk = sessionOk;
+        fresh.liveTs = fresh.ts;
+        cache.push_back(std::move(fresh));
+        return trimDialCache(std::move(cache), kDialCacheEntries);
+    }
+    if (rttMs > 0) s->liveRttMs = rttMs;
+    s->lossPermille = lossPermille;
+    s->firstFrameMs = firstFrameMs;
+    s->liveOk = sessionOk;
+    s->liveTs = unixMillisNow();
+    return trimDialCache(std::move(cache), kDialCacheEntries);
+}
+
+std::vector<DialSample> recordAreaRejected(std::vector<DialSample> cache, int areaType, int idc) {
+    // idc<=0 表示「这个区域下的所有机房都记一次」，因为请求只带了 area_type
+    for (auto& s : cache) {
+        if (s.areaType != areaType) continue;
+        if (idc > 0 && s.idc != idc) continue;
+        s.rejects += 1;
+    }
+    return cache;
+}
+
+std::vector<DialSample> recordQueueRank(std::vector<DialSample> cache,
+                                       int areaType,
+                                       int idc,
+                                       int rank) {
+    if (DialSample* s = findDialSample(cache, areaType, idc)) {
+        s->queueRank = rank > 0 ? rank : 0;
+    }
+    return cache;
+}
+
 std::string dialCacheToJson(const std::vector<DialSample>& samples) {
-    // 与官方 Gson 落盘同构：{"<ip>-<area>-<idc>": {ts,ip,isp,country,province,city,area_type,idc,rtt_95}}
+    // 官方字段（ts/ip/isp/country/province/city/area_type/idc/rtt_95）保持原样，
+    // 额外追加本客户端的真实会话回流与调度反馈字段（旧版本读到时忽略即降级）。
     nlohmann::json root = nlohmann::json::object();
     for (const auto& s : samples) {
         root[dialCacheKey(s.clientIp, s.areaType, s.idc)] = {
@@ -458,6 +572,13 @@ std::string dialCacheToJson(const std::vector<DialSample>& samples) {
             {"area_type", s.areaType},
             {"idc", s.idc},
             {"rtt_95", s.rtt95},
+            {"live_rtt", s.liveRttMs},
+            {"loss_permille", s.lossPermille},
+            {"first_frame_ms", s.firstFrameMs},
+            {"live_ok", s.liveOk},
+            {"live_ts", s.liveTs},
+            {"rejects", s.rejects},
+            {"queue_rank", s.queueRank},
         };
     }
     return root.dump(2);
@@ -486,6 +607,13 @@ bool dialCacheFromJson(std::string_view json, std::vector<DialSample>& out) {
         s.idc = v.value("idc", 0);
         s.rtt95 = v.value("rtt_95", kDialFailMs);
         s.ts = v.value("ts", int64_t{0});
+        s.liveRttMs = v.value("live_rtt", 0);
+        s.lossPermille = v.value("loss_permille", -1);
+        s.firstFrameMs = v.value("first_frame_ms", -1);
+        s.liveOk = v.value("live_ok", true);
+        s.liveTs = v.value("live_ts", int64_t{0});
+        s.rejects = v.value("rejects", 0);
+        s.queueRank = v.value("queue_rank", 0);
         out.push_back(std::move(s));
     }
     return !out.empty();
@@ -935,9 +1063,12 @@ int dialProbeOnceMs(std::string_view host, int port, int timeoutMs) {
 std::vector<DialSample> dialProbe(std::vector<DialSample> points,
                                   int attempts,
                                   int timeoutMs,
-                                  const std::atomic<bool>* stopFlag) {
+                                  const std::atomic<bool>* stopFlag,
+                                  int parallel) {
     if (attempts < 1) attempts = 1;
-    for (auto& p : points) {
+    if (parallel < 1) parallel = 1;
+
+    auto probeOne = [attempts, timeoutMs, stopFlag](DialSample& p) {
         std::string host;
         int port = 0;
         if (!parseWsEndpoint(p.rttWsUrl, host, port)) {
@@ -946,7 +1077,7 @@ std::vector<DialSample> dialProbe(std::vector<DialSample> points,
             if (colon == std::string::npos) {
                 p.rtt95 = kDialFailMs;
                 p.ts = unixMillisNow();
-                continue;
+                return;
             }
             host = p.rttPingUrl.substr(0, colon);
             port = std::atoi(p.rttPingUrl.c_str() + static_cast<long>(colon) + 1);
@@ -966,8 +1097,76 @@ std::vector<DialSample> dialProbe(std::vector<DialSample> points,
         logInfo("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
                 " " + host + ":" + std::to_string(port) + " p95=" +
                 std::to_string(p.rtt95) + "ms");
+    };
+
+    if (parallel == 1 || points.size() <= 1) {
+        for (auto& p : points) {
+            if (stopFlag && stopFlag->load()) break;
+            probeOne(p);
+        }
+        return points;
+    }
+
+    // 并发路数很少（默认 2），直接按步长分片即可，避免给 Wi-Fi 队列加压
+    std::vector<std::thread> workers;
+    workers.reserve(static_cast<size_t>(parallel - 1));
+    auto work = [&points, parallel, &probeOne, stopFlag](size_t offset) {
+        for (size_t i = offset; i < points.size(); i += static_cast<size_t>(parallel)) {
+            if (stopFlag && stopFlag->load()) return;
+            probeOne(points[i]);
+        }
+    };
+    for (int w = 1; w < parallel; ++w) {
+        workers.emplace_back(work, static_cast<size_t>(w));
+    }
+    work(0);
+    for (auto& t : workers) {
+        if (t.joinable()) t.join();
     }
     return points;
+}
+
+int dialPrewarm(std::string_view lpUuid,
+                int64_t ugid,
+                const std::string& cachePath,
+                const std::atomic<bool>* cancel) {
+    if (lpUuid.empty() || ugid <= 0) {
+        logInfo("[Dial] prewarm skipped (uuid/pkg not learned yet)");
+        return 0;
+    }
+#ifdef LEVELUP_NO_CURL
+    (void)cachePath;
+    (void)cancel;
+    logInfo("[Dial] prewarm skipped (curl disabled)");
+    return 0;
+#else
+    std::string clientIp;
+    std::string err;
+    std::vector<DialSample> points;
+    if (!dialFetchPoints(lpUuid, ugid, "", points, &clientIp, &err)) {
+        logWarn("[Dial] prewarm fetch failed: " + err);
+        return 0;
+    }
+    logInfo("[Dial] prewarm points=" + std::to_string(points.size()) +
+            " clientIp=" + clientIp);
+    auto probed = dialProbe(std::move(points), kDialAttemptsDefault, kDialTimeoutMs, cancel,
+                            kDialParallelDefault);
+    if (cancel && cancel->load()) {
+        return 0;
+    }
+    auto cache = loadDialCache(cachePath);
+    cache = mergeDialCache(std::move(cache), probed);
+    if (!saveDialCache(cachePath, cache)) {
+        logWarn(std::string("[Dial] prewarm cache save failed: ") + cachePath);
+        return 0;
+    }
+    int bestScore = kDialScoreNoData;
+    const int bestArea = pickPreferredArea(cache, unixMillisNow(), &bestScore);
+    logInfo("[Dial] prewarm done entries=" + std::to_string(cache.size()) +
+            " bestArea=" + std::to_string(bestArea) +
+            " score=" + std::to_string(bestScore));
+    return static_cast<int>(cache.size());
+#endif
 }
 
 bool edgeLaunch(const EdgeLaunchParams& params, EdgeLaunchResult& out, std::string* errOut) {

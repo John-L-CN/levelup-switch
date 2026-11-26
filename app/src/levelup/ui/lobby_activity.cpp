@@ -4,6 +4,7 @@
 #include "levelup/log.hpp"
 #include "levelup/rumble_switch.hpp"
 #include "levelup/ui/levelup_stream_view.hpp"
+#include "levelup/ytcx_client.hpp"
 
 #include <borealis/core/touch/tap_gesture.hpp>
 #include <stb_image.h>
@@ -341,6 +342,9 @@ LevelUpLobbyActivity::LevelUpLobbyActivity() = default;
 LevelUpLobbyActivity::~LevelUpLobbyActivity() {
     m_alive->store(false);
     m_qrCancel.store(true);
+    if (m_prewarmCancel) {
+        m_prewarmCancel->store(true);
+    }
     if (m_windowSizeSubValid) {
         brls::Application::getWindowSizeChangedEvent()->unsubscribe(m_windowSizeSub);
         m_windowSizeSubValid = false;
@@ -656,6 +660,27 @@ void LevelUpLobbyActivity::onContentAvailable() {
     if (!m_cfg.cred.sessionKey.empty()) {
         refreshOnlineDataAsync(false);
     }
+    startDialPrewarm();
+}
+
+// 大厅预热测速：此时既没有云实例、也没有 flow，探测只打各区域的测速网关，
+// 不消耗云游戏时长；结果落盘后，下一次点「启动」时 apply 就能带上新鲜的全区域延迟表。
+void LevelUpLobbyActivity::startDialPrewarm() {
+    if (m_prewarmStarted.exchange(true)) {
+        return;
+    }
+    if (m_cfg.lpUuid.empty() || m_cfg.lastPkgName <= 0) {
+        logInfo("[Lobby] dial prewarm skipped (need one streaming session first)");
+        return;
+    }
+    m_prewarmCancel = std::make_shared<std::atomic<bool>>(false);
+    auto cancel = m_prewarmCancel;
+    const std::string lpUuid = m_cfg.lpUuid;
+    const int64_t pkg = m_cfg.lastPkgName;
+    logInfo("[Lobby] dial prewarm start uuid=" + lpUuid + " pkg=" + std::to_string(pkg));
+    std::thread([lpUuid, pkg, cancel]() {
+        ytcx::dialPrewarm(lpUuid, pkg, ytcx::kDialCachePath, cancel.get());
+    }).detach();
 }
 
 void LevelUpLobbyActivity::onResume() {
