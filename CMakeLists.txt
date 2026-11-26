@@ -432,7 +432,7 @@ elseif (PLATFORM_SWITCH)
         set(MOONLIGHT_NRO_NAME "LevelUp-NX")
         set(MOONLIGHT_NACP_NAME "LevelUp-NX")
         set(MOONLIGHT_NACP_AUTHOR "LevelUp-Switch")
-        set(MOONLIGHT_NACP_VERSION "0.1.9") # 必须与对外发布的 git tag（vX.Y.Z）一致
+        set(MOONLIGHT_NACP_VERSION "0.2.0") # 必须与对外发布的 git tag（vX.Y.Z）一致
     endif ()
     add_custom_target(${MOONLIGHT_NRO_NAME}.nro DEPENDS ${PROJECT_NAME}
         COMMAND ${NX_NACPTOOL_EXE} --create "${MOONLIGHT_NACP_NAME}" "${MOONLIGHT_NACP_AUTHOR}" "${MOONLIGHT_NACP_VERSION}" ${PROJECT_NAME}.nacp --titleid=${PROJECT_TITLEID}

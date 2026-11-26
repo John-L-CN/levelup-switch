@@ -1420,6 +1420,11 @@ bool RtcSession::start(int timeoutMs, std::string* errOut) {
 
     rtc::Configuration pcCfg;
     pcCfg.disableAutoNegotiation = true;
+    // 优先用 union apply 下发的区域专用 STUN，再退回公共 STUN（与原客户端一致）
+    if (!m_impl->cfg.areaStunHost.empty() && m_impl->cfg.areaStunPort > 0) {
+        pcCfg.iceServers.emplace_back("stun:" + m_impl->cfg.areaStunHost + ":" +
+                                      std::to_string(m_impl->cfg.areaStunPort));
+    }
     pcCfg.iceServers.emplace_back("stun:111.206.174.2:3478");
     pcCfg.iceServers.emplace_back("stun:stun.hitv.com:3478");
     pcCfg.iceServers.emplace_back("stun:stun.chat.bilibili.com:3478");

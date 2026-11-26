@@ -13,6 +13,7 @@ Nintendo Switch 1（Horizon OS / Atmosphere + libnx）上的 **LevelUp 云游戏
 - **输入**：Joy-Con / Pro 手柄原生 Nintendo 语义直通（**无 ABXY 反转**）、单指触屏绝对坐标映射、HD 震动（比例振幅，60 Hz 合批 + 3 s 归零）。
 - **大厅**：顶栏账号 / VIP 到期 / HP·MP 时长，分类切换、中文搜索、最近游戏、游戏详情、设置面板；封面异步下载并缓存到 SD 卡，**按卡片在屏上的实际像素解码**（掌机 720p / 底座 1080p 自动切换预算，插拔底座会重解码），不再被固定小尺寸拉伸糊掉。最上方固定展示 **B站 UP主「牛巨眼」** 署名条。
 - **健壮性**：BE 心跳双保活、首帧上报、丢包后自动补 PLI/FIR、解码异常自动重建；**信令 WebSocket 断开不再中断串流**（媒体走 SRTP/UDP 独立通道，后台自动重连信令）；退出/掉线均先释放云端实例再拆传输层，**退出游戏不再闪退**；上次残留实例靠落盘标记在下次启动时强制回收。
+- **边缘节点选路（v0.2.0）**：与原客户端同逻辑——开流稳定后后台对「除当前节点外」的各区域机房做延迟探测（`/v1/speed/dialpoints` 拉表 → 逐点建连测 RTT → p95），结果落盘 `dial_rtt.json`（最多 10 条），下一次申请实例时随 `dialtest_history_data` 上报给调度，让服务端按实测延迟挑最近的边缘机房；同时解析 `spare_address`（主接入地址连不上时按序尝试）与 `area_stun_address`（作为首个 ICE STUN），退出时补上 `/v3/union/release`。
 
 ---
 
@@ -73,9 +74,15 @@ bash scripts/build_switch1_docker.sh
 主机侧单测（Linux，无需 devkitPro）：
 
 ```bash
+# M2 协议 / 签名 / 边缘 /launch
 g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src -Ibuild/deps/switch/include \
     tests/test_m2_protocol.cpp app/src/levelup/api_client.cpp app/src/levelup/crypto_util.cpp \
     app/src/levelup/proto_lite.cpp app/src/levelup/ytcx_client.cpp -o t_m2 -lpthread && ./t_m2
+
+# M7 多区域测速 / 选址字段（p95、缓存、apply 注入、响应解析）
+g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src -Ibuild/deps/switch/include \
+    tests/test_m7_dial_rtt.cpp app/src/levelup/crypto_util.cpp \
+    app/src/levelup/proto_lite.cpp app/src/levelup/ytcx_client.cpp -o t_m7 -lpthread && ./t_m7
 ```
 
 ### 发布（GitHub Releases）
@@ -95,6 +102,18 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 `publish_release.py` 的凭据取自 git 凭据管理器（`git credential fill`），不在任何文件里存 PAT；不带 `--apply` 时只做 dry-run；`--nro` 省略则自动取 `build/switch/` 下最新的 `LevelUp-NX*.nro`。打包逻辑有单测覆盖：`python -m unittest discover -s scripts/ci`。
 
 ### 变更记录
+
+#### v0.2.0（2026-11-26）
+
+- **边缘节点首次按官方逻辑参与选址**：此前移植版每次起流都只是被动接受服务端下发的实例（`/v3/union/apply` 的 `access_info`），而原客户端（lp-sdk `muti_area_rtt`）会「开流稳定后后台测各区域机房 → 缓存 → 下一次申请时上报」。现在补齐整条链路：
+  - `GET http://union-access.yuntiancloud.com:18088/v1/speed/dialpoints` 拉全量测速点（明文 http、无签名，按用户返回 `area_type/idc/isp/rtt_ws_url/rtt_ping_address`），跳过当前所在节点；
+  - 每个区域用 libcurl `CONNECT_ONLY` 做 TCP 建连测 RTT（官方是 WS 每 100ms 发毫秒时间戳回显、>200ms 记 `999` 的等价实现），丢超时样本后取 **p95**；
+  - 以官方 key 形状 `<公网IP>-<area_type>-<idc>` 落盘 `sdmc:/switch/levelup-nx/dial_rtt.json`，只保留最近 **10** 条；
+  - 下一次 apply 时带 `dialtest_history_data`（`ts/ip/isp/country/province/city/area_type/idc/rtt_95`）交给调度；**首发没有历史时仍与官方一致**：`area_type=0`，由服务端按出口 IP 判断；
+  - apply 响应新增解析并使用 `area_type`、`idc`、`spare_address[]`（BE 主接入地址连不上时按序尝试备用地址）、`area_stun_address/port`（作为首个 ICE STUN）、`uuid`、`dialpoint.rtt_ws_url`；
+  - 退出流程补上官方 `/v3/union/release`（`stopGame` 之后 best-effort，失败只记日志）。
+- **日志**：新增 `[Dial] area=… idc=… p95=…ms`、`[Dial] best area=…`、`[Dial] cache saved entries=…`，以及 `unionApply OK … area=… idc=… spare=…`，可直接对照判断这次被分到哪个机房。
+- **单测**：新增 `tests/test_m7_dial_rtt.cpp`（p95 与超时剔除、缓存 key/JSON 往返/10 条上限/同 key 覆盖、apply 注入 `dialtest_history_data`+`area_type`、apply 响应解析 spare/STUN/uuid）。
 
 #### v0.1.9（2026-11-25）
 
@@ -199,6 +218,7 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 | `games_library.json` | 在线目录落盘缓存（离线时展示用；程序内置一份 romfs 兜底库） |
 | `covers/` | 游戏封面缓存 |
 | `pending-release.txt` | 起流成功后写入的「待释放」标记（`gameId\|pkgName`），云端实例释放成功后自动删除；下次启动会据此强制回收 |
+| `dial_rtt.json` | 多区域测速缓存（`key = "<公网IP>-<area_type>-<idc>"`，最多 10 条，含 `rtt_95`）。开流稳定后由后台探测写入，下一次申请实例时作为 `dialtest_history_data` 交给调度 |
 | `levelup.log` | 运行日志（起流各阶段、ICE/DTLS、首帧、音频延迟/补帧、丢帧统计），排障时看这个 |
 
 ### 9. 常见问题

@@ -7,6 +7,7 @@
 #include "AVFrameHolder.hpp"
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -23,6 +24,12 @@ namespace {
 // 进程被强杀/崩溃后下一次启动仍能凭它把上一次的实例收掉（startGame 否则会报 1001
 // 「其他游戏运行中」）。
 constexpr const char* kPendingReleasePath = "sdmc:/switch/levelup-nx/pending-release.txt";
+
+// 多区域测速缓存（官方 lp-sdk 的 rtt cache 同构：最多 10 条，key = ip-area_type-idc）。
+// 官方时序是「流起来之后后台测其它区域 → 落盘 → 下一次 apply 时作为 dialtest_history_data 上报」。
+constexpr const char* kDialCachePath = "sdmc:/switch/levelup-nx/dial_rtt.json";
+constexpr int kDialAttemptsPerPoint = 5;   // 每点采样次数（官方 100ms 一次持续打点，这里取 5 次足够排序）
+constexpr int kDialStartDelayMs = 8000;    // 与官方「开流后启动 qualityReport」的时机对齐
 
 struct PendingRelease {
     std::string gameId;
@@ -131,6 +138,15 @@ void SessionOrchestrator::start(const SessionLaunchConfig& cfg) {
         std::lock_guard lock(m_compMu);
         m_gameId = cfg.gameId;
     }
+    {
+        std::lock_guard lock(m_unionMu);
+        m_deviceId = cfg.deviceId;
+        m_flowId.clear();
+        m_lpUuid.clear();
+        m_currentDialWsUrl.clear();
+        m_unionPkg = 0;
+        m_areaType = 0;
+    }
 
     m_workerThread = std::thread([this, cfg]() { runLifecycle(cfg); });
 }
@@ -143,6 +159,10 @@ void SessionOrchestrator::stop() {
     m_rumble.stop();
     m_input.stop();
 
+    // 后台测速线程：每轮都检查 m_stopRequested，这里 join 最多等一次探测（~200ms）
+    if (m_dialThread.joinable()) {
+        m_dialThread.join();
+    }
     if (m_vpadAllocThread.joinable()) {
         m_vpadAllocThread.join();
     }
@@ -226,6 +246,31 @@ void SessionOrchestrator::stop() {
         const PendingRelease pending = readPendingRelease();
         if (!pending.valid() || pending.gameId == gid) {
             clearPendingRelease();
+        }
+    }
+
+    // 官方在退出时还会显式释放 union flow（/v3/union/release）。这里尽力而为：
+    // 云实例已由 stopGame 释放，release 只是把 flow 从调度侧收干净，失败不影响退出。
+    {
+        std::string flowId;
+        std::string lpUuid;
+        std::string devId;
+        int64_t unionPkg = 0;
+        {
+            std::lock_guard lock(m_unionMu);
+            flowId = m_flowId;
+            lpUuid = m_lpUuid;
+            devId = m_deviceId;
+            unionPkg = m_unionPkg;
+            m_flowId.clear();
+        }
+        if (!flowId.empty()) {
+            std::string relErr;
+            if (ytcx::unionRelease(flowId, lpUuid, devId, unionPkg, false, &relErr)) {
+                logInfo("[Session] stop(): union release OK flow=" + flowId);
+            } else {
+                logWarn("[Session] stop(): union release failed: " + relErr);
+            }
         }
     }
 
@@ -366,17 +411,32 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     const auto pbLaunch = ytcx::buildLaunchGameProto(
         startInfo.proData, startInfo.pkgName, devInfo, streamInfo);
 
-    // 3. unionApply
+    // 3. unionApply —— 与官方一致：把上一次会话留下的多区域测速历史一起交给调度，
+    //    这样调度能按「本机到各区域机房的实测延迟」挑最近/最快的边缘节点。
+    //    首次申请没有历史（缓存为空），此时与官方首发行为完全一致：area_type=0 由服务端定。
     setPhase(SessionPhase::ApplyingUnion, "申请调度网关 (/v3/union/apply)...");
+    std::vector<ytcx::DialSample> dialHistory = ytcx::loadDialCache(kDialCachePath);
+    logInfo("[Session] unionApply dial history entries=" + std::to_string(dialHistory.size()));
     ytcx::ApplyResult applyRes;
     if (!ytcx::unionApply(startInfo.proData, startInfo.pkgName, cfg.deviceId, startInfo.userId,
-                          cfg.width, cfg.height, pbLaunch, applyRes, &err)) {
+                          cfg.width, cfg.height, pbLaunch, applyRes, &err, dialHistory, 0, 0)) {
         setPhase(SessionPhase::Failed, "调度申请失败", err);
         return;
     }
     const std::string realUserId = ytcx::extractRealUserIdFromToken(applyRes.token);
     logInfo("[Session] unionApply OK gw=" + applyRes.accessIp + ":" +
-            std::to_string(applyRes.accessPort) + " uid=" + realUserId);
+            std::to_string(applyRes.accessPort) + " uid=" + realUserId +
+            " area=" + std::to_string(applyRes.areaType) +
+            " idc=" + std::to_string(applyRes.idc) +
+            " spare=" + std::to_string(applyRes.spareAddresses.size()));
+    {
+        std::lock_guard lock(m_unionMu);
+        m_flowId = applyRes.flowId;
+        m_lpUuid = applyRes.lpUuid;
+        m_currentDialWsUrl = applyRes.currentDialWsUrl;
+        m_unionPkg = startInfo.pkgName;
+        m_areaType = applyRes.areaType;
+    }
     if (aborted()) return;
 
     // 4. BE WebSocket connect + cmd=7 + heartbeat + wait cmd=17
@@ -393,8 +453,24 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
         }
     });
 
-    if (!beClient->connect(applyRes.accessIp, applyRes.accessPort, applyRes.token,
-                           cfg.deviceId, 15000, &err)) {
+    bool beConnected = beClient->connect(applyRes.accessIp, applyRes.accessPort, applyRes.token,
+                                        cfg.deviceId, 15000, &err);
+    if (!beConnected) {
+        // access_info.spare_address：同一区域机房的备用接入地址，官方在主地址连不上时逐个尝试
+        for (const auto& [spareIp, sparePort] : applyRes.spareAddresses) {
+            if (aborted()) break;
+            logWarn("[Session] BE connect failed on " + applyRes.accessIp + " (" + err +
+                    "), trying spare " + spareIp + ":" + std::to_string(sparePort));
+            err.clear();
+            if (beClient->connect(spareIp, sparePort, applyRes.token, cfg.deviceId, 10000, &err)) {
+                beConnected = true;
+                logInfo("[Session] BE connected via spare " + spareIp + ":" +
+                        std::to_string(sparePort));
+                break;
+            }
+        }
+    }
+    if (!beConnected) {
         setPhase(SessionPhase::Failed, "BE 连接失败", err);
         return;
     }
@@ -461,6 +537,13 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     rcfg.noTlsVerify = true;
     rcfg.vqFirst = cfg.vqFirst;
     rcfg.videoLevel = cfg.videoLevel;
+    // 官方按 access_info 下发的区域专用 STUN 打洞；拿不到就用内置公共 STUN
+    rcfg.areaStunHost = applyRes.areaStunAddress;
+    rcfg.areaStunPort = applyRes.areaStunPort;
+    if (!rcfg.areaStunHost.empty()) {
+        logInfo("[Session] area STUN " + rcfg.areaStunHost + ":" +
+                std::to_string(rcfg.areaStunPort));
+    }
 
     auto rtcSess = std::make_unique<net::RtcSession>(rcfg);
 
@@ -531,6 +614,66 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     }
 
     setPhase(SessionPhase::WaitingFirstFrame, "等待云端首帧 H.264 解码...");
+
+    // 8. 后台多区域测速（官方 muti_area_rtt 等价实现）：开流稳定后探测「除当前节点外」的
+    //    各个区域机房，算 p95 落盘，供下一次 union apply 的 dialtest_history_data 上报。
+    {
+        const std::string lpUuid = applyRes.lpUuid;
+        const std::string flowId = applyRes.flowId;
+        const std::string currentWs = applyRes.currentDialWsUrl;
+        const int64_t dialPkg = startInfo.pkgName;
+        m_dialThread = std::thread([this, lpUuid, flowId, currentWs, dialPkg]() {
+            auto waitMs = [this](int ms) -> bool {
+                std::unique_lock lock(m_stateMu);
+                return !m_stopCv.wait_for(lock, std::chrono::milliseconds(ms),
+                                          [this]() { return m_stopRequested.load(); });
+            };
+            if (!waitMs(kDialStartDelayMs) || m_stopRequested.load()) {
+                return;
+            }
+            std::string clientIp;
+            std::string dialErr;
+            std::vector<ytcx::DialSample> points;
+            if (!ytcx::dialFetchPoints(lpUuid, dialPkg, flowId, points, &clientIp, &dialErr)) {
+                logWarn("[Dial] fetch dialpoints failed: " + dialErr);
+                return;
+            }
+            logInfo("[Dial] dialpoints=" + std::to_string(points.size()) +
+                    " clientIp=" + clientIp);
+            if (!currentWs.empty()) {
+                points.erase(std::remove_if(points.begin(), points.end(),
+                                            [&currentWs](const ytcx::DialSample& s) {
+                                                return s.rttWsUrl == currentWs;
+                                            }),
+                             points.end());
+            }
+            auto probed = ytcx::dialProbe(std::move(points), kDialAttemptsPerPoint,
+                                          ytcx::kDialTimeoutMs, &m_stopRequested);
+            if (m_stopRequested.load()) {
+                return;
+            }
+            auto cache = ytcx::loadDialCache(kDialCachePath);
+            cache = ytcx::mergeDialCache(std::move(cache), probed);
+            if (ytcx::saveDialCache(kDialCachePath, cache)) {
+                logInfo("[Dial] cache saved entries=" + std::to_string(cache.size()));
+            } else {
+                logWarn(std::string("[Dial] cache save failed: ") + kDialCachePath);
+            }
+            int bestIdx = -1;
+            for (size_t i = 0; i < probed.size(); ++i) {
+                if (probed[i].rtt95 >= ytcx::kDialFailMs) continue;
+                if (bestIdx < 0 || probed[i].rtt95 < probed[static_cast<size_t>(bestIdx)].rtt95) {
+                    bestIdx = static_cast<int>(i);
+                }
+            }
+            if (bestIdx >= 0) {
+                const auto& best = probed[static_cast<size_t>(bestIdx)];
+                logInfo("[Dial] best area=" + std::to_string(best.areaType) +
+                        " idc=" + std::to_string(best.idc) +
+                        " p95=" + std::to_string(best.rtt95) + "ms");
+            }
+        });
+    }
 
     // 7. Schedule 8s post-launch AllocVPad (cmd=33), retrying once after firstFrame (playing=1) if rejected
     m_vpadAllocThread = std::thread([this]() {

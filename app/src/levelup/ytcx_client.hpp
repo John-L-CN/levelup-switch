@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace rtc {
@@ -27,13 +28,53 @@ constexpr const char* kUnionBizID = "biz-basic";
 constexpr const char* kUnionSDKVersion = "7.40.47";
 constexpr int64_t kUnionSDKVersionNum = 7040047;
 
+// 官方的另外两个 union 端点（lp-sdk com.light.play.config.a）：
+//   dialpoints: 同一 union host、端口固定 18088、明文 http、无签名，按用户查全量测速点
+//   release:    /v3/union/release，签名同 apply
+constexpr const char* kUnionDialPointsURL =
+    "http://union-access.yuntiancloud.com:18088/v1/speed/dialpoints";
+constexpr const char* kUnionReleaseURL =
+    "http://union-access.yuntiancloud.com:18108/v3/union/release";
+
+// 官方多区域测速常量（qualityReport/collection/e.java + areaping_socket/d.java）
+constexpr int kDialTimeoutMs = 200;       // 单次探测 >200ms 记失败
+constexpr int kDialFailMs = 999;          // 官方失败哨兵值
+constexpr size_t kDialCacheEntries = 10;  // 本地缓存只留最近 10 条
+
 struct ApplyResult {
     std::string flowId;
     std::string token;
     std::string accessIp;
     int accessPort = 0;
     int64_t userId = 0;
+    // 调度回显：服务端最终把实例放在哪个区域 / 备用边缘入口 / 该区域专用 STUN
+    int areaType = 0;
+    int idc = 0;
+    std::string areaStunAddress;
+    int areaStunPort = 0;
+    std::vector<std::pair<std::string, int>> spareAddresses;
+    // body.client_info.address = 本机出口公网 IP（测速缓存 key 的第一段）
+    std::string clientAddress;
+    // body.uuid = LP 侧用户号，dialpoints 的 uuid 参数用它
+    std::string lpUuid;
+    // body.dialpoint.rtt_ws_url = 当前实例自身的测速地址（后台测速时要跳过自己）
+    std::string currentDialWsUrl;
     std::string rawJson;
+};
+
+// 一条多区域测速记录，对应官方 CacheIpRttBean / dialtest_history_data 的一项。
+struct DialSample {
+    std::string clientIp;   // 缓存 key 第一段：客户端公网 IP
+    int areaType = 0;
+    int idc = 0;
+    std::string isp;
+    std::string country;
+    std::string province;
+    std::string city;
+    std::string rttWsUrl;   // 官方探测目标 ws://host:port/...
+    std::string rttPingUrl; // 服务的 rtt_ping_address（curl 不可用时的兜底探测目标）
+    int rtt95 = kDialFailMs;
+    int64_t ts = 0;         // 毫秒时间戳
 };
 
 struct EdgeLaunchParams {
@@ -96,13 +137,32 @@ SignedUnionRequest buildSignedUnionApplyRequest(std::string_view proData,
                                                 int height,
                                                 const std::vector<uint8_t>& pbLaunchGame,
                                                 std::string_view nonce = {},
-                                                int64_t timestampMs = 0);
+                                                int64_t timestampMs = 0,
+                                                const std::vector<DialSample>& dialHistory = {},
+                                                int areaType = 0,
+                                                int tryAreaType = 0);
 
 bool parseUnionApplyResponse(std::string_view rawJson,
                              ApplyResult& out,
                              std::string* errOut = nullptr);
 
 std::string extractRealUserIdFromToken(std::string_view token);
+
+// ---- 多区域测速（官方 muti_area_rtt 等价实现，纯函数部分主机可测）----
+std::string dialCacheKey(std::string_view clientIp, int areaType, int idc);
+int dialP95(std::vector<int> samples);
+std::vector<DialSample> trimDialCache(std::vector<DialSample> samples, size_t maxEntries);
+std::string dialCacheToJson(const std::vector<DialSample>& samples);
+bool dialCacheFromJson(std::string_view json, std::vector<DialSample>& out);
+bool parseWsEndpoint(std::string_view url, std::string& host, int& port);
+std::string buildDialPointsUrl(std::string_view uuid, int64_t ugid, std::string_view flowId);
+
+std::vector<DialSample> loadDialCache(const std::string& path);
+bool saveDialCache(const std::string& path, const std::vector<DialSample>& samples);
+// 把新测得的样本并进旧缓存（同 key 覆盖），按 ts 保留最近 maxEntries 条
+std::vector<DialSample> mergeDialCache(std::vector<DialSample> cache,
+                                      const std::vector<DialSample>& fresh,
+                                      size_t maxEntries = kDialCacheEntries);
 
 std::string buildEdgeLaunchBodyJson(const EdgeLaunchParams& params);
 bool parseEdgeLaunchResponse(std::string_view rawJson,
@@ -119,7 +179,37 @@ bool unionApply(std::string_view proData,
                 int height,
                 const std::vector<uint8_t>& pbLaunchGame,
                 ApplyResult& out,
-                std::string* errOut = nullptr);
+                std::string* errOut = nullptr,
+                const std::vector<DialSample>& dialHistory = {},
+                int areaType = 0,
+                int tryAreaType = 0);
+
+// 释放 union flow（官方 /v3/union/release）。type=1 会顺带踢掉当前在跑的实例。
+bool unionRelease(std::string_view flowId,
+                  std::string_view lpUuid,
+                  std::string_view deviceId,
+                  int64_t pkgName,
+                  bool kickRunning,
+                  std::string* errOut = nullptr);
+
+// 拉全量测速点（body.dial_points）。clientInfoOut 回填 body.client_info.ip_address。
+bool dialFetchPoints(std::string_view lpUuid,
+                     int64_t pkgName,
+                     std::string_view flowId,
+                     std::vector<DialSample>& out,
+                     std::string* clientInfoOut = nullptr,
+                     std::string* errOut = nullptr);
+
+// 单点探测一次 TCP 建连耗时（毫秒），失败返回 -1。走 libcurl CONNECT_ONLY，
+// 复用与 BE/边缘 /launch 完全相同的网络栈（Switch 上没有裸 socket 依赖）。
+int dialProbeOnceMs(std::string_view host, int port, int timeoutMs = kDialTimeoutMs);
+
+// 逐点探测 attempts 次、丢 >=999 的超时样本后取 p95，写回 sample.rtt95。
+// stopFlag 非空时每轮检查一次，退出流程可立刻打断。
+std::vector<DialSample> dialProbe(std::vector<DialSample> points,
+                                  int attempts = 5,
+                                  int timeoutMs = kDialTimeoutMs,
+                                  const std::atomic<bool>* stopFlag = nullptr);
 
 bool edgeLaunch(const EdgeLaunchParams& params,
                 EdgeLaunchResult& out,

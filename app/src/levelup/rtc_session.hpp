@@ -25,6 +25,10 @@ struct RtcConfig {
     bool noTlsVerify = true;
     bool vqFirst = true;
     int videoLevel = 3;
+    // union apply 回显的「该区域专用 STUN」（access_info.area_stun_address/port）。
+    // 非空时作为首个 ICE 服务器，打洞命中率与区域一致性都比公共 STUN 好。
+    std::string areaStunHost;
+    int areaStunPort = 0;
 };
 
 struct RtcStatsSnapshot {

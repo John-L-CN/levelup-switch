@@ -118,6 +118,16 @@ class SessionOrchestrator {
 
     std::thread m_workerThread;
     std::thread m_vpadAllocThread;
+    std::thread m_dialThread;
+
+    // union flow 记账：退出时用于 /v3/union/release（官方会显式释放 flow）
+    std::mutex m_unionMu;
+    std::string m_deviceId;
+    std::string m_flowId;
+    std::string m_lpUuid;
+    std::string m_currentDialWsUrl;
+    int64_t m_unionPkg = 0;
+    int m_areaType = 0;
 
     // Owned streaming components
     std::unique_ptr<api::Client> m_api;
