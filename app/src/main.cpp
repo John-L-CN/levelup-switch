@@ -111,6 +111,15 @@ namespace {
 
 FILE* g_levelupLogFile = nullptr;
 
+void closeLevelupLogFile() {
+    if (g_levelupLogFile) {
+        brls::Logger::setLogOutput(nullptr);
+        std::fflush(g_levelupLogFile);
+        std::fclose(g_levelupLogFile);
+        g_levelupLogFile = nullptr;
+    }
+}
+
 [[noreturn]] void levelupTerminateHandler() {
     FILE* out = g_levelupLogFile ? g_levelupLogFile : stderr;
     std::fprintf(out, "[FATAL] std::terminate invoked (tid=%llu)\n",
@@ -326,6 +335,7 @@ int main(int argc, char* argv[]) {
             std::fprintf(g_levelupLogFile, "[FATAL] unhandled exception in main: %s\n", e.what());
             std::fflush(g_levelupLogFile);
         }
+        closeLevelupLogFile();
         curl_global_cleanup();
         return EXIT_FAILURE;
     } catch (...) {
@@ -334,9 +344,11 @@ int main(int argc, char* argv[]) {
             std::fprintf(g_levelupLogFile, "[FATAL] unhandled non-std exception in main\n");
             std::fflush(g_levelupLogFile);
         }
+        closeLevelupLogFile();
         curl_global_cleanup();
         return EXIT_FAILURE;
     }
+    closeLevelupLogFile();
     curl_global_cleanup();
 #endif
 

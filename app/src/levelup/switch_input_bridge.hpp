@@ -41,6 +41,74 @@ constexpr uint64_t kRight = 1ULL << 14;
 constexpr uint64_t kDown = 1ULL << 15;
 } // namespace nxhid
 
+enum class TouchMouseMode : uint8_t {
+    Click = 0,
+    Trackpad = 1,
+};
+
+struct TouchPoint {
+    uint32_t x = 0;
+    uint32_t y = 0;
+};
+
+struct TouchHitRect {
+    float x = 0.0f;
+    float y = 0.0f;
+    float w = 0.0f;
+    float h = 0.0f;
+
+    bool contains(float px, float py) const {
+        return w > 0.0f && h > 0.0f && px >= x && px <= (x + w) && py >= y && py <= (y + h);
+    }
+};
+
+class TouchMouseProcessor {
+  public:
+    using SendPacketFn = std::function<bool(const std::vector<uint8_t>& pkt)>;
+    using NextSeqFn = std::function<uint32_t()>;
+
+    void setMode(TouchMouseMode mode,
+                 int64_t nowMs,
+                 const SendPacketFn& sendFn,
+                 const NextSeqFn& nextSeq);
+    TouchMouseMode mode() const { return m_mode; }
+
+    void setOverlayRects(bool visible, TouchHitRect leftBtn, TouchHitRect rightBtn);
+    void reset(int64_t nowMs, const SendPacketFn& sendFn, const NextSeqFn& nextSeq);
+
+    void process(const TouchPoint* touches,
+                 size_t count,
+                 int64_t nowMs,
+                 const SendPacketFn& sendFn,
+                 const NextSeqFn& nextSeq);
+
+  private:
+    TouchMouseMode m_mode = TouchMouseMode::Click;
+    bool m_overlayVisible = false;
+    TouchHitRect m_leftBtn{};
+    TouchHitRect m_rightBtn{};
+    bool m_suppressed = false;
+
+    // Click mode state
+    bool m_clickActive = false;
+    uint16_t m_lastClickX = 0;
+    uint16_t m_lastClickY = 0;
+
+    // Trackpad mode state
+    bool m_trackpadActive = false;
+    bool m_trackpadMoved = false;
+    bool m_hadTwoFingers = false;
+    bool m_twoFingerScrolled = false;
+    uint32_t m_startX = 0;
+    uint32_t m_startY = 0;
+    uint32_t m_prevX = 0;
+    uint32_t m_prevY = 0;
+    float m_twoFingerPrevY = 0.0f;
+    float m_accumX = 0.0f;
+    float m_accumY = 0.0f;
+    int64_t m_downTimeMs = 0;
+};
+
 class SwitchInputBridge {
   public:
     using SendPacketFn = std::function<bool(const std::vector<uint8_t>& pkt)>;
@@ -62,9 +130,12 @@ class SwitchInputBridge {
     void setVPadId(uint16_t vpadId);
     void setInvertStickY(bool invert);
     void setSwapAbXy(bool swap);
+    void setTouchMouseMode(TouchMouseMode mode);
+    void setOverlayButtonRects(bool visible, TouchHitRect leftBtn, TouchHitRect rightBtn);
 
     uint16_t vpadId() const { return m_vpadId.load(); }
     bool swapAbXy() const { return m_swapAbXy.load(); }
+    TouchMouseMode touchMouseMode() const { return m_touchMouseMode.load(); }
 
   private:
     void workerLoop();
@@ -79,7 +150,13 @@ class SwitchInputBridge {
     std::atomic<uint16_t> m_vpadId{1}; // Default controller 1 until cmd=34 updates it
     std::atomic<bool> m_invertStickY{false};
     std::atomic<bool> m_swapAbXy{false};
+    std::atomic<TouchMouseMode> m_touchMouseMode{TouchMouseMode::Click};
     std::atomic<uint32_t> m_seq{0};
+
+    std::mutex m_overlayRectMu;
+    bool m_overlayButtonsVisible = false;
+    TouchHitRect m_overlayLeftBtn{};
+    TouchHitRect m_overlayRightBtn{};
 
     std::mutex m_cvMu;
     std::condition_variable m_cv;

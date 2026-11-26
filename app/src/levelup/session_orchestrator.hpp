@@ -15,6 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace levelup {
@@ -34,6 +35,7 @@ struct SessionLaunchConfig {
     bool invertStickY = false;
     bool swapAbXy = false;
     int audioVolumePercent = 100;
+    input::TouchMouseMode touchMouseMode = input::TouchMouseMode::Click;
 };
 
 enum class SessionPhase {
@@ -94,6 +96,9 @@ class SessionOrchestrator {
     void setInvertStickY(bool invert);
     void setSwapAbXy(bool swap);
     void setAudioVolumePercent(int percent);
+    void setTouchMouseMode(input::TouchMouseMode mode);
+    void setOverlayButtonRects(bool visible, input::TouchHitRect leftBtn, input::TouchHitRect rightBtn);
+    bool sendTextInput(std::string_view utf8Text);
 
     SessionStatsSnapshot stats() const;
     bool isRunning() const { return m_active.load(); }

@@ -22,6 +22,7 @@ int main() {
         // 画质固定「高清」(2)，不再可配；掌机分辨率默认 720p
         assert(c1.videoLevel == AppConfig::kFixedVideoLevel && c1.videoLevel == 2);
         assert(c1.handheldResolution == AppConfig::kHandheldRes720);
+        assert(c1.touchMouseMode == AppConfig::kTouchMouseClick);
         assert(c1.vqFirst == true);
         assert(c1.rumbleEnabled == true && c1.rumbleStrength == 100);
 
@@ -32,6 +33,7 @@ int main() {
         c1.rumbleStrength = 75;
         c1.videoLevel = 4; // 旧配置里的档位必须被忽略
         c1.handheldResolution = AppConfig::kHandheldRes1080;
+        c1.touchMouseMode = AppConfig::kTouchMouseTrackpad;
         c1.vqFirst = false;
         assert(store.saveConfig(c1));
 
@@ -41,6 +43,7 @@ int main() {
         assert(c2.rumbleStrength == 75 && c2.vqFirst == false);
         assert(c2.videoLevel == AppConfig::kFixedVideoLevel);
         assert(c2.handheldResolution == AppConfig::kHandheldRes1080);
+        assert(c2.touchMouseMode == AppConfig::kTouchMouseTrackpad);
 
         // 非法数字或类型错误的 handheldResolution 回落到 720p，且不破坏其余字段
         {
@@ -109,6 +112,15 @@ int main() {
         auto mTok = matchGames(lib.games, "尼尔 机械");
         assert(!mTok.empty() && mTok[0].gameId == "2zkaqmg1");
         (void)mNier;
+    }
+
+    // 5. Corrupted / null-typed games_library.json must not throw, falls back to bundled romfs
+    {
+        std::ofstream ofs(store.libraryCachePath(), std::ios::binary | std::ios::trunc);
+        ofs << R"({"categories":[{"id":1,"name":null}],"games":[{"gid":null,"gameId":"bad","gameName":123}]})";
+        ofs.close();
+        const auto lib = store.loadLibrary();
+        assert(lib.games.size() == 238);
     }
 
     fs::remove_all(tmpDir, ec);

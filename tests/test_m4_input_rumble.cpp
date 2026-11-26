@@ -160,6 +160,113 @@ int main() {
         assert(rc.tick(4000, low, high) == true && low == 0.0f && high == 0.0f);
     }
 
+    // 6. Mouse relative/button/scroll, keyboard & UTF-8 paste packets
+    {
+        // MouseMoveRelative(-12, 34) -> type 518, inner 24: [00 00 00 08][06 00 00 00][FF F4][00 22][seq][ts]
+        const auto rel = buildMouseMoveRelative(5, 1700000000001ULL, -12, 34);
+        assert(rel.size() == 32);
+        assert(readU16LE(rel.data()) == kTypeControl);
+        assert(readU32LE(rel.data() + 4) == 24);
+        assert(rel[11] == 0x08 && rel[12] == kMouseModeRelative);
+        assert(rel[16] == 0xFF && rel[17] == 0xF4); // -12 BE
+        assert(rel[18] == 0x00 && rel[19] == 0x22); // +34 BE
+        assert(readU32LE(rel.data() + 20) == 5);
+
+        // MouseButton(Right, down=true) -> type 518, inner 21: [00 00 00 05][08][00 00 00][03][seq][ts]
+        const auto btn = buildMouseButton(6, 1700000000002ULL, kMouseRight, true);
+        assert(btn.size() == 29);
+        assert(readU32LE(btn.data() + 4) == 21);
+        assert(btn[11] == 0x05 && btn[12] == kMouseButtonDown && btn[16] == kMouseRight);
+
+        // MouseScroll(+1) -> type 518, inner 26: [00 00 00 0A][0A][00 00 00][00 78][00 00 00 00][seq][ts]
+        const auto scr = buildMouseScroll(7, 1700000000003ULL, 1);
+        assert(scr.size() == 34);
+        assert(readU32LE(scr.data() + 4) == 26);
+        assert(scr[11] == 0x0A && scr[12] == 0x0A);
+        assert(scr[16] == 0x00 && scr[17] == 0x78); // +120 BE
+
+        // Keyboard(0x41='A', down=true, mod=1) -> type 518, inner 26
+        const auto kb = buildKeyboardPacket(8, 1700000000004ULL, 0x41, true, 1);
+        assert(kb.size() == 34);
+        assert(readU32LE(kb.data() + 4) == 26);
+        assert(kb[11] == 0x0A && kb[12] == kKeyDown);
+        assert(readU16LE(kb.data() + 17) == 0x41);
+        assert(kb[19] == 1);
+
+        // PasteText("你好") -> type 518, inner 4 + 6 = 10: [00 00 00 32]["你好" UTF-8]
+        const std::string utf8 = "\xE4\xBD\xA0\xE5\xA5\xBD";
+        const auto paste = buildPasteTextPacket(utf8);
+        assert(paste.size() == 8 + 4 + utf8.size());
+        assert(readU16LE(paste.data()) == kTypeControl);
+        assert(readU32LE(paste.data() + 4) == 4 + utf8.size());
+        assert(paste[8] == 0x00 && paste[9] == 0x00 && paste[10] == 0x00 && paste[11] == 0x32);
+        assert(std::memcmp(paste.data() + 12, utf8.data(), utf8.size()) == 0);
+    }
+
+    // 7. TouchMouseProcessor: Click mode, Trackpad mode, and overlay button suppression
+    {
+        std::vector<std::vector<uint8_t>> sent;
+        uint32_t seq = 0;
+        auto sendFn = [&sent](const std::vector<uint8_t>& pkt) {
+            sent.push_back(pkt);
+            return true;
+        };
+        auto seqFn = [&seq]() { return ++seq; };
+
+        TouchMouseProcessor proc;
+        proc.setOverlayRects(true,
+                             TouchHitRect{16.0f, 16.0f, 136.0f, 44.0f},
+                             TouchHitRect{1108.0f, 16.0f, 156.0f, 44.0f});
+
+        // Touch inside visible overlay button is suppressed
+        TouchPoint btnTouch{30, 30};
+        proc.process(&btnTouch, 1, 1000, sendFn, seqFn);
+        proc.process(&btnTouch, 1, 1020, sendFn, seqFn);
+        proc.process(nullptr, 0, 1050, sendFn, seqFn);
+        assert(sent.empty());
+
+        // Click mode: down -> moveAbs + clickAt(down), up -> clickAt(up)
+        TouchPoint p1{640, 360};
+        proc.process(&p1, 1, 1100, sendFn, seqFn);
+        assert(sent.size() == 2);
+        assert(sent[0][12] == kMouseModeAbsolute);
+        assert(sent[1][11] == 0x23 && sent[1][14] == kMouseButtonDown);
+        proc.process(nullptr, 0, 1150, sendFn, seqFn);
+        assert(sent.size() == 3);
+        assert(sent[2][11] == 0x23 && sent[2][14] == kMouseButtonUp);
+
+        // Trackpad mode: single-finger drag emits relative move, no click
+        sent.clear();
+        proc.setMode(TouchMouseMode::Trackpad, 1200, sendFn, seqFn);
+        TouchPoint tpStart{500, 400};
+        TouchPoint tpMove{520, 410};
+        proc.process(&tpStart, 1, 1210, sendFn, seqFn);
+        assert(sent.empty());
+        proc.process(&tpMove, 1, 1230, sendFn, seqFn);
+        assert(sent.size() == 1);
+        assert(sent[0][12] == kMouseModeRelative);
+        proc.process(nullptr, 0, 1250, sendFn, seqFn);
+        assert(sent.size() == 1); // dragged -> no left click on release
+
+        // Trackpad mode: single-finger quick tap -> left click down + up
+        sent.clear();
+        TouchPoint tapPt{600, 400};
+        proc.process(&tapPt, 1, 1300, sendFn, seqFn);
+        proc.process(nullptr, 0, 1380, sendFn, seqFn);
+        assert(sent.size() == 2);
+        assert(sent[0][11] == 0x05 && sent[0][12] == kMouseButtonDown && sent[0][16] == kMouseLeft);
+        assert(sent[1][11] == 0x05 && sent[1][12] == kMouseButtonUp && sent[1][16] == kMouseLeft);
+
+        // Trackpad mode: two-finger tap -> right click down + up
+        sent.clear();
+        TouchPoint twoPts[2] = {{600, 400}, {650, 400}};
+        proc.process(twoPts, 2, 1500, sendFn, seqFn);
+        proc.process(nullptr, 0, 1580, sendFn, seqFn);
+        assert(sent.size() == 2);
+        assert(sent[0][11] == 0x05 && sent[0][12] == kMouseButtonDown && sent[0][16] == kMouseRight);
+        assert(sent[1][11] == 0x05 && sent[1][12] == kMouseButtonUp && sent[1][16] == kMouseRight);
+    }
+
     std::cout << "test_m4_input_rumble: ALL PASSED\n";
     return 0;
 }

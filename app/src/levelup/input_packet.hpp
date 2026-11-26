@@ -15,6 +15,8 @@ constexpr uint8_t kMouseModeRelative = 6;
 constexpr uint8_t kMouseModeAbsolute = 9;
 constexpr uint8_t kMouseButtonDown = 8;
 constexpr uint8_t kMouseButtonUp = 9;
+constexpr uint8_t kKeyDown = 3;
+constexpr uint8_t kKeyUp = 4;
 constexpr uint8_t kMouseLeft = 1;
 constexpr uint8_t kMouseMiddle = 2;
 constexpr uint8_t kMouseRight = 3;
@@ -72,12 +74,21 @@ std::vector<uint8_t> buildGamepadPacket(uint32_t seq,
                                         const GamepadState& st);
 
 std::vector<uint8_t> buildMouseMoveAbsolute(uint32_t seq, uint64_t tsMs, uint16_t x, uint16_t y);
+std::vector<uint8_t> buildMouseMoveRelative(uint32_t seq, uint64_t tsMs, int16_t dx, int16_t dy);
+std::vector<uint8_t> buildMouseButton(uint32_t seq, uint64_t tsMs, uint8_t button, bool down);
+std::vector<uint8_t> buildMouseScroll(uint32_t seq, uint64_t tsMs, int dir);
 std::vector<uint8_t> buildMouseClickAt(uint32_t seq,
                                        uint64_t tsMs,
                                        uint16_t x,
                                        uint16_t y,
                                        uint8_t button,
                                        bool down);
+std::vector<uint8_t> buildKeyboardPacket(uint32_t seq,
+                                         uint64_t tsMs,
+                                         uint16_t vk,
+                                         bool down,
+                                         uint8_t mod = 0);
+std::vector<uint8_t> buildPasteTextPacket(std::string_view utf8Text);
 
 bool isHeartbeatEcho1537(const uint8_t* data, size_t len, uint64_t* sentTsMsOut = nullptr);
 bool parseRumble(const uint8_t* data, size_t len, RumbleEvent& out);

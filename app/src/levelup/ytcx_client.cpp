@@ -587,34 +587,34 @@ std::string dialCacheToJson(const std::vector<DialSample>& samples) {
 bool dialCacheFromJson(std::string_view json, std::vector<DialSample>& out) {
     out.clear();
     if (json.empty()) return false;
-    nlohmann::json root;
     try {
-        root = nlohmann::json::parse(json.begin(), json.end());
+        const nlohmann::json root = nlohmann::json::parse(json.begin(), json.end());
+        if (!root.is_object()) return false;
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            const auto& v = it.value();
+            if (!v.is_object()) continue;
+            DialSample s;
+            if (v.contains("ip") && v["ip"].is_string()) s.clientIp = v["ip"].get<std::string>();
+            if (v.contains("isp") && v["isp"].is_string()) s.isp = v["isp"].get<std::string>();
+            if (v.contains("country") && v["country"].is_string()) s.country = v["country"].get<std::string>();
+            if (v.contains("province") && v["province"].is_string()) s.province = v["province"].get<std::string>();
+            if (v.contains("city") && v["city"].is_string()) s.city = v["city"].get<std::string>();
+            if (v.contains("area_type") && v["area_type"].is_number_integer()) s.areaType = v["area_type"].get<int>();
+            if (v.contains("idc") && v["idc"].is_number_integer()) s.idc = v["idc"].get<int>();
+            if (v.contains("rtt_95") && v["rtt_95"].is_number_integer()) s.rtt95 = v["rtt_95"].get<int>();
+            if (v.contains("ts") && v["ts"].is_number_integer()) s.ts = v["ts"].get<int64_t>();
+            if (v.contains("live_rtt") && v["live_rtt"].is_number_integer()) s.liveRttMs = v["live_rtt"].get<int>();
+            if (v.contains("loss_permille") && v["loss_permille"].is_number_integer()) s.lossPermille = v["loss_permille"].get<int>();
+            if (v.contains("first_frame_ms") && v["first_frame_ms"].is_number_integer()) s.firstFrameMs = v["first_frame_ms"].get<int>();
+            if (v.contains("live_ok") && v["live_ok"].is_boolean()) s.liveOk = v["live_ok"].get<bool>();
+            if (v.contains("live_ts") && v["live_ts"].is_number_integer()) s.liveTs = v["live_ts"].get<int64_t>();
+            if (v.contains("rejects") && v["rejects"].is_number_integer()) s.rejects = v["rejects"].get<int>();
+            if (v.contains("queue_rank") && v["queue_rank"].is_number_integer()) s.queueRank = v["queue_rank"].get<int>();
+            out.push_back(std::move(s));
+        }
     } catch (...) {
+        out.clear();
         return false;
-    }
-    if (!root.is_object()) return false;
-    for (auto it = root.begin(); it != root.end(); ++it) {
-        const auto& v = it.value();
-        if (!v.is_object()) continue;
-        DialSample s;
-        s.clientIp = v.value("ip", "");
-        s.isp = v.value("isp", "");
-        s.country = v.value("country", "");
-        s.province = v.value("province", "");
-        s.city = v.value("city", "");
-        s.areaType = v.value("area_type", 0);
-        s.idc = v.value("idc", 0);
-        s.rtt95 = v.value("rtt_95", kDialFailMs);
-        s.ts = v.value("ts", int64_t{0});
-        s.liveRttMs = v.value("live_rtt", 0);
-        s.lossPermille = v.value("loss_permille", -1);
-        s.firstFrameMs = v.value("first_frame_ms", -1);
-        s.liveOk = v.value("live_ok", true);
-        s.liveTs = v.value("live_ts", int64_t{0});
-        s.rejects = v.value("rejects", 0);
-        s.queueRank = v.value("queue_rank", 0);
-        out.push_back(std::move(s));
     }
     return !out.empty();
 }
@@ -668,12 +668,31 @@ bool saveDialCache(const std::string& path, const std::vector<DialSample>& sampl
         std::error_code ec;
         std::filesystem::create_directories(path.substr(0, slash), ec);
     }
-    std::FILE* f = std::fopen(path.c_str(), "wb");
-    if (!f) return false;
+    const std::string tmp = path + ".tmp";
     const std::string json = dialCacheToJson(trimDialCache(samples, kDialCacheEntries));
+    std::FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) return false;
     const size_t written = std::fwrite(json.data(), 1, json.size(), f);
+    const int flushRc = std::fflush(f);
     std::fclose(f);
-    return written == json.size();
+    if (written != json.size() || flushRc != 0) {
+        std::error_code ec;
+        std::filesystem::remove(tmp, ec);
+        return false;
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        std::filesystem::remove(path, ec);
+        ec.clear();
+        std::filesystem::rename(tmp, path, ec);
+    }
+    if (ec) {
+        std::error_code rmEc;
+        std::filesystem::remove(tmp, rmEc);
+        return false;
+    }
+    return true;
 }
 
 std::string extractRealUserIdFromToken(std::string_view token) {
@@ -1046,6 +1065,8 @@ int dialProbeOnceMs(std::string_view host, int port, int timeoutMs) {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(timeoutMs));
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeoutMs));
     curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 600L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlAbortOnExitCb);
     const CURLcode rc = curl_easy_perform(curl);
     int ms = -1;
     if (rc == CURLE_OK) {

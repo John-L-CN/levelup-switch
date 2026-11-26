@@ -288,6 +288,17 @@ void LevelUpStreamView::startSession() {
     lcfg.invertStickY = m_cfg.invertStickY;
     lcfg.swapAbXy = m_cfg.swapAbXy;
     lcfg.audioVolumePercent = m_cfg.audioVolume;
+    lcfg.touchMouseMode =
+        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad)
+            ? input::TouchMouseMode::Trackpad
+            : input::TouchMouseMode::Click;
+
+    m_touchControlsVisible = false;
+    m_justShownOnTouch = false;
+    m_swkbdOpen = false;
+    m_pressedOverlayBtn = 0;
+    m_pressedFingerId = -1;
+    m_orchestrator.setOverlayButtonRects(false, {}, {});
 
     m_orchestrator.start(lcfg);
 }
@@ -479,7 +490,313 @@ void LevelUpStreamView::draw(NVGcontext* vg,
         }
     }
 
+    if (snap.firstFrameDecoded && m_uiPhase == SessionPhase::Streaming) {
+        updateTouchOverlayControls(x, y, width, height, m_cfg.showStatsHud);
+        if (m_touchControlsVisible) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsedMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastTouchActivity).count();
+            float alphaFactor = 1.0f;
+            if (elapsedMs > 2750) {
+                alphaFactor = std::clamp(1.0f - static_cast<float>(elapsedMs - 2750) / 250.0f, 0.0f, 1.0f);
+            }
+            drawTouchOverlayControls(vg, alphaFactor);
+        }
+    } else {
+        if (m_touchControlsVisible) {
+            m_touchControlsVisible = false;
+            m_orchestrator.setOverlayButtonRects(false, {}, {});
+        }
+    }
+
     Box::draw(vg, x, y, width, height, style, ctx);
+}
+
+void LevelUpStreamView::updateTouchOverlayControls(
+    float x, float y, float width, float height, bool hudVisible) {
+    (void)height;
+    if (m_overlayOpen || m_errorDialogOpen || m_exiting || m_swkbdOpen) {
+        if (m_touchControlsVisible) {
+            m_touchControlsVisible = false;
+            m_pressedOverlayBtn = 0;
+            m_pressedFingerId = -1;
+            m_orchestrator.setOverlayButtonRects(false, {}, {});
+        }
+        return;
+    }
+
+    m_kbBtnRect = input::TouchHitRect{
+        x + 16.0f,
+        y + (hudVisible ? 76.0f : 16.0f),
+        136.0f,
+        44.0f,
+    };
+    m_mouseBtnRect = input::TouchHitRect{
+        x + width - 16.0f - 156.0f,
+        y + 16.0f,
+        156.0f,
+        44.0f,
+    };
+
+    const auto now = std::chrono::steady_clock::now();
+    const auto& touches = brls::Application::currentTouchState;
+
+    bool anyTouchDown = false;
+    bool triggerKeyboard = false;
+    bool triggerMouseToggle = false;
+
+    for (const auto& t : touches) {
+        if (t.phase == brls::TouchPhase::START || t.phase == brls::TouchPhase::STAY) {
+            anyTouchDown = true;
+            m_lastTouchActivity = now;
+        }
+        if (t.phase == brls::TouchPhase::START) {
+            if (!m_touchControlsVisible) {
+                m_touchControlsVisible = true;
+                m_justShownOnTouch = true;
+                m_pressedOverlayBtn = 0;
+                m_pressedFingerId = -1;
+            } else if (!m_justShownOnTouch && m_pressedOverlayBtn == 0) {
+                if (m_kbBtnRect.contains(t.position.x, t.position.y)) {
+                    m_pressedOverlayBtn = 1;
+                    m_pressedFingerId = t.fingerId;
+                } else if (m_mouseBtnRect.contains(t.position.x, t.position.y)) {
+                    m_pressedOverlayBtn = 2;
+                    m_pressedFingerId = t.fingerId;
+                }
+            }
+        } else if (t.phase == brls::TouchPhase::END) {
+            m_lastTouchActivity = now;
+            if (m_pressedOverlayBtn != 0 && t.fingerId == m_pressedFingerId) {
+                constexpr float kSlop = 12.0f;
+                auto inWithSlop = [kSlop](const input::TouchHitRect& r, float px, float py) {
+                    return px >= (r.x - kSlop) && px <= (r.x + r.w + kSlop) &&
+                           py >= (r.y - kSlop) && py <= (r.y + r.h + kSlop);
+                };
+                if (m_pressedOverlayBtn == 1 && inWithSlop(m_kbBtnRect, t.position.x, t.position.y)) {
+                    triggerKeyboard = true;
+                } else if (m_pressedOverlayBtn == 2 &&
+                           inWithSlop(m_mouseBtnRect, t.position.x, t.position.y)) {
+                    triggerMouseToggle = true;
+                }
+                m_pressedOverlayBtn = 0;
+                m_pressedFingerId = -1;
+            }
+        } else if (t.phase == brls::TouchPhase::NONE) {
+            if (m_pressedOverlayBtn != 0 && t.fingerId == m_pressedFingerId) {
+                m_pressedOverlayBtn = 0;
+                m_pressedFingerId = -1;
+            }
+        }
+    }
+
+    if (!anyTouchDown) {
+        m_justShownOnTouch = false;
+        if (m_touchControlsVisible &&
+            (now - m_lastTouchActivity) >= std::chrono::seconds(3)) {
+            m_touchControlsVisible = false;
+            m_pressedOverlayBtn = 0;
+            m_pressedFingerId = -1;
+        }
+    }
+
+    m_orchestrator.setOverlayButtonRects(m_touchControlsVisible, m_kbBtnRect, m_mouseBtnRect);
+
+    if (triggerKeyboard) {
+        std::shared_ptr<std::atomic<bool>> alive = m_alive;
+        brls::sync([this, alive]() {
+            if (alive->load() && !m_exiting) {
+                openVirtualKeyboard();
+            }
+        });
+    } else if (triggerMouseToggle) {
+        toggleTouchMouseMode();
+    }
+}
+
+void LevelUpStreamView::drawTouchOverlayControls(NVGcontext* vg, float alphaFactor) {
+    if (alphaFactor <= 0.01f) {
+        return;
+    }
+    const auto scaleAlpha = [alphaFactor](int a) -> unsigned char {
+        return static_cast<unsigned char>(std::clamp(static_cast<int>(a * alphaFactor), 0, 255));
+    };
+
+    const int font = brls::Application::getFont(brls::FONT_REGULAR);
+    const bool trackpadMode =
+        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad);
+
+    // 1. 左上角：虚拟键盘半透明按钮
+    {
+        const auto& r = m_kbBtnRect;
+        const bool pressed = (m_pressedOverlayBtn == 1);
+        nvgBeginPath(vg);
+        nvgRoundedRect(vg, r.x, r.y, r.w, r.h, 12.0f);
+        nvgFillColor(vg, nvgRGBA(15, 23, 42, scaleAlpha(pressed ? 215 : 160)));
+        nvgFill(vg);
+        nvgStrokeWidth(vg, 1.5f);
+        nvgStrokeColor(vg, nvgRGBA(148, 163, 184, scaleAlpha(pressed ? 200 : 120)));
+        nvgStroke(vg);
+
+        // 矢量键盘图标
+        const float ix = r.x + 14.0f;
+        const float iy = r.y + 12.0f;
+        const float iw = 26.0f;
+        const float ih = 20.0f;
+        nvgBeginPath(vg);
+        nvgRoundedRect(vg, ix, iy, iw, ih, 3.0f);
+        nvgStrokeWidth(vg, 1.6f);
+        nvgStrokeColor(vg, nvgRGBA(226, 232, 240, scaleAlpha(235)));
+        nvgStroke(vg);
+
+        nvgFillColor(vg, nvgRGBA(226, 232, 240, scaleAlpha(235)));
+        for (int col = 0; col < 4; ++col) {
+            nvgBeginPath(vg);
+            nvgRect(vg, ix + 4.0f + col * 5.0f, iy + 4.5f, 3.2f, 3.2f);
+            nvgRect(vg, ix + 4.0f + col * 5.0f, iy + 9.5f, 3.2f, 3.2f);
+            nvgFill(vg);
+        }
+        nvgBeginPath(vg);
+        nvgRect(vg, ix + 6.5f, iy + 14.5f, 13.0f, 2.5f);
+        nvgFill(vg);
+
+        if (font != brls::FONT_INVALID) {
+            nvgFontFaceId(vg, font);
+            nvgFontSize(vg, 16.0f);
+            nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            nvgFillColor(vg, nvgRGBA(248, 250, 252, scaleAlpha(240)));
+            nvgText(vg, r.x + 48.0f, r.y + r.h * 0.5f, "虚拟键盘", nullptr);
+        }
+    }
+
+    // 2. 右上角：鼠标模式切换半透明按钮（触控板 / 点击模式）
+    {
+        const auto& r = m_mouseBtnRect;
+        const bool pressed = (m_pressedOverlayBtn == 2);
+        nvgBeginPath(vg);
+        nvgRoundedRect(vg, r.x, r.y, r.w, r.h, 12.0f);
+        nvgFillColor(vg, nvgRGBA(15, 23, 42, scaleAlpha(pressed ? 215 : 160)));
+        nvgFill(vg);
+        nvgStrokeWidth(vg, 1.5f);
+        nvgStrokeColor(vg,
+                       trackpadMode
+                           ? nvgRGBA(56, 189, 248, scaleAlpha(pressed ? 230 : 165))
+                           : nvgRGBA(148, 163, 184, scaleAlpha(pressed ? 200 : 120)));
+        nvgStroke(vg);
+
+        const float ix = r.x + 14.0f;
+        const float iy = r.y + 11.0f;
+        nvgStrokeWidth(vg, 1.6f);
+        if (trackpadMode) {
+            // 触控板图标：矩形板 + 底部左右按键分隔线
+            nvgBeginPath(vg);
+            nvgRoundedRect(vg, ix, iy, 24.0f, 22.0f, 3.5f);
+            nvgMoveTo(vg, ix, iy + 15.0f);
+            nvgLineTo(vg, ix + 24.0f, iy + 15.0f);
+            nvgMoveTo(vg, ix + 12.0f, iy + 15.0f);
+            nvgLineTo(vg, ix + 12.0f, iy + 22.0f);
+            nvgStrokeColor(vg, nvgRGBA(125, 211, 252, scaleAlpha(240)));
+            nvgStroke(vg);
+        } else {
+            // 点击模式图标：准心圆环 + 中心点
+            const float cx = ix + 12.0f;
+            const float cy = iy + 11.0f;
+            nvgBeginPath(vg);
+            nvgCircle(vg, cx, cy, 8.5f);
+            nvgStrokeColor(vg, nvgRGBA(226, 232, 240, scaleAlpha(235)));
+            nvgStroke(vg);
+
+            nvgBeginPath(vg);
+            nvgCircle(vg, cx, cy, 3.0f);
+            nvgFillColor(vg, nvgRGBA(226, 232, 240, scaleAlpha(235)));
+            nvgFill(vg);
+        }
+
+        if (font != brls::FONT_INVALID) {
+            nvgFontFaceId(vg, font);
+            nvgFontSize(vg, 16.0f);
+            nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            nvgFillColor(vg,
+                         trackpadMode
+                             ? nvgRGBA(125, 211, 252, scaleAlpha(245))
+                             : nvgRGBA(248, 250, 252, scaleAlpha(240)));
+            nvgText(vg,
+                    r.x + 46.0f,
+                    r.y + r.h * 0.5f,
+                    trackpadMode ? "触控板模式" : "点击模式",
+                    nullptr);
+        }
+    }
+}
+
+void LevelUpStreamView::openVirtualKeyboard() {
+    if (m_swkbdOpen || m_exiting || m_overlayOpen || m_errorDialogOpen) {
+        return;
+    }
+    auto* ime = brls::Application::getPlatform()->getImeManager();
+    if (!ime) {
+        return;
+    }
+
+    m_swkbdOpen = true;
+    m_touchControlsVisible = false;
+    m_orchestrator.setOverlayButtonRects(false, {}, {});
+    m_orchestrator.setPausedForOverlay(true);
+
+    std::shared_ptr<std::atomic<bool>> alive = m_alive;
+    ime->openForText(
+        [this, alive](std::string text) {
+            if (!alive->load() || m_exiting) {
+                return;
+            }
+            if (!text.empty()) {
+                const bool ok = m_orchestrator.sendTextInput(text);
+                logInfo("[StreamView] virtual keyboard sent text bytes=" +
+                        std::to_string(text.size()) + " ok=" + std::string(ok ? "1" : "0"));
+                if (!ok) {
+                    brls::Application::notify("发送文本失败：控制通道未就绪");
+                }
+            }
+        },
+        "虚拟键盘输入",
+        "输入文字将直接发送到云端游戏",
+        128,
+        "");
+
+    m_swkbdOpen = false;
+    if (!alive->load() || m_exiting) {
+        return;
+    }
+    if (!m_overlayOpen && !m_errorDialogOpen && m_windowFocused) {
+        m_orchestrator.setPausedForOverlay(false);
+    }
+    m_lastTouchActivity = std::chrono::steady_clock::now();
+    m_touchControlsVisible = true;
+    m_orchestrator.setOverlayButtonRects(true, m_kbBtnRect, m_mouseBtnRect);
+}
+
+void LevelUpStreamView::toggleTouchMouseMode() {
+    const bool currentlyTrackpad =
+        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad);
+    const int nextMode =
+        currentlyTrackpad ? AppConfig::kTouchMouseClick : AppConfig::kTouchMouseTrackpad;
+    m_cfg.touchMouseMode = nextMode;
+    m_store.saveConfig(m_cfg);
+    if (m_onConfigChanged) {
+        m_onConfigChanged(m_cfg);
+    }
+    const input::TouchMouseMode modeEnum =
+        (nextMode == AppConfig::kTouchMouseTrackpad) ? input::TouchMouseMode::Trackpad
+                                                     : input::TouchMouseMode::Click;
+    m_orchestrator.setTouchMouseMode(modeEnum);
+    m_lastTouchActivity = std::chrono::steady_clock::now();
+    m_touchControlsVisible = true;
+    logInfo(std::string("[StreamView] touch mouse mode -> ") +
+            (nextMode == AppConfig::kTouchMouseTrackpad ? "trackpad" : "click"));
+    brls::Application::notify(
+        nextMode == AppConfig::kTouchMouseTrackpad
+            ? "已切换为触控板模式（滑动移动 · 轻点左键 · 双指右键/滚轮）"
+            : "已切换为点击模式（触屏直接点击）");
 }
 
 void LevelUpStreamView::openPauseOverlay() {

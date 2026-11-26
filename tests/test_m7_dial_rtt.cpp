@@ -351,6 +351,18 @@ int main() {
         assert(root["1.2.3.4-3-12"].contains("queue_rank"));
     }
 
+    // 10. 字段类型异常（null / 错误类型）不能抛未捕获异常
+    {
+        std::vector<DialSample> bad;
+        const bool ok = dialCacheFromJson(
+            R"({"1.2.3.4-3-12":{"ip":null,"area_type":"bad","rtt_95":null}})",
+            bad);
+        assert(ok);
+        assert(bad.size() == 1);
+        assert(bad[0].areaType == 0);
+        assert(bad[0].rtt95 == kDialFailMs);
+    }
+
     std::cout << "test_m7_dial_rtt: all assertions passed\n";
     return 0;
 }

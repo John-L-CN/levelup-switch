@@ -120,53 +120,66 @@ std::string sanitizeFilenameComponent(std::string_view s) {
 GamesLibrary parseLibraryJson(std::string_view raw) {
     GamesLibrary lib;
     if (raw.empty()) return lib;
-    nlohmann::json j;
     try {
-        j = nlohmann::json::parse(raw.begin(), raw.end());
-    } catch (const std::exception& e) {
-        logWarn(std::string("[Store] library JSON parse failed: ") + e.what());
-        return lib;
-    }
-    if (!j.is_object()) return lib;
+        const nlohmann::json j = nlohmann::json::parse(raw.begin(), raw.end());
+        if (!j.is_object()) return lib;
 
-    if (j.contains("categories") && j["categories"].is_array()) {
-        for (const auto& c : j["categories"]) {
-            if (!c.is_object()) continue;
-            CategoryEntry ce;
-            if (c.contains("id")) {
-                if (c["id"].is_string()) ce.id = c["id"].get<std::string>();
-                else if (c["id"].is_number_integer()) ce.id = std::to_string(c["id"].get<int64_t>());
-            }
-            ce.name = c.value("name", "");
-            if (!ce.name.empty()) {
-                lib.categories.push_back(std::move(ce));
-            }
-        }
-    }
-
-    if (j.contains("games") && j["games"].is_array()) {
-        for (const auto& g : j["games"]) {
-            if (!g.is_object()) continue;
-            GameEntry ge;
-            ge.gid = g.value("gid", 0);
-            ge.gameId = g.value("gameId", "");
-            ge.name = g.value("gameName", "");
-            ge.fullName = g.value("gameFullName", "");
-            ge.coverUrl = g.value("coverUrl", "");
-            ge.description = g.value("description", "");
-            if (g.contains("categories") && g["categories"].is_array()) {
-                for (const auto& cat : g["categories"]) {
-                    if (cat.is_string()) {
-                        ge.categories.push_back(cat.get<std::string>());
-                    } else if (cat.is_object() && cat.contains("name") && cat["name"].is_string()) {
-                        ge.categories.push_back(cat["name"].get<std::string>());
-                    }
+        if (j.contains("categories") && j["categories"].is_array()) {
+            for (const auto& c : j["categories"]) {
+                if (!c.is_object()) continue;
+                CategoryEntry ce;
+                if (c.contains("id")) {
+                    if (c["id"].is_string()) ce.id = c["id"].get<std::string>();
+                    else if (c["id"].is_number_integer()) ce.id = std::to_string(c["id"].get<int64_t>());
+                }
+                if (c.contains("name") && c["name"].is_string()) {
+                    ce.name = c["name"].get<std::string>();
+                }
+                if (!ce.name.empty()) {
+                    lib.categories.push_back(std::move(ce));
                 }
             }
-            if (!ge.gameId.empty()) {
-                lib.games.push_back(std::move(ge));
+        }
+
+        if (j.contains("games") && j["games"].is_array()) {
+            for (const auto& g : j["games"]) {
+                if (!g.is_object()) continue;
+                GameEntry ge;
+                if (g.contains("gid") && g["gid"].is_number_integer()) {
+                    ge.gid = g["gid"].get<int>();
+                }
+                if (g.contains("gameId") && g["gameId"].is_string()) {
+                    ge.gameId = g["gameId"].get<std::string>();
+                }
+                if (g.contains("gameName") && g["gameName"].is_string()) {
+                    ge.name = g["gameName"].get<std::string>();
+                }
+                if (g.contains("gameFullName") && g["gameFullName"].is_string()) {
+                    ge.fullName = g["gameFullName"].get<std::string>();
+                }
+                if (g.contains("coverUrl") && g["coverUrl"].is_string()) {
+                    ge.coverUrl = g["coverUrl"].get<std::string>();
+                }
+                if (g.contains("description") && g["description"].is_string()) {
+                    ge.description = g["description"].get<std::string>();
+                }
+                if (g.contains("categories") && g["categories"].is_array()) {
+                    for (const auto& cat : g["categories"]) {
+                        if (cat.is_string()) {
+                            ge.categories.push_back(cat.get<std::string>());
+                        } else if (cat.is_object() && cat.contains("name") && cat["name"].is_string()) {
+                            ge.categories.push_back(cat["name"].get<std::string>());
+                        }
+                    }
+                }
+                if (!ge.gameId.empty()) {
+                    lib.games.push_back(std::move(ge));
+                }
             }
         }
+    } catch (const std::exception& e) {
+        logWarn(std::string("[Store] library JSON parse failed: ") + e.what());
+        return GamesLibrary{};
     }
     return lib;
 }
@@ -296,6 +309,11 @@ int normalizeHandheldResolution(int res) {
                                               : AppConfig::kHandheldRes720;
 }
 
+int normalizeTouchMouseMode(int mode) {
+    return mode == AppConfig::kTouchMouseTrackpad ? AppConfig::kTouchMouseTrackpad
+                                                  : AppConfig::kTouchMouseClick;
+}
+
 std::pair<int, int> resolveTargetResolution(bool docked, int handheldResolution) {
     if (docked || normalizeHandheldResolution(handheldResolution) == AppConfig::kHandheldRes1080) {
         return {1920, 1080};
@@ -363,6 +381,10 @@ bool Store::writeTextFileAtomic(const std::string& path, std::string_view conten
         ec.clear();
         fs::rename(tmp, path, ec);
     }
+    if (ec) {
+        std::error_code rmEc;
+        fs::remove(tmp, rmEc);
+    }
     return !ec;
 }
 
@@ -398,6 +420,11 @@ AppConfig Store::loadConfig() const {
                 cfg.swapAbXy = j.value("swapAbXy", false);
                 cfg.showStatsHud = j.value("showStatsHud", false);
                 cfg.audioVolume = std::clamp(j.value("audioVolume", 100), 0, 100);
+                int tmMode = AppConfig::kTouchMouseClick;
+                if (j.contains("touchMouseMode") && j["touchMouseMode"].is_number_integer()) {
+                    tmMode = j["touchMouseMode"].get<int>();
+                }
+                cfg.touchMouseMode = normalizeTouchMouseMode(tmMode);
             }
         } catch (const std::exception& e) {
             logWarn(std::string("[Store] config.json parse failed: ") + e.what());
@@ -431,6 +458,7 @@ bool Store::saveConfig(const AppConfig& cfg) const {
         {"swapAbXy", cfg.swapAbXy},
         {"showStatsHud", cfg.showStatsHud},
         {"audioVolume", std::clamp(cfg.audioVolume, 0, 100)},
+        {"touchMouseMode", normalizeTouchMouseMode(cfg.touchMouseMode)},
     };
     return writeTextFileAtomic(configPath(), j.dump(2));
 }
@@ -602,6 +630,10 @@ bool Store::saveCoverBytes(std::string_view gameId, const std::vector<uint8_t>& 
         fs::remove(path, ec);
         ec.clear();
         fs::rename(tmp, path, ec);
+    }
+    if (ec) {
+        std::error_code rmEc;
+        fs::remove(tmp, rmEc);
     }
     return !ec;
 }

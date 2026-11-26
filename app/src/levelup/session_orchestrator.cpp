@@ -684,6 +684,7 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
 
     m_input.setInvertStickY(cfg.invertStickY);
     m_input.setSwapAbXy(cfg.swapAbXy);
+    m_input.setTouchMouseMode(cfg.touchMouseMode);
     m_input.setSendCallback([&rtcPtr = *rtcSess](const std::vector<uint8_t>& pkt) {
         return rtcPtr.sendControlPacket(pkt);
     });
@@ -907,6 +908,28 @@ void SessionOrchestrator::setSwapAbXy(bool swap) {
 
 void SessionOrchestrator::setAudioVolumePercent(int percent) {
     m_audio.setVolume(percent);
+}
+
+void SessionOrchestrator::setTouchMouseMode(input::TouchMouseMode mode) {
+    m_input.setTouchMouseMode(mode);
+}
+
+void SessionOrchestrator::setOverlayButtonRects(bool visible,
+                                                input::TouchHitRect leftBtn,
+                                                input::TouchHitRect rightBtn) {
+    m_input.setOverlayButtonRects(visible, leftBtn, rightBtn);
+}
+
+bool SessionOrchestrator::sendTextInput(std::string_view utf8Text) {
+    if (utf8Text.empty()) {
+        return false;
+    }
+    const auto pkt = input::buildPasteTextPacket(utf8Text);
+    std::lock_guard lock(m_compMu);
+    if (!m_rtc) {
+        return false;
+    }
+    return m_rtc->sendControlPacket(pkt);
 }
 
 SessionStatsSnapshot SessionOrchestrator::stats() const {

@@ -47,6 +47,10 @@ class LevelUpStreamView : public brls::Box {
     void onWindowFocusChanged(bool focused);
     void showFailureDialog(const std::string& stageText, const std::string& errText);
     void updateHudCache(const SessionStatsSnapshot& snap);
+    void updateTouchOverlayControls(float x, float y, float width, float height, bool hudVisible);
+    void drawTouchOverlayControls(NVGcontext* vg, float alphaFactor);
+    void openVirtualKeyboard();
+    void toggleTouchMouseMode();
     std::pair<int, int> detectTargetResolution() const;
 
     GameEntry m_game;
@@ -87,6 +91,16 @@ class LevelUpStreamView : public brls::Box {
     double m_fpsEstimate = 0.0;
     std::string m_hudLine1;
     std::string m_hudLine2;
+
+    // 串流界面左上/右上半透明悬浮按钮（点击屏幕显示，3 秒无操作自动隐藏）
+    bool m_touchControlsVisible = false;
+    bool m_justShownOnTouch = false;
+    bool m_swkbdOpen = false;
+    int m_pressedOverlayBtn = 0; // 0=none, 1=virtual keyboard, 2=mouse mode
+    int m_pressedFingerId = -1;
+    std::chrono::steady_clock::time_point m_lastTouchActivity{};
+    input::TouchHitRect m_kbBtnRect{};
+    input::TouchHitRect m_mouseBtnRect{};
 };
 
 } // namespace levelup::ui

@@ -1,6 +1,7 @@
 #include "levelup/ui/lobby_activity.hpp"
 
 #include "levelup/crypto_util.hpp"
+#include "levelup/exit_guard.hpp"
 #include "levelup/log.hpp"
 #include "levelup/rumble_switch.hpp"
 #include "levelup/ui/levelup_stream_view.hpp"
@@ -357,6 +358,9 @@ LevelUpLobbyActivity::~LevelUpLobbyActivity() {
     if (m_netThread.joinable()) {
         m_netThread.join();
     }
+    if (m_prewarmThread.joinable()) {
+        m_prewarmThread.join();
+    }
 }
 
 brls::View* LevelUpLobbyActivity::createContentView() {
@@ -679,9 +683,12 @@ void LevelUpLobbyActivity::startDialPrewarm() {
     const std::string lpUuid = m_cfg.lpUuid;
     const int64_t pkg = m_cfg.lastPkgName;
     logInfo("[Lobby] dial prewarm start uuid=" + lpUuid + " pkg=" + std::to_string(pkg));
-    std::thread([lpUuid, pkg, cancel]() {
+    if (m_prewarmThread.joinable()) {
+        m_prewarmThread.join();
+    }
+    m_prewarmThread = std::thread([lpUuid, pkg, cancel]() {
         ytcx::dialPrewarm(lpUuid, pkg, ytcx::kDialCachePath, cancel.get());
-    }).detach();
+    });
 }
 
 void LevelUpLobbyActivity::onResume() {
@@ -705,7 +712,7 @@ void LevelUpLobbyActivity::handleDisplayScaleChanged() {
     // 掌机 720p (uiScale 1.0) <-> 底座 1080p (uiScale 1.5) 切换后，卡片实际像素变了，
     // 按旧预算解码的封面会发糊，这里重建网格并按新预算重解码封面纹理。
     // 该回调由 Application::onWindowResized 通过 brls::delay 投递，运行在主线程。
-    if (!m_scrollFrame) {
+    if (isExiting() || !m_alive->load() || !m_scrollFrame) {
         return;
     }
     const auto& stack = brls::Application::getActivitiesStack();
@@ -757,7 +764,10 @@ void LevelUpLobbyActivity::coverWorkerLoop() {
             m_coverQueue.pop_front();
         }
 
-        if (!m_alive->load() || task.generation != m_gridGeneration.load()) {
+        if (isExiting() || !m_alive->load()) {
+            return;
+        }
+        if (task.generation != m_gridGeneration.load()) {
             continue;
         }
         if (task.gameId.empty() && task.url.empty()) {

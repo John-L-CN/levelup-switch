@@ -103,7 +103,8 @@ class LevelUpLobbyActivity : public brls::Activity {
     std::atomic<bool> m_qrCancel{false};
 
     // 大厅预热测速：无实例、无 flow，纯探测，不消耗云游戏时长。
-    // 取消标志用 shared_ptr 持有，线程即使脱离本对象也能安全退出。
+    // 必须用可 join 的线程并在析构时汇合，避免退出时与 curl_global_cleanup 竞争。
+    std::thread m_prewarmThread;
     std::shared_ptr<std::atomic<bool>> m_prewarmCancel;
     std::atomic<bool> m_prewarmStarted{false};
     void startDialPrewarm();

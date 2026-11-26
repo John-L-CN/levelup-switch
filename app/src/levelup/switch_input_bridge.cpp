@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 
 #if defined(__SWITCH__) && !defined(LEVELUP_HOST_TEST)
@@ -70,6 +71,198 @@ GamepadState mapSwitchHidToGamepad(uint64_t buttons,
     st.rx = clampAxis16(rx);
     st.ry = invertStickY ? invertAxis16(ry) : clampAxis16(ry);
     return st;
+}
+
+void TouchMouseProcessor::setOverlayRects(bool visible, TouchHitRect leftBtn, TouchHitRect rightBtn) {
+    m_overlayVisible = visible;
+    m_leftBtn = leftBtn;
+    m_rightBtn = rightBtn;
+}
+
+void TouchMouseProcessor::reset(int64_t nowMs, const SendPacketFn& sendFn, const NextSeqFn& nextSeq) {
+    if (m_clickActive && sendFn && nextSeq) {
+        sendFn(buildMouseClickAt(nextSeq(), static_cast<uint64_t>(nowMs),
+                                 m_lastClickX, m_lastClickY, kMouseLeft, false));
+    }
+    m_clickActive = false;
+    m_trackpadActive = false;
+    m_trackpadMoved = false;
+    m_hadTwoFingers = false;
+    m_twoFingerScrolled = false;
+    m_suppressed = false;
+    m_accumX = 0.0f;
+    m_accumY = 0.0f;
+}
+
+void TouchMouseProcessor::setMode(TouchMouseMode mode,
+                                  int64_t nowMs,
+                                  const SendPacketFn& sendFn,
+                                  const NextSeqFn& nextSeq) {
+    if (m_mode == mode) {
+        return;
+    }
+    const bool wasTouching = m_clickActive || m_trackpadActive;
+    reset(nowMs, sendFn, nextSeq);
+    m_mode = mode;
+    if (wasTouching) {
+        m_suppressed = true;
+    }
+}
+
+void TouchMouseProcessor::process(const TouchPoint* touches,
+                                  size_t count,
+                                  int64_t nowMs,
+                                  const SendPacketFn& sendFn,
+                                  const NextSeqFn& nextSeq) {
+    if (!touches || count == 0) {
+        if (m_suppressed) {
+            m_suppressed = false;
+        }
+        if (m_clickActive) {
+            m_clickActive = false;
+            if (sendFn && nextSeq) {
+                sendFn(buildMouseClickAt(nextSeq(), static_cast<uint64_t>(nowMs),
+                                         m_lastClickX, m_lastClickY, kMouseLeft, false));
+            }
+        }
+        if (m_trackpadActive) {
+            if (sendFn && nextSeq) {
+                if (m_hadTwoFingers) {
+                    if (!m_twoFingerScrolled && (nowMs - m_downTimeMs) <= 350) {
+                        sendFn(buildMouseButton(nextSeq(), static_cast<uint64_t>(nowMs), kMouseRight, true));
+                        sendFn(buildMouseButton(nextSeq(), static_cast<uint64_t>(nowMs), kMouseRight, false));
+                    }
+                } else if (!m_trackpadMoved && (nowMs - m_downTimeMs) <= 350) {
+                    sendFn(buildMouseButton(nextSeq(), static_cast<uint64_t>(nowMs), kMouseLeft, true));
+                    sendFn(buildMouseButton(nextSeq(), static_cast<uint64_t>(nowMs), kMouseLeft, false));
+                }
+            }
+            m_trackpadActive = false;
+            m_trackpadMoved = false;
+            m_hadTwoFingers = false;
+            m_twoFingerScrolled = false;
+            m_accumX = 0.0f;
+            m_accumY = 0.0f;
+        }
+        return;
+    }
+
+    if (m_suppressed) {
+        return;
+    }
+
+    const uint32_t x0 = std::clamp<uint32_t>(touches[0].x, 0, 1280);
+    const uint32_t y0 = std::clamp<uint32_t>(touches[0].y, 0, 720);
+
+    if (!m_clickActive && !m_trackpadActive && m_overlayVisible) {
+        const float fx = static_cast<float>(x0);
+        const float fy = static_cast<float>(y0);
+        if (m_leftBtn.contains(fx, fy) || m_rightBtn.contains(fx, fy)) {
+            m_suppressed = true;
+            return;
+        }
+    }
+
+    if (m_mode == TouchMouseMode::Click) {
+        const uint16_t nx = static_cast<uint16_t>((x0 * 65535U) / 1280U);
+        const uint16_t ny = static_cast<uint16_t>((y0 * 65535U) / 720U);
+        if (!m_clickActive) {
+            m_clickActive = true;
+            m_lastClickX = nx;
+            m_lastClickY = ny;
+            if (sendFn && nextSeq) {
+                sendFn(buildMouseMoveAbsolute(nextSeq(), static_cast<uint64_t>(nowMs), nx, ny));
+                sendFn(buildMouseClickAt(nextSeq(), static_cast<uint64_t>(nowMs),
+                                         nx, ny, kMouseLeft, true));
+            }
+        } else if (std::abs(static_cast<int>(nx) - static_cast<int>(m_lastClickX)) >= 64 ||
+                   std::abs(static_cast<int>(ny) - static_cast<int>(m_lastClickY)) >= 64) {
+            m_lastClickX = nx;
+            m_lastClickY = ny;
+            if (sendFn && nextSeq) {
+                sendFn(buildMouseMoveAbsolute(nextSeq(), static_cast<uint64_t>(nowMs), nx, ny));
+            }
+        }
+        return;
+    }
+
+    // Trackpad mode: single-finger drag = relative move, tap = left click,
+    // two-finger tap = right click, two-finger vertical drag = mouse wheel.
+    if (count >= 2) {
+        const uint32_t y1 = std::clamp<uint32_t>(touches[1].y, 0, 720);
+        const float avgY = (static_cast<float>(y0) + static_cast<float>(y1)) * 0.5f;
+        if (!m_trackpadActive) {
+            m_trackpadActive = true;
+            m_downTimeMs = nowMs;
+        }
+        if (!m_hadTwoFingers) {
+            m_hadTwoFingers = true;
+            m_twoFingerScrolled = false;
+            m_twoFingerPrevY = avgY;
+        } else {
+            const float dy = avgY - m_twoFingerPrevY;
+            if (std::fabs(dy) >= 28.0f) {
+                m_twoFingerScrolled = true;
+                const int dir = (dy > 0.0f) ? -1 : 1;
+                if (sendFn && nextSeq) {
+                    sendFn(buildMouseScroll(nextSeq(), static_cast<uint64_t>(nowMs), dir));
+                }
+                m_twoFingerPrevY = avgY;
+            }
+        }
+        return;
+    }
+
+    if (m_hadTwoFingers) {
+        return;
+    }
+
+    if (!m_trackpadActive) {
+        m_trackpadActive = true;
+        m_trackpadMoved = false;
+        m_startX = x0;
+        m_startY = y0;
+        m_prevX = x0;
+        m_prevY = y0;
+        m_downTimeMs = nowMs;
+        m_accumX = 0.0f;
+        m_accumY = 0.0f;
+        return;
+    }
+
+    const int dxRaw = static_cast<int>(x0) - static_cast<int>(m_prevX);
+    const int dyRaw = static_cast<int>(y0) - static_cast<int>(m_prevY);
+    m_prevX = x0;
+    m_prevY = y0;
+
+    if (!m_trackpadMoved) {
+        const int totalDist = std::max(
+            std::abs(static_cast<int>(x0) - static_cast<int>(m_startX)),
+            std::abs(static_cast<int>(y0) - static_cast<int>(m_startY)));
+        if (totalDist >= 10) {
+            m_trackpadMoved = true;
+        }
+    }
+
+    if (m_trackpadMoved && (dxRaw != 0 || dyRaw != 0)) {
+        constexpr float kTrackpadSensitivity = 1.5f;
+        m_accumX += static_cast<float>(dxRaw) * kTrackpadSensitivity;
+        m_accumY += static_cast<float>(dyRaw) * kTrackpadSensitivity;
+        int ix = static_cast<int>(std::trunc(m_accumX));
+        int iy = static_cast<int>(std::trunc(m_accumY));
+        if (ix != 0 || iy != 0) {
+            m_accumX -= static_cast<float>(ix);
+            m_accumY -= static_cast<float>(iy);
+            ix = std::clamp(ix, -32767, 32767);
+            iy = std::clamp(iy, -32767, 32767);
+            if (sendFn && nextSeq) {
+                sendFn(buildMouseMoveRelative(nextSeq(),
+                                              static_cast<uint64_t>(nowMs),
+                                              static_cast<int16_t>(ix),
+                                              static_cast<int16_t>(iy)));
+            }
+        }
+    }
 }
 
 SwitchInputBridge::~SwitchInputBridge() {
@@ -144,6 +337,17 @@ void SwitchInputBridge::setSwapAbXy(bool swap) {
     m_swapAbXy.store(swap);
 }
 
+void SwitchInputBridge::setTouchMouseMode(TouchMouseMode mode) {
+    m_touchMouseMode.store(mode);
+}
+
+void SwitchInputBridge::setOverlayButtonRects(bool visible, TouchHitRect leftBtn, TouchHitRect rightBtn) {
+    std::lock_guard lock(m_overlayRectMu);
+    m_overlayButtonsVisible = visible;
+    m_overlayLeftBtn = leftBtn;
+    m_overlayRightBtn = rightBtn;
+}
+
 void SwitchInputBridge::workerLoop() {
 #if defined(__SWITCH__) && !defined(LEVELUP_HOST_TEST)
     PadState padHandheld{};
@@ -166,20 +370,17 @@ void SwitchInputBridge::workerLoop() {
     int64_t comboStartMs = 0;
     bool comboFired = false;
 
-    bool touchActive = false;
-    uint16_t lastTouchX = 0;
-    uint16_t lastTouchY = 0;
+    TouchMouseProcessor touchProc;
 
-    auto sendPkt = [&](const std::vector<uint8_t>& pkt) {
+    auto sendPkt = [&](const std::vector<uint8_t>& pkt) -> bool {
         SendPacketFn fn;
         {
             std::lock_guard lock(m_cbMu);
             fn = m_sendFn;
         }
-        if (fn) {
-            fn(pkt);
-        }
+        return fn ? fn(pkt) : false;
     };
+    auto seqFn = [this]() -> uint32_t { return nextSeq(); };
 
     auto fireOverlay = [&]() {
         OverlayComboFn cb;
@@ -249,34 +450,25 @@ void SwitchInputBridge::workerLoop() {
                     nextSeq(), static_cast<uint64_t>(nowMs), m_vpadId.load(), cur));
             }
 
-            // Single-finger touchscreen -> absolute mouse move/click
-            HidTouchScreenState touchState{};
-            if (hidGetTouchScreenStates(&touchState, 1) > 0 && touchState.count > 0) {
-                const auto& t = touchState.touches[0];
-                const uint16_t nx = static_cast<uint16_t>(
-                    (static_cast<uint32_t>(std::clamp<u32>(t.x, 0, 1280)) * 65535U) / 1280U);
-                const uint16_t ny = static_cast<uint16_t>(
-                    (static_cast<uint32_t>(std::clamp<u32>(t.y, 0, 720)) * 65535U) / 720U);
-                if (!touchActive) {
-                    touchActive = true;
-                    lastTouchX = nx;
-                    lastTouchY = ny;
-                    sendPkt(buildMouseMoveAbsolute(nextSeq(), static_cast<uint64_t>(nowMs), nx, ny));
-                    sendPkt(buildMouseClickAt(nextSeq(), static_cast<uint64_t>(nowMs),
-                                              nx, ny, kMouseLeft, true));
-                } else if (std::abs(static_cast<int>(nx) - static_cast<int>(lastTouchX)) >= 64 ||
-                           std::abs(static_cast<int>(ny) - static_cast<int>(lastTouchY)) >= 64) {
-                    lastTouchX = nx;
-                    lastTouchY = ny;
-                    sendPkt(buildMouseMoveAbsolute(nextSeq(), static_cast<uint64_t>(nowMs), nx, ny));
-                }
-            } else if (touchActive) {
-                touchActive = false;
-                sendPkt(buildMouseClickAt(nextSeq(), static_cast<uint64_t>(nowMs),
-                                          lastTouchX, lastTouchY, kMouseLeft, false));
+            {
+                std::lock_guard rectLock(m_overlayRectMu);
+                touchProc.setOverlayRects(m_overlayButtonsVisible, m_overlayLeftBtn, m_overlayRightBtn);
             }
-        } else if (touchActive) {
-            touchActive = false;
+            touchProc.setMode(m_touchMouseMode.load(), nowMs, sendPkt, seqFn);
+
+            HidTouchScreenState touchState{};
+            TouchPoint pts[2]{};
+            size_t ptCount = 0;
+            if (hidGetTouchScreenStates(&touchState, 1) > 0 && touchState.count > 0) {
+                ptCount = std::min<size_t>(static_cast<size_t>(touchState.count), 2);
+                for (size_t i = 0; i < ptCount; ++i) {
+                    pts[i].x = touchState.touches[i].x;
+                    pts[i].y = touchState.touches[i].y;
+                }
+            }
+            touchProc.process(pts, ptCount, nowMs, sendPkt, seqFn);
+        } else {
+            touchProc.reset(nowMs, sendPkt, seqFn);
         }
 
         std::unique_lock lock(m_cvMu);

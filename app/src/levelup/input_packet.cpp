@@ -176,6 +176,38 @@ std::vector<uint8_t> buildMouseMoveAbsolute(uint32_t seq, uint64_t tsMs, uint16_
     return wrapPacket(inner, kTypeControl);
 }
 
+std::vector<uint8_t> buildMouseMoveRelative(uint32_t seq, uint64_t tsMs, int16_t dx, int16_t dy) {
+    const uint16_t ux = static_cast<uint16_t>(dx);
+    const uint16_t uy = static_cast<uint16_t>(dy);
+    std::vector<uint8_t> inner = {
+        0x00, 0x00, 0x00, 0x08, kMouseModeRelative, 0, 0, 0,
+        static_cast<uint8_t>(ux >> 8U), static_cast<uint8_t>(ux & 0xFFU),
+        static_cast<uint8_t>(uy >> 8U), static_cast<uint8_t>(uy & 0xFFU),
+    };
+    appendTail(inner, seq, tsMs);
+    return wrapPacket(inner, kTypeControl);
+}
+
+std::vector<uint8_t> buildMouseButton(uint32_t seq, uint64_t tsMs, uint8_t button, bool down) {
+    const uint8_t action = down ? kMouseButtonDown : kMouseButtonUp;
+    std::vector<uint8_t> inner = {
+        0x00, 0x00, 0x00, 0x05, action, 0x00, 0x00, 0x00, button,
+    };
+    appendTail(inner, seq, tsMs);
+    return wrapPacket(inner, kTypeControl);
+}
+
+std::vector<uint8_t> buildMouseScroll(uint32_t seq, uint64_t tsMs, int dir) {
+    const uint16_t step = static_cast<uint16_t>(dir > 0 ? int16_t{120} : int16_t{-120});
+    std::vector<uint8_t> inner = {
+        0x00, 0x00, 0x00, 0x0A, 0x0A, 0x00, 0x00, 0x00,
+        static_cast<uint8_t>(step >> 8U), static_cast<uint8_t>(step & 0xFFU),
+        0x00, 0x00, 0x00, 0x00,
+    };
+    appendTail(inner, seq, tsMs);
+    return wrapPacket(inner, kTypeControl);
+}
+
 std::vector<uint8_t> buildMouseClickAt(uint32_t seq,
                                        uint64_t tsMs,
                                        uint16_t x,
@@ -189,6 +221,29 @@ std::vector<uint8_t> buildMouseClickAt(uint32_t seq,
         static_cast<uint8_t>(y >> 8U), static_cast<uint8_t>(y & 0xFFU),
     };
     appendTail(inner, seq, tsMs);
+    return wrapPacket(inner, kTypeControl);
+}
+
+std::vector<uint8_t> buildKeyboardPacket(uint32_t seq,
+                                         uint64_t tsMs,
+                                         uint16_t vk,
+                                         bool down,
+                                         uint8_t mod) {
+    const uint8_t action = down ? kKeyDown : kKeyUp;
+    std::vector<uint8_t> inner = {
+        0x00, 0x00, 0x00, 0x0A, action, 0x00, 0x00, 0x00, 0x00,
+        static_cast<uint8_t>(vk & 0xFFU), static_cast<uint8_t>(vk >> 8U), mod, 0x00, 0x00,
+    };
+    appendTail(inner, seq, tsMs);
+    return wrapPacket(inner, kTypeControl);
+}
+
+std::vector<uint8_t> buildPasteTextPacket(std::string_view utf8Text) {
+    std::vector<uint8_t> inner(4 + utf8Text.size());
+    putU32BE(inner.data(), 50U);
+    if (!utf8Text.empty()) {
+        std::memcpy(inner.data() + 4, utf8Text.data(), utf8Text.size());
+    }
     return wrapPacket(inner, kTypeControl);
 }
 
