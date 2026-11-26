@@ -2,7 +2,7 @@
 
 Nintendo Switch 1（Horizon OS / Atmosphere + libnx）上的 **LevelUp 云游戏原生客户端**，产物是单个 `.nro` 文件：扫码登录 → 云端游戏大厅 → 一键起流，视频走 Tegra X1 的 NVDEC 硬解 + deko3d 上屏，手柄/震动/触屏直通云端。
 
-> Native LevelUp Cloud Gaming client for Nintendo Switch 1 (`.nro`), forked from [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch) (GPL-3.0), with the Moonlight host-discovery/pairing stack replaced by the LevelUp + YTCX + `libdatachannel` WebRTC stack.
+> Native LevelUp Cloud Gaming client for Nintendo Switch 1 (`.nro`), forked from [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch) and released under the same **GPL-3.0**, with the Moonlight host-discovery/pairing stack replaced by the LevelUp + YTCX + `libdatachannel` WebRTC stack.
 
 ---
 
@@ -222,14 +222,11 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 **本客户端由 B站 UP主「牛巨眼」制作与分享（bilibili 搜索：牛巨眼），欢迎关注支持。**
 
-**本项目是双许可结构，请按文件来源区分：**
+**本项目整体以 GNU General Public License v3.0（GPL-3.0）发布，与上游协议保持一致：**
 
-| 范围 | 许可 |
-| --- | --- |
-| 本项目原创代码（`app/src/levelup/**`、`scripts/**`、`resources/` 中的本项目资源、README 等） | **PolyForm Noncommercial License 1.0.0** —— 见 [LICENSE](LICENSE)：允许个人学习、研究、非商业自用与修改分发，**禁止任何商业用途**（含售卖、随硬件捆绑销售、代运营收费、作为商业服务的一部分提供等） |
-| 派生自 [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch) 的部分（`app/src/streaming/**`、`app/src/libgamestream/**`、`app/src/` 其余上游文件、`resources/xml/**` 上游布局等） | **GPL-3.0** —— 全文见 [LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt) |
-
-- **商业使用需要单独授权**：如需将本客户端用于商业用途（含商业分发、预装、SaaS、收费服务集成），请先联系仓库作者获取书面商业许可；GPL-3.0 覆盖的上游派生部分仍按其条款单独适用。
+- **许可**：全文见 [LICENSE](LICENSE)（GPL-3.0 标准文本，可在 <https://www.gnu.org/licenses/gpl-3.0.html> 获取）。本项目是 [`XITRIX/Moonlight-Switch`](https://github.com/XITRIX/Moonlight-Switch) 的派生作品（`app/src/streaming/**`、`app/src/libgamestream/**`、`app/src/` 其余上游文件、`resources/xml/**` 上游布局等均源自上游），因此**整个仓库（含本仓库新增的 `app/src/levelup/**`、`scripts/**`、`resources/` 中的本项目资源、README 等原创部分）统一按 GPL-3.0 授权**——不再区分双许可，也不对任何一部分附加额外限制。
+- **分发义务**：分发编译产物（`.nro`）时请一并提供本许可全文与完整对应源代码（或 GPL-3.0 第 6 条允许的书面要约），并保留上游与 B站 UP主「牛巨眼」的版权声明与署名。
+- **商业使用**：GPL-3.0 本身不禁商，但任何商业分发/预装/以服务形式提供同样受 GPL-3.0 约束（须开源对应源码、保留许可与署名，且不得对接收者追加限制）。
 - 上游原始说明归档在 [docs/UPSTREAM_MOONLIGHT_README.md](docs/UPSTREAM_MOONLIGHT_README.md)。
 - 依赖：`borealis`、`libdatachannel`（`libjuice` / `libsrtp` / `usrsctp`）、`mbedTLS`、`switch-ffmpeg`、`libopus`、`stb`、`nlohmann/json`，各自遵循其原始许可。
 - 应用图标为 LevelUp 官方美术资源，仅随本客户端一同分发，不单独授权用于其它项目。
