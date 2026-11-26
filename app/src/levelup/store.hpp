@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace levelup {
@@ -37,6 +38,9 @@ struct GamesLibrary {
 struct AppConfig {
     /// 画质档位不再暴露给用户：固定"高清"（云端口径 0=流畅 1=标清 2=高清 3=超清 4=原画）。
     static constexpr int kFixedVideoLevel = 2;
+    /// 掌机模式可选的流分辨率高度（底座模式始终固定 1080p）。
+    static constexpr int kHandheldRes720 = 720;
+    static constexpr int kHandheldRes1080 = 1080;
 
     std::string deviceId;
     api::Credentials cred;
@@ -45,6 +49,7 @@ struct AppConfig {
     std::string lpUuid;
     int64_t lastPkgName = 0;
     int videoLevel = kFixedVideoLevel; // 固定值，见 kFixedVideoLevel
+    int handheldResolution = kHandheldRes720; // 720 或 1080；仅掌机模式生效，底座固定 1080p
     bool vqFirst = true;         // default true (VQ_FIRST)
     bool rumbleEnabled = true;   // default true
     int rumbleStrength = 100;    // 0..100
@@ -58,6 +63,12 @@ struct AppConfig {
 std::string normalizeSearchStr(std::string_view s);
 std::string compactSearchStr(std::string_view s);
 std::vector<GameEntry> matchGames(const std::vector<GameEntry>& games, std::string_view query);
+
+/// 归一化掌机分辨率高度（仅接受 720 / 1080，其余值回落为 720）。
+int normalizeHandheldResolution(int res);
+
+/// 根据是否底座模式与掌机分辨率设置，决定向云端申请的目标分辨率（底座固定 1920x1080）。
+std::pair<int, int> resolveTargetResolution(bool docked, int handheldResolution);
 
 class Store {
   public:

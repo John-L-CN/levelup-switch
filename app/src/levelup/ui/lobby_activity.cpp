@@ -305,14 +305,15 @@ std::string joinGameCategories(const std::vector<std::string>& cats) {
     return out;
 }
 
-std::string detectDisplayBadge() {
+std::string detectDisplayBadge(int handheldResolution) {
+    const int hhRes = normalizeHandheldResolution(handheldResolution);
 #ifdef __SWITCH__
     if (appletGetOperationMode() == AppletOperationMode_Console) {
         return "底座 1080p60";
     }
-    return "掌机 720p60";
+    return hhRes == AppConfig::kHandheldRes1080 ? "掌机 1080p60" : "掌机 720p60";
 #else
-    return "桌面 720p60";
+    return hhRes == AppConfig::kHandheldRes1080 ? "桌面 1080p60" : "桌面 720p60";
 #endif
 }
 
@@ -455,12 +456,12 @@ brls::View* LevelUpLobbyActivity::createContentView() {
     brandLabel->setMarginRight(14.0f);
     leftGroup->addView(brandLabel);
 
-    auto* modeBadge = new brls::Label();
-    modeBadge->setText(detectDisplayBadge());
-    modeBadge->setFontSize(15.0f);
-    modeBadge->setTextColor(nvgRGB(56, 189, 248));
-    modeBadge->setMarginRight(14.0f);
-    leftGroup->addView(modeBadge);
+    m_modeBadge = new brls::Label();
+    m_modeBadge->setText(detectDisplayBadge(m_cfg.handheldResolution));
+    m_modeBadge->setFontSize(15.0f);
+    m_modeBadge->setTextColor(nvgRGB(56, 189, 248));
+    m_modeBadge->setMarginRight(14.0f);
+    leftGroup->addView(m_modeBadge);
 
     m_searchBox = new brls::Box(brls::Axis::ROW);
     m_searchBox->setHeight(34.0f);
@@ -711,6 +712,7 @@ void LevelUpLobbyActivity::handleDisplayScaleChanged() {
     if (stack.empty() || stack.back() != this) {
         return; // 串流/弹窗期间不折腾纹理
     }
+    updateHeaderUi();
     const float scale = brls::Application::windowScale;
     if (std::fabs(m_coverTexScale - scale) <= 0.01f) {
         return;
@@ -832,6 +834,10 @@ void LevelUpLobbyActivity::enqueueCover(
 }
 
 void LevelUpLobbyActivity::updateHeaderUi() {
+    if (m_modeBadge) {
+        m_modeBadge->setText(detectDisplayBadge(m_cfg.handheldResolution));
+    }
+
     if (m_searchChip) {
         if (m_searchQuery.empty()) {
             m_searchChip->setText("搜索游戏 (按 Y)");
@@ -1353,7 +1359,7 @@ void LevelUpLobbyActivity::openGameDetailModal(const GameEntry& game) {
     std::snprintf(cfgBuf,
                   sizeof(cfgBuf),
                   "输出: %s · 画质: 高清 · HD震动: %s (%d%%)",
-                  detectDisplayBadge().c_str(),
+                  detectDisplayBadge(m_cfg.handheldResolution).c_str(),
                   m_cfg.rumbleEnabled ? "开" : "关",
                   m_cfg.rumbleStrength);
     auto* cfgLbl = new brls::Label();
@@ -1898,6 +1904,21 @@ void LevelUpLobbyActivity::openSettingsModal() {
             m_store.saveConfig(m_cfg);
         });
     list->addView(rumbleStrCell);
+
+    auto* resCell = new brls::SelectorCell();
+    const int resIdx =
+        normalizeHandheldResolution(m_cfg.handheldResolution) == AppConfig::kHandheldRes1080 ? 1 : 0;
+    resCell->init(
+        "掌机分辨率 (底座固定1080p)",
+        {"720p (默认)", "1080p (超采样更清晰)"},
+        resIdx,
+        [this](int idx) {
+            m_cfg.handheldResolution =
+                (idx == 1) ? AppConfig::kHandheldRes1080 : AppConfig::kHandheldRes720;
+            m_store.saveConfig(m_cfg);
+            updateHeaderUi();
+        });
+    list->addView(resCell);
 
     // 画质档位不再提供选项：固定「高清」（见 AppConfig::kFixedVideoLevel）。
     auto* qualityCell = new brls::DetailCell();

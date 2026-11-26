@@ -219,6 +219,13 @@ int main() {
         assert(std::fabs(crop1088.uvData[1] - 0.0f) < 1e-5f);
         assert(std::fabs(crop1088.uvData[2] - 1.0f) < 1e-5f);
         assert(std::fabs(crop1088.uvData[3] - (1080.0f / 1088.0f)) < 1e-5f);
+
+        // 掌机模式申请 1080p 超采样：1920x1088 NVDEC 帧在 1280x720 屏幕下同样裁掉底部 8px 且无黑边
+        const auto crop1088To720 = computeCroppedUvTransform(1920, 1088, 0, 0, 0, 0, 1280, 720);
+        assert(std::fabs(crop1088To720.uvData[0] - 0.0f) < 1e-5f);
+        assert(std::fabs(crop1088To720.uvData[1] - 0.0f) < 1e-5f);
+        assert(std::fabs(crop1088To720.uvData[2] - 1.0f) < 1e-5f);
+        assert(std::fabs(crop1088To720.uvData[3] - (1080.0f / 1088.0f)) < 1e-5f);
     }
 
     std::cout << "test_m3_video_rtp: ALL PASSED\n";

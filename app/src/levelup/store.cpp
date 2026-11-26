@@ -291,6 +291,18 @@ std::vector<GameEntry> matchGames(const std::vector<GameEntry>& games, std::stri
     return out;
 }
 
+int normalizeHandheldResolution(int res) {
+    return res == AppConfig::kHandheldRes1080 ? AppConfig::kHandheldRes1080
+                                              : AppConfig::kHandheldRes720;
+}
+
+std::pair<int, int> resolveTargetResolution(bool docked, int handheldResolution) {
+    if (docked || normalizeHandheldResolution(handheldResolution) == AppConfig::kHandheldRes1080) {
+        return {1920, 1080};
+    }
+    return {1280, 720};
+}
+
 Store::Store(std::string rootDir, std::string romfsLibraryPath)
     : m_rootDir(std::move(rootDir)),
       m_romfsLibraryPath(std::move(romfsLibraryPath)) {
@@ -374,6 +386,11 @@ AppConfig Store::loadConfig() const {
                 // 免得旧 version 的 JSON 反复被覆写）。
                 (void)j.value("videoLevel", AppConfig::kFixedVideoLevel);
                 cfg.videoLevel = AppConfig::kFixedVideoLevel;
+                int hhRes = AppConfig::kHandheldRes720;
+                if (j.contains("handheldResolution") && j["handheldResolution"].is_number_integer()) {
+                    hhRes = j["handheldResolution"].get<int>();
+                }
+                cfg.handheldResolution = normalizeHandheldResolution(hhRes);
                 cfg.vqFirst = j.value("vqFirst", true);
                 cfg.rumbleEnabled = j.value("rumbleEnabled", true);
                 cfg.rumbleStrength = std::clamp(j.value("rumbleStrength", 100), 0, 100);
@@ -406,6 +423,7 @@ bool Store::saveConfig(const AppConfig& cfg) const {
         {"lpUuid", cfg.lpUuid},
         {"lastPkgName", cfg.lastPkgName},
         {"videoLevel", AppConfig::kFixedVideoLevel},
+        {"handheldResolution", normalizeHandheldResolution(cfg.handheldResolution)},
         {"vqFirst", cfg.vqFirst},
         {"rumbleEnabled", cfg.rumbleEnabled},
         {"rumbleStrength", std::clamp(cfg.rumbleStrength, 0, 100)},

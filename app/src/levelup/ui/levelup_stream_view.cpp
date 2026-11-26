@@ -234,12 +234,11 @@ LevelUpStreamView::~LevelUpStreamView() {
 }
 
 std::pair<int, int> LevelUpStreamView::detectTargetResolution() const {
+    bool docked = false;
 #ifdef __SWITCH__
-    if (appletGetOperationMode() == AppletOperationMode_Console) {
-        return {1920, 1080};
-    }
+    docked = (appletGetOperationMode() == AppletOperationMode_Console);
 #endif
-    return {1280, 720};
+    return resolveTargetResolution(docked, m_cfg.handheldResolution);
 }
 
 void LevelUpStreamView::startSession() {
@@ -256,6 +255,15 @@ void LevelUpStreamView::startSession() {
     auto [tw, th] = detectTargetResolution();
     m_targetWidth = tw;
     m_targetHeight = th;
+#ifdef __SWITCH__
+    const bool isDocked = (appletGetOperationMode() == AppletOperationMode_Console);
+#else
+    const bool isDocked = false;
+#endif
+    logInfo("[StreamView] target resolution " + std::to_string(m_targetWidth) + "x" +
+            std::to_string(m_targetHeight) + " (mode=" + (isDocked ? "docked" : "handheld") +
+            ", handheldSetting=" +
+            std::to_string(normalizeHandheldResolution(m_cfg.handheldResolution)) + "p)");
 
     m_uiPhase = SessionPhase::Idle;
     m_uiStageText = "正在启动云游戏连接...";

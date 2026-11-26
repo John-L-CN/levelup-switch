@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 using namespace levelup;
@@ -18,8 +19,9 @@ int main() {
     {
         auto c1 = store.loadConfig();
         assert(c1.deviceId.size() == 32);
-        // 画质固定「高清」(2)，不再可配
+        // 画质固定「高清」(2)，不再可配；掌机分辨率默认 720p
         assert(c1.videoLevel == AppConfig::kFixedVideoLevel && c1.videoLevel == 2);
+        assert(c1.handheldResolution == AppConfig::kHandheldRes720);
         assert(c1.vqFirst == true);
         assert(c1.rumbleEnabled == true && c1.rumbleStrength == 100);
 
@@ -29,6 +31,7 @@ int main() {
         c1.cred.nickName = "SwitchTester";
         c1.rumbleStrength = 75;
         c1.videoLevel = 4; // 旧配置里的档位必须被忽略
+        c1.handheldResolution = AppConfig::kHandheldRes1080;
         c1.vqFirst = false;
         assert(store.saveConfig(c1));
 
@@ -37,6 +40,33 @@ int main() {
         assert(c2.cred.sessionKey == "s1" && c2.cred.userId == 4242);
         assert(c2.rumbleStrength == 75 && c2.vqFirst == false);
         assert(c2.videoLevel == AppConfig::kFixedVideoLevel);
+        assert(c2.handheldResolution == AppConfig::kHandheldRes1080);
+
+        // 非法数字或类型错误的 handheldResolution 回落到 720p，且不破坏其余字段
+        {
+            std::ofstream ofs(store.configPath(), std::ios::binary | std::ios::trunc);
+            ofs << R"({"deviceId":")" << c1.deviceId
+                << R"(","sessionKey":"s1","handheldResolution":480})";
+        }
+        auto cBadInt = store.loadConfig();
+        assert(cBadInt.deviceId == c1.deviceId && cBadInt.cred.sessionKey == "s1");
+        assert(cBadInt.handheldResolution == AppConfig::kHandheldRes720);
+
+        {
+            std::ofstream ofs(store.configPath(), std::ios::binary | std::ios::trunc);
+            ofs << R"({"deviceId":")" << c1.deviceId
+                << R"(","sessionKey":"s1","handheldResolution":"1080"})";
+        }
+        auto cBadType = store.loadConfig();
+        assert(cBadType.deviceId == c1.deviceId && cBadType.cred.sessionKey == "s1");
+        assert(cBadType.handheldResolution == AppConfig::kHandheldRes720);
+
+        // 底座固定 1920x1080，掌机按设置走 720p / 1080p
+        assert((resolveTargetResolution(true, 720) == std::pair<int, int>{1920, 1080}));
+        assert((resolveTargetResolution(true, 1080) == std::pair<int, int>{1920, 1080}));
+        assert((resolveTargetResolution(false, 720) == std::pair<int, int>{1280, 720}));
+        assert((resolveTargetResolution(false, 1080) == std::pair<int, int>{1920, 1080}));
+        assert((resolveTargetResolution(false, 999) == std::pair<int, int>{1280, 720}));
     }
 
     // 2. Recent games dedup & cap at 12 + per-user file isolation
