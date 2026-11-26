@@ -44,6 +44,7 @@ constexpr uint64_t kDown = 1ULL << 15;
 enum class TouchMouseMode : uint8_t {
     Click = 0,
     Trackpad = 1,
+    Locked = 2,
 };
 
 struct TouchPoint {
@@ -88,6 +89,7 @@ class TouchMouseProcessor {
     TouchHitRect m_leftBtn{};
     TouchHitRect m_rightBtn{};
     bool m_suppressed = false;
+    bool m_anyTouchDown = false;
 
     // Click mode state
     bool m_clickActive = false;

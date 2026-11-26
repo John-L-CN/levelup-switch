@@ -33,6 +33,7 @@ struct RtcConfig {
 
 struct RtcStatsSnapshot {
     uint64_t rtpPacketsRecv = 0;
+    uint64_t rtpBytesRecv = 0;
     uint64_t rtpPacketsLost = 0;
     uint64_t nackSent = 0;
     uint64_t pliSent = 0;
@@ -49,6 +50,11 @@ struct RtcStatsSnapshot {
 /// Pure helpers (host-testable)
 std::string ensureCandidatePrefix(std::string s);
 std::string injectH264FeedbackAndProfile(std::string sdp, bool preferHighProfile = true);
+
+/// 退出收尾时静默 libdatachannel 日志回调，避免后台线程在日志文件关闭后继续访问 logger。
+void silenceRtcLoggingForExit();
+/// 本次运行是否已初始化过 libdatachannel（存在常驻后台线程，退出不能走 post-main 卸载路径）。
+bool hasActiveRtcRuntime();
 
 class RtcSession {
   public:

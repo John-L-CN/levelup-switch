@@ -38,11 +38,15 @@ class CriticalRequestScope {
 ///   1) 记日志（定位卡点用）
 ///   2) appletSetMediaPlaybackState(false)（撤回"播放中"声明）
 ///   3) 停掉空闲震动看门狗 + 震动归零
-///   4) 启动 3 秒硬退出兜底线程
+///   4) 使用 libnx 原生 Thread 启动 3 秒硬退出兜底（不调用在 Switch 上恒返回 ENOSYS 的 std::thread::detach）
 /// 兜底存在的必要性：串流状态下系统发来的关闭指令如果被卡住的 join / 网络 / deko3d
 /// present 拖住，Horizon 会直接报「软件无法关闭」。兜底线程到点 svcExitProcess，
 /// 进程一退出系统就认为关闭成功。
 void installExitGuard();
+
+/// 正常主循环返回、优雅退出已完成时调用：取消 applet hook，并通知硬退出兜底线程
+/// 提前返回、回收其线程资源。
+void finishExitGuard();
 
 /// 失焦（后台）时把帧率压到 5 fps。这样 applet 消息（含退出请求）仍能被及时处理，
 /// 同时不会把 deko3d 的三缓冲全部写满后把主循环卡死在 presentImage 上。

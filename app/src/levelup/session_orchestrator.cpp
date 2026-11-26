@@ -481,14 +481,17 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
     // 选址决策：缓存打分挑首选区域；数据不可信（分数超阈值/全无数据）时返回 0，
     // 等价官方首发行为——把选择权交回服务端。
     int bestScore = ytcx::kDialScoreNoData;
-    const int preferredArea = ytcx::pickPreferredArea(dialHistory, unixMillisNow(), &bestScore);
+    int preferredArea = 0;
+    int secondaryArea = 0;
+    ytcx::pickPreferredAreas(dialHistory, unixMillisNow(), preferredArea, secondaryArea, &bestScore);
     logInfo("[Session] dial history=" + std::to_string(dialHistory.size()) +
             " pickArea=" + std::to_string(preferredArea) +
+            " tryArea=" + std::to_string(secondaryArea) +
             " score=" + std::to_string(bestScore));
     ytcx::ApplyResult applyRes;
     if (!ytcx::unionApply(startInfo.proData, startInfo.pkgName, cfg.deviceId, startInfo.userId,
                           cfg.width, cfg.height, pbLaunch, applyRes, &err, dialHistory,
-                          preferredArea, 0)) {
+                          preferredArea, secondaryArea)) {
         setPhase(SessionPhase::Failed, "调度申请失败", err);
         return;
     }
@@ -501,7 +504,14 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
             " spare=" + std::to_string(applyRes.spareAddresses.size()) +
             " queue=" + std::to_string(applyRes.queueRank) + "/" +
             std::to_string(applyRes.queueTotal) +
-            " askedArea=" + std::to_string(preferredArea));
+            " askedArea=" + std::to_string(preferredArea) +
+            " askedTry=" + std::to_string(secondaryArea));
+    if (applyRes.areaType == 0) {
+        const std::string schema = ytcx::describeApplySchema(applyRes.rawJson);
+        if (!schema.empty()) {
+            logInfo("[Session] unionApply area=0 schema: " + schema);
+        }
+    }
     {
         std::lock_guard lock(m_unionMu);
         m_flowId = applyRes.flowId;
@@ -522,10 +532,10 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
         }
         if (learned) learned(applyRes.lpUuid, startInfo.pkgName);
     }
-    // 调度反馈记账：没给到想要的区域 / 该区域在排队，都写回缓存影响下次打分
+    // 调度反馈记账：仅当服务端明确返回了不同 area_type (>0) 且没给到想要的区域，或该区域在排队，才写回惩罚
     {
         bool dirty = false;
-        if (preferredArea > 0 && applyRes.areaType != preferredArea) {
+        if (preferredArea > 0 && applyRes.areaType > 0 && applyRes.areaType != preferredArea) {
             dialHistory = ytcx::recordAreaRejected(std::move(dialHistory), preferredArea, 0);
             dirty = true;
             logWarn("[Session] scheduler ignored asked area=" + std::to_string(preferredArea) +
@@ -764,7 +774,7 @@ void SessionOrchestrator::runLifecycle(SessionLaunchConfig cfg) {
                              points.end());
             }
             auto probed = ytcx::dialProbe(std::move(points), kDialAttemptsPerPoint,
-                                          ytcx::kDialTimeoutMs, &m_stopRequested);
+                                          ytcx::kDialTimeoutMs, &m_stopRequested, 1);
             if (m_stopRequested.load()) {
                 return;
             }

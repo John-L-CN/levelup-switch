@@ -310,8 +310,10 @@ int normalizeHandheldResolution(int res) {
 }
 
 int normalizeTouchMouseMode(int mode) {
-    return mode == AppConfig::kTouchMouseTrackpad ? AppConfig::kTouchMouseTrackpad
-                                                  : AppConfig::kTouchMouseClick;
+    if (mode == AppConfig::kTouchMouseTrackpad || mode == AppConfig::kTouchMouseLocked) {
+        return mode;
+    }
+    return AppConfig::kTouchMouseClick;
 }
 
 std::pair<int, int> resolveTargetResolution(bool docked, int handheldResolution) {

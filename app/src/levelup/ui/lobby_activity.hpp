@@ -45,6 +45,7 @@ class LevelUpLobbyActivity : public brls::Activity {
     void enqueueCover(const GameEntry& game, uint64_t gen, brls::Image* target, int texMaxW, int texMaxH);
 
     void updateHeaderUi();
+    bool isForegroundActivity() const;
     void rebuildCategoryStrip();
     void rebuildGameGrid();
     std::vector<GameEntry> currentFilteredGames() const;

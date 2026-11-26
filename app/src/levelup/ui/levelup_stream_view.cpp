@@ -37,40 +37,97 @@ class TranslucentOverlayActivity : public brls::Activity {
     }
 };
 
-std::string formatStatsLine1(const SessionStatsSnapshot& snap, int w, int h, double fps) {
+std::string formatCompactHud(const SessionStatsSnapshot& snap,
+                             int w,
+                             int h,
+                             double fps,
+                             double bitrateKbps,
+                             uint64_t recentLost,
+                             uint64_t recentRecv) {
+    char bwBuf[32];
+    const double safeKbps = std::max(0.0, bitrateKbps);
+    if (safeKbps < 1000.0) {
+        std::snprintf(bwBuf, sizeof(bwBuf), "%.0fKbps", safeKbps);
+    } else {
+        std::snprintf(bwBuf, sizeof(bwBuf), "%.1fMbps", safeKbps / 1000.0);
+    }
+
+    char netBuf[32];
+    if (snap.rtc.rttMs >= 0) {
+        std::snprintf(netBuf, sizeof(netBuf), "网络 %lldms", static_cast<long long>(snap.rtc.rttMs));
+    } else {
+        std::snprintf(netBuf, sizeof(netBuf), "网络 --");
+    }
+
+    char decBuf[32];
+    if (snap.video.decodedFrames > 0) {
+        std::snprintf(decBuf,
+                      sizeof(decBuf),
+                      "解码 %.1fms",
+                      static_cast<double>(snap.video.decodeTimeUs) / 1000.0);
+    } else {
+        std::snprintf(decBuf, sizeof(decBuf), "解码 --");
+    }
+
+    char lossBuf[48];
+    if (recentLost == 0) {
+        std::snprintf(lossBuf, sizeof(lossBuf), "丢包 0");
+    } else {
+        const double total = static_cast<double>(recentRecv + recentLost);
+        const double pct =
+            total > 0.0 ? (100.0 * static_cast<double>(recentLost) / total) : 100.0;
+        std::snprintf(lossBuf,
+                      sizeof(lossBuf),
+                      "丢包 %llu(%.1f%%)",
+                      static_cast<unsigned long long>(recentLost),
+                      pct);
+    }
+
     char buf[256];
     std::snprintf(buf,
                   sizeof(buf),
-                  "LevelUp | %dx%d %.1ffps | RTT %lldms | Loss %llu | PLI %llu NACK %llu",
+                  "%dx%d | %.1ffps | %s | %s | %s | %s",
                   w,
                   h,
-                  fps,
-                  static_cast<long long>(snap.rtc.rttMs),
-                  static_cast<unsigned long long>(snap.rtc.rtpPacketsLost),
-                  static_cast<unsigned long long>(snap.rtc.pliSent),
-                  static_cast<unsigned long long>(snap.rtc.nackSent));
+                  std::max(0.0, fps),
+                  bwBuf,
+                  netBuf,
+                  decBuf,
+                  lossBuf);
     return buf;
 }
 
-std::string formatStatsLine2(const SessionStatsSnapshot& snap, bool rumbleEnabled) {
-    char buf[256];
-    const char* rumbleState = !rumbleEnabled ? "关" : (snap.rumbleActive ? "震动中" : "待机");
-    const char* linkState = !snap.rtc.signalingOpen
-                                ? "信令重连中(媒体继续)"
-                                : (snap.video.needKey ? "恢复IDR中"
-                                                      : (snap.controlReady ? "正常" : "控制重连"));
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "vPad#%u | 震动:%s | 音频:%llu 补:%llu 延迟:%dms | 视频解码:%llu 跳:%llu | %s",
-                  static_cast<unsigned>(snap.vpadId),
-                  rumbleState,
-                  static_cast<unsigned long long>(snap.audioDecoded),
-                  static_cast<unsigned long long>(snap.audioConcealed),
-                  snap.audioLatencyMs,
-                  static_cast<unsigned long long>(snap.video.decodedFrames),
-                  static_cast<unsigned long long>(snap.video.skippedFrames),
-                  linkState);
-    return buf;
+input::TouchMouseMode toInputTouchMouseMode(int cfgMode) {
+    switch (normalizeTouchMouseMode(cfgMode)) {
+    case AppConfig::kTouchMouseTrackpad:
+        return input::TouchMouseMode::Trackpad;
+    case AppConfig::kTouchMouseLocked:
+        return input::TouchMouseMode::Locked;
+    default:
+        return input::TouchMouseMode::Click;
+    }
+}
+
+const char* touchMouseModeShortLabel(int cfgMode) {
+    switch (normalizeTouchMouseMode(cfgMode)) {
+    case AppConfig::kTouchMouseTrackpad:
+        return "触控板模式";
+    case AppConfig::kTouchMouseLocked:
+        return "鼠标锁定";
+    default:
+        return "点击模式";
+    }
+}
+
+const char* touchMouseModeToastText(int cfgMode) {
+    switch (normalizeTouchMouseMode(cfgMode)) {
+    case AppConfig::kTouchMouseTrackpad:
+        return "触控板模式 · 滑动移动 · 轻点左键 · 双指右键/滚轮";
+    case AppConfig::kTouchMouseLocked:
+        return "鼠标锁定 · 触屏不传递到游戏，仅响应悬浮按钮";
+    default:
+        return "点击模式 · 触屏直接点击";
+    }
 }
 
 } // namespace
@@ -270,7 +327,16 @@ void LevelUpStreamView::startSession() {
     m_errorDialogOpen = false;
     m_lastHudUpdate = {};
     m_prevDecodedFrames = 0;
+    m_prevRtpBytesRecv = 0;
     m_fpsEstimate = 0.0;
+    m_bitrateKbps = 0.0;
+    m_lossWindow.fill({});
+    m_lossWindowIdx = 0;
+    m_prevRtpPacketsLost = 0;
+    m_prevRtpPacketsRecv = 0;
+    m_recentPacketsLost = 0;
+    m_recentPacketsRecv = 0;
+    m_hudLine.clear();
     setBorealisInputsBlocked(false);
 
     SessionLaunchConfig lcfg;
@@ -288,16 +354,15 @@ void LevelUpStreamView::startSession() {
     lcfg.invertStickY = m_cfg.invertStickY;
     lcfg.swapAbXy = m_cfg.swapAbXy;
     lcfg.audioVolumePercent = m_cfg.audioVolume;
-    lcfg.touchMouseMode =
-        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad)
-            ? input::TouchMouseMode::Trackpad
-            : input::TouchMouseMode::Click;
+    lcfg.touchMouseMode = toInputTouchMouseMode(m_cfg.touchMouseMode);
 
     m_touchControlsVisible = false;
     m_justShownOnTouch = false;
     m_swkbdOpen = false;
     m_pressedOverlayBtn = 0;
     m_pressedFingerId = -1;
+    m_modeToastText.clear();
+    m_modeToastTime = {};
     m_orchestrator.setOverlayButtonRects(false, {}, {});
 
     m_orchestrator.start(lcfg);
@@ -354,18 +419,48 @@ void LevelUpStreamView::updateHudCache(const SessionStatsSnapshot& snap) {
 
     if (m_lastHudUpdate != std::chrono::steady_clock::time_point{}) {
         const double dt = std::chrono::duration<double>(now - m_lastHudUpdate).count();
-        if (dt > 0.05 && snap.video.decodedFrames >= m_prevDecodedFrames) {
-            m_fpsEstimate =
-                static_cast<double>(snap.video.decodedFrames - m_prevDecodedFrames) / dt;
+        if (dt > 0.05) {
+            if (snap.video.decodedFrames >= m_prevDecodedFrames) {
+                m_fpsEstimate =
+                    static_cast<double>(snap.video.decodedFrames - m_prevDecodedFrames) / dt;
+            }
+            if (snap.rtc.rtpBytesRecv >= m_prevRtpBytesRecv) {
+                const double instKbps =
+                    static_cast<double>(snap.rtc.rtpBytesRecv - m_prevRtpBytesRecv) * 8.0 /
+                    (dt * 1000.0);
+                m_bitrateKbps = (m_bitrateKbps <= 0.0)
+                                    ? instKbps
+                                    : (m_bitrateKbps * 0.4 + instKbps * 0.6);
+            }
         }
+        const uint64_t dLost = (snap.rtc.rtpPacketsLost >= m_prevRtpPacketsLost)
+                                   ? (snap.rtc.rtpPacketsLost - m_prevRtpPacketsLost)
+                                   : 0;
+        const uint64_t dRecv = (snap.rtc.rtpPacketsRecv >= m_prevRtpPacketsRecv)
+                                   ? (snap.rtc.rtpPacketsRecv - m_prevRtpPacketsRecv)
+                                   : 0;
+        m_lossWindow[m_lossWindowIdx] = LossBucket{dLost, dRecv};
+        m_lossWindowIdx = (m_lossWindowIdx + 1) % kLossWindowBuckets;
+
+        uint64_t sumLost = 0;
+        uint64_t sumRecv = 0;
+        for (const auto& b : m_lossWindow) {
+            sumLost += b.lost;
+            sumRecv += b.recv;
+        }
+        m_recentPacketsLost = sumLost;
+        m_recentPacketsRecv = sumRecv;
     }
     m_prevDecodedFrames = snap.video.decodedFrames;
+    m_prevRtpBytesRecv = snap.rtc.rtpBytesRecv;
+    m_prevRtpPacketsLost = snap.rtc.rtpPacketsLost;
+    m_prevRtpPacketsRecv = snap.rtc.rtpPacketsRecv;
     m_lastHudUpdate = now;
 
     const int w = snap.video.width > 0 ? snap.video.width : m_targetWidth;
     const int h = snap.video.height > 0 ? snap.video.height : m_targetHeight;
-    m_hudLine1 = formatStatsLine1(snap, w, h, m_fpsEstimate);
-    m_hudLine2 = formatStatsLine2(snap, m_cfg.rumbleEnabled);
+    m_hudLine = formatCompactHud(
+        snap, w, h, m_fpsEstimate, m_bitrateKbps, m_recentPacketsLost, m_recentPacketsRecv);
 }
 
 void LevelUpStreamView::draw(NVGcontext* vg,
@@ -473,20 +568,27 @@ void LevelUpStreamView::draw(NVGcontext* vg,
         }
     } else if (m_cfg.showStatsHud) {
         updateHudCache(snap);
-        if (font != brls::FONT_INVALID) {
+        if (font != brls::FONT_INVALID && !m_hudLine.empty()) {
+            nvgFontFaceId(vg, font);
+            nvgFontSize(vg, 15.5f);
+            nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+            float bounds[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            nvgTextBounds(vg, 0.0f, 0.0f, m_hudLine.c_str(), nullptr, bounds);
+            const float textW = std::max(0.0f, bounds[2] - bounds[0]);
+            const float maxBoxW = std::max(180.0f, width - 196.0f);
+            const float boxX = x + 16.0f;
+            const float boxY = y + 14.0f;
+            const float boxW = std::clamp(textW + 24.0f, 180.0f, maxBoxW);
+            const float boxH = 34.0f;
+
             nvgBeginPath(vg);
-            nvgRoundedRect(vg, x + 16.0f, y + 14.0f, 670.0f, 54.0f, 8.0f);
+            nvgRoundedRect(vg, boxX, boxY, boxW, boxH, 8.0f);
             nvgFillColor(vg, nvgRGBA(10, 14, 22, 185));
             nvgFill(vg);
 
-            nvgFontFaceId(vg, font);
-            nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-            nvgFontSize(vg, 16.0f);
-            nvgFillColor(vg, nvgRGB(125, 211, 252));
-            nvgText(vg, x + 28.0f, y + 21.0f, m_hudLine1.c_str(), nullptr);
-
+            nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
             nvgFillColor(vg, nvgRGB(226, 232, 240));
-            nvgText(vg, x + 28.0f, y + 43.0f, m_hudLine2.c_str(), nullptr);
+            nvgText(vg, boxX + 12.0f, boxY + boxH * 0.5f, m_hudLine.c_str(), nullptr);
         }
     }
 
@@ -501,6 +603,9 @@ void LevelUpStreamView::draw(NVGcontext* vg,
                 alphaFactor = std::clamp(1.0f - static_cast<float>(elapsedMs - 2750) / 250.0f, 0.0f, 1.0f);
             }
             drawTouchOverlayControls(vg, alphaFactor);
+        }
+        if (!m_overlayOpen && !m_errorDialogOpen && !m_swkbdOpen) {
+            drawModeToast(vg, x, y, width, height);
         }
     } else {
         if (m_touchControlsVisible) {
@@ -527,7 +632,7 @@ void LevelUpStreamView::updateTouchOverlayControls(
 
     m_kbBtnRect = input::TouchHitRect{
         x + 16.0f,
-        y + (hudVisible ? 76.0f : 16.0f),
+        y + (hudVisible ? 56.0f : 16.0f),
         136.0f,
         44.0f,
     };
@@ -623,8 +728,9 @@ void LevelUpStreamView::drawTouchOverlayControls(NVGcontext* vg, float alphaFact
     };
 
     const int font = brls::Application::getFont(brls::FONT_REGULAR);
-    const bool trackpadMode =
-        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad);
+    const int mouseMode = normalizeTouchMouseMode(m_cfg.touchMouseMode);
+    const bool trackpadMode = (mouseMode == AppConfig::kTouchMouseTrackpad);
+    const bool lockedMode = (mouseMode == AppConfig::kTouchMouseLocked);
 
     // 1. 左上角：虚拟键盘半透明按钮
     {
@@ -669,7 +775,7 @@ void LevelUpStreamView::drawTouchOverlayControls(NVGcontext* vg, float alphaFact
         }
     }
 
-    // 2. 右上角：鼠标模式切换半透明按钮（触控板 / 点击模式）
+    // 2. 右上角：鼠标模式切换半透明按钮（点击模式 / 触控板模式 / 鼠标锁定）
     {
         const auto& r = m_mouseBtnRect;
         const bool pressed = (m_pressedOverlayBtn == 2);
@@ -678,16 +784,39 @@ void LevelUpStreamView::drawTouchOverlayControls(NVGcontext* vg, float alphaFact
         nvgFillColor(vg, nvgRGBA(15, 23, 42, scaleAlpha(pressed ? 215 : 160)));
         nvgFill(vg);
         nvgStrokeWidth(vg, 1.5f);
-        nvgStrokeColor(vg,
-                       trackpadMode
-                           ? nvgRGBA(56, 189, 248, scaleAlpha(pressed ? 230 : 165))
-                           : nvgRGBA(148, 163, 184, scaleAlpha(pressed ? 200 : 120)));
+        NVGcolor borderCol = nvgRGBA(148, 163, 184, scaleAlpha(pressed ? 200 : 120));
+        if (lockedMode) {
+            borderCol = nvgRGBA(245, 158, 11, scaleAlpha(pressed ? 235 : 175));
+        } else if (trackpadMode) {
+            borderCol = nvgRGBA(56, 189, 248, scaleAlpha(pressed ? 230 : 165));
+        }
+        nvgStrokeColor(vg, borderCol);
         nvgStroke(vg);
 
         const float ix = r.x + 14.0f;
         const float iy = r.y + 11.0f;
         nvgStrokeWidth(vg, 1.6f);
-        if (trackpadMode) {
+        if (lockedMode) {
+            // 挂锁图标：U 形锁梁 + 圆角锁体 + 锁孔点
+            const NVGcolor lockCol = nvgRGBA(251, 191, 36, scaleAlpha(240));
+            nvgBeginPath(vg);
+            nvgMoveTo(vg, ix + 7.0f, iy + 11.0f);
+            nvgLineTo(vg, ix + 7.0f, iy + 7.5f);
+            nvgArc(vg, ix + 12.0f, iy + 7.5f, 5.0f, 3.14159265f, 0.0f, NVG_CW);
+            nvgLineTo(vg, ix + 17.0f, iy + 11.0f);
+            nvgStrokeColor(vg, lockCol);
+            nvgStroke(vg);
+
+            nvgBeginPath(vg);
+            nvgRoundedRect(vg, ix + 5.0f, iy + 11.0f, 14.0f, 11.0f, 2.5f);
+            nvgStrokeColor(vg, lockCol);
+            nvgStroke(vg);
+
+            nvgBeginPath(vg);
+            nvgCircle(vg, ix + 12.0f, iy + 16.5f, 1.8f);
+            nvgFillColor(vg, lockCol);
+            nvgFill(vg);
+        } else if (trackpadMode) {
             // 触控板图标：矩形板 + 底部左右按键分隔线
             nvgBeginPath(vg);
             nvgRoundedRect(vg, ix, iy, 24.0f, 22.0f, 3.5f);
@@ -716,14 +845,17 @@ void LevelUpStreamView::drawTouchOverlayControls(NVGcontext* vg, float alphaFact
             nvgFontFaceId(vg, font);
             nvgFontSize(vg, 16.0f);
             nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-            nvgFillColor(vg,
-                         trackpadMode
-                             ? nvgRGBA(125, 211, 252, scaleAlpha(245))
-                             : nvgRGBA(248, 250, 252, scaleAlpha(240)));
+            NVGcolor textCol = nvgRGBA(248, 250, 252, scaleAlpha(240));
+            if (lockedMode) {
+                textCol = nvgRGBA(253, 224, 71, scaleAlpha(245));
+            } else if (trackpadMode) {
+                textCol = nvgRGBA(125, 211, 252, scaleAlpha(245));
+            }
+            nvgFillColor(vg, textCol);
             nvgText(vg,
                     r.x + 46.0f,
                     r.y + r.h * 0.5f,
-                    trackpadMode ? "触控板模式" : "点击模式",
+                    touchMouseModeShortLabel(mouseMode),
                     nullptr);
         }
     }
@@ -775,28 +907,102 @@ void LevelUpStreamView::openVirtualKeyboard() {
     m_orchestrator.setOverlayButtonRects(true, m_kbBtnRect, m_mouseBtnRect);
 }
 
-void LevelUpStreamView::toggleTouchMouseMode() {
-    const bool currentlyTrackpad =
-        (normalizeTouchMouseMode(m_cfg.touchMouseMode) == AppConfig::kTouchMouseTrackpad);
-    const int nextMode =
-        currentlyTrackpad ? AppConfig::kTouchMouseClick : AppConfig::kTouchMouseTrackpad;
-    m_cfg.touchMouseMode = nextMode;
+void LevelUpStreamView::drawModeToast(
+    NVGcontext* vg, float x, float y, float width, float height) {
+    if (m_modeToastText.empty() || m_modeToastTime == std::chrono::steady_clock::time_point{}) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto elapsedMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - m_modeToastTime).count();
+    if (elapsedMs >= 1900) {
+        m_modeToastText.clear();
+        m_modeToastTime = {};
+        return;
+    }
+
+    const int font = brls::Application::getFont(brls::FONT_REGULAR);
+    if (font == brls::FONT_INVALID) {
+        return;
+    }
+
+    float alphaFactor = 1.0f;
+    if (elapsedMs > 1600) {
+        alphaFactor = std::clamp(1.0f - static_cast<float>(elapsedMs - 1600) / 300.0f, 0.0f, 1.0f);
+    }
+    if (alphaFactor <= 0.01f) {
+        return;
+    }
+
+    const auto scaleAlpha = [alphaFactor](int a) -> unsigned char {
+        return static_cast<unsigned char>(std::clamp(static_cast<int>(a * alphaFactor), 0, 255));
+    };
+
+    nvgFontFaceId(vg, font);
+    nvgFontSize(vg, 16.0f);
+    nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+    float bounds[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    nvgTextBounds(vg, 0.0f, 0.0f, m_modeToastText.c_str(), nullptr, bounds);
+    const float textW = std::max(0.0f, bounds[2] - bounds[0]);
+    const float maxPillW = std::max(180.0f, width - 48.0f);
+    const float pillW = std::clamp(textW + 40.0f, 180.0f, maxPillW);
+    const float pillH = 38.0f;
+    const float pillX = x + (width - pillW) * 0.5f;
+    const float pillY = y + height - 58.0f;
+
+    const int mouseMode = normalizeTouchMouseMode(m_cfg.touchMouseMode);
+    NVGcolor borderCol = nvgRGBA(148, 163, 184, scaleAlpha(160));
+    NVGcolor textCol = nvgRGBA(248, 250, 252, scaleAlpha(245));
+    if (mouseMode == AppConfig::kTouchMouseLocked) {
+        borderCol = nvgRGBA(245, 158, 11, scaleAlpha(190));
+        textCol = nvgRGBA(253, 224, 71, scaleAlpha(245));
+    } else if (mouseMode == AppConfig::kTouchMouseTrackpad) {
+        borderCol = nvgRGBA(56, 189, 248, scaleAlpha(185));
+        textCol = nvgRGBA(125, 211, 252, scaleAlpha(245));
+    }
+
+    nvgBeginPath(vg);
+    nvgRoundedRect(vg, pillX, pillY, pillW, pillH, 19.0f);
+    nvgFillColor(vg, nvgRGBA(15, 23, 42, scaleAlpha(210)));
+    nvgFill(vg);
+    nvgStrokeWidth(vg, 1.5f);
+    nvgStrokeColor(vg, borderCol);
+    nvgStroke(vg);
+
+    nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+    nvgFillColor(vg, textCol);
+    nvgText(vg, pillX + pillW * 0.5f, pillY + pillH * 0.5f, m_modeToastText.c_str(), nullptr);
+}
+
+void LevelUpStreamView::applyTouchMouseMode(int nextMode, bool showToast) {
+    const int normalized = normalizeTouchMouseMode(nextMode);
+    m_cfg.touchMouseMode = normalized;
     m_store.saveConfig(m_cfg);
     if (m_onConfigChanged) {
         m_onConfigChanged(m_cfg);
     }
-    const input::TouchMouseMode modeEnum =
-        (nextMode == AppConfig::kTouchMouseTrackpad) ? input::TouchMouseMode::Trackpad
-                                                     : input::TouchMouseMode::Click;
-    m_orchestrator.setTouchMouseMode(modeEnum);
+    m_orchestrator.setTouchMouseMode(toInputTouchMouseMode(normalized));
+
+    const char* logName = "click";
+    if (normalized == AppConfig::kTouchMouseTrackpad) {
+        logName = "trackpad";
+    } else if (normalized == AppConfig::kTouchMouseLocked) {
+        logName = "locked";
+    }
+    logInfo(std::string("[StreamView] touch mouse mode -> ") + logName);
+
+    if (showToast) {
+        m_modeToastText = touchMouseModeToastText(normalized);
+        m_modeToastTime = std::chrono::steady_clock::now();
+    }
+}
+
+void LevelUpStreamView::toggleTouchMouseMode() {
+    const int cur = normalizeTouchMouseMode(m_cfg.touchMouseMode);
+    const int nextMode = (cur + 1) % 3;
+    applyTouchMouseMode(nextMode, true);
     m_lastTouchActivity = std::chrono::steady_clock::now();
     m_touchControlsVisible = true;
-    logInfo(std::string("[StreamView] touch mouse mode -> ") +
-            (nextMode == AppConfig::kTouchMouseTrackpad ? "trackpad" : "click"));
-    brls::Application::notify(
-        nextMode == AppConfig::kTouchMouseTrackpad
-            ? "已切换为触控板模式（滑动移动 · 轻点左键 · 双指右键/滚轮）"
-            : "已切换为点击模式（触屏直接点击）");
 }
 
 void LevelUpStreamView::openPauseOverlay() {
@@ -829,18 +1035,12 @@ void LevelUpStreamView::openPauseOverlay() {
     panel->addView(title);
 
     const auto snap = m_orchestrator.stats();
-    char subBuf[160];
-    std::snprintf(subBuf,
-                  sizeof(subBuf),
-                  "%dx%d | RTT %lldms | Loss %llu | vPad#%u",
-                  snap.video.width > 0 ? snap.video.width : m_targetWidth,
-                  snap.video.height > 0 ? snap.video.height : m_targetHeight,
-                  static_cast<long long>(snap.rtc.rttMs),
-                  static_cast<unsigned long long>(snap.rtc.rtpPacketsLost),
-                  static_cast<unsigned>(snap.vpadId));
+    const int subW = snap.video.width > 0 ? snap.video.width : m_targetWidth;
+    const int subH = snap.video.height > 0 ? snap.video.height : m_targetHeight;
 
     auto* subtitle = new brls::Label();
-    subtitle->setText(subBuf);
+    subtitle->setText(formatCompactHud(
+        snap, subW, subH, m_fpsEstimate, m_bitrateKbps, m_recentPacketsLost, m_recentPacketsRecv));
     subtitle->setFontSize(15.0f);
     subtitle->setTextColor(nvgRGB(148, 163, 184));
     subtitle->setHorizontalAlign(brls::HorizontalAlign::CENTER);
@@ -854,7 +1054,7 @@ void LevelUpStreamView::openPauseOverlay() {
         auto* btn = new brls::Button();
         btn->setStyle(style);
         btn->setText(label);
-        btn->setHeight(50.0f);
+        btn->setHeight(46.0f);
         btn->setMargins(5.0f, 0.0f, 5.0f, 0.0f);
         return btn;
     };
@@ -933,6 +1133,20 @@ void LevelUpStreamView::openPauseOverlay() {
         return true;
     });
     panel->addView(layoutBtn);
+
+    auto* mouseModeBtn = makeButton(
+        std::string("触屏鼠标：") + touchMouseModeShortLabel(m_cfg.touchMouseMode),
+        &brls::BUTTONSTYLE_DEFAULT);
+    mouseModeBtn->registerClickAction([self, alive, mouseModeBtn](brls::View*) {
+        if (!alive->load()) {
+            return true;
+        }
+        const int nextMode = (normalizeTouchMouseMode(self->m_cfg.touchMouseMode) + 1) % 3;
+        self->applyTouchMouseMode(nextMode, false);
+        mouseModeBtn->setText(std::string("触屏鼠标：") + touchMouseModeShortLabel(nextMode));
+        return true;
+    });
+    panel->addView(mouseModeBtn);
 
     auto* exitBtn = makeButton("退出云游戏（安全释放实例）", &brls::BUTTONSTYLE_DEFAULT);
     exitBtn->setTextColor(nvgRGB(248, 113, 113));

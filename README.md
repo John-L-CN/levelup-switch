@@ -103,6 +103,31 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 ### 变更记录
 
+#### v0.3.3（2026-11-27，**正式版 / stable**）
+
+> 从这一版起 `v0.3.x` 系列退出「实验性」：优选节点选路、悬浮触控栏、鼠标锁定与退出链路都已在实际对局中验证稳定，作为正式版发布。以下改动自上版 `v0.3.2` 起累积。
+
+- **优选边缘节点逻辑重做（选路真正生效）**：
+  - 测速探针从 libcurl 7.69.1 `CONNECT_ONLY` 改为**非阻塞 BSD socket + `poll()`** 直接计三次握手耗时，优先直连 `dialpoints` 给出的 `rtt_ping_address` IPv4（省掉额外 DNS 查询与解析劫持），单点超时 200 ms 放宽到 900 ms（对齐 `go-client`），并支持 `spare_address` 的主机名/IPv6 兜底解析。修掉 Switch 上「所有点都记 999 ms → `pickArea` 恒为 0」导致选路形同虚设的问题。
+  - **主/备双区域表态**：新增 `pickPreferredAreas()`，`union/apply` 同时上报首选 `area_type` 与次选 `try_area_type`；调度没给首选时按次选兜底，日志同时打印 `askedArea` / `askedTry`。
+  - **反馈记账修正**：`mergeDialCache()` 覆盖测速条目时不再误清 `live_rtt` / 丢包 / `rejects`；服务端回包 `area=0`（未指派）不再误记一次「被拒」；`area=0` 时额外 dump apply 回包字段结构（`describeApplySchema`）便于排查。后台复测改为每点 1 次采样，缩短与首帧抢 Wi-Fi 的时间窗。
+- **HUD 精简为单行**：
+  - 原来两行的堆叠信息（`LevelUp | WxH fps | RTT | Loss | PLI | NACK` + 第二行 `vPad / 震动 / 音频解码·补包·延迟 / 视频解码·跳帧 / 链路状态`）合并成**一行半透明小胶囊**：`1280x720 | 59.9fps | 8.4Mbps | 网络 23ms | 解码 2.1ms | 丢包 0`，按文字实际宽度自适应，不再横向铺满整屏。
+  - 新增实时指标：码率（RTP 收字节差值的指数平滑，Kbps/Mbps 自适应单位）、解码单帧耗时（NVDEC 解码往返，EMA 平滑）、**5 秒滑动窗实时丢包率**；串流暂停菜单的副标题也改用同一行紧凑格式。设置标题栏补上版本号（`LevelUp-NX 设置 v0.3.3`），一眼能确认当前跑的版本。
+- **主界面快捷方式一次安装、升级 NRO 免重建**：
+  - 内置轻量级链式引导器 `sdmc:/switch/levelup-nx/launcher.nro`（与 `LevelUp-NX.nro` 同仓构建并打包在 `romfs`）。桌面快捷方式统一指向该固定路径与固定 Title ID，由引导器扫描 `nro_dir.txt`、`sdmc:/switch/LevelUp-NX/`、`sdmc:/switch/levelup-nx/` 与 `sdmc:/switch/`，读取各 NRO 的 `NACP display_version` 与文件名语义版本，自动通过 `envSetNextLoad` 在同进程满血权限下链式加载最新 `LevelUp-NX-v*.nro`。
+  - 后续删掉旧版 `.nro` 换成新版 `.nro` 后，旧的桌面快捷方式可直接启动新版；重装快捷方式时也会复用同一 Title ID 覆盖更新，不再多出重复图标。
+- **修复主界面快捷方式显示 `ver.1.6.0`**：
+  - 将 `APP_VERSION` 与 `MOONLIGHT_NACP_VERSION` 统一到单一版本变量，并在 `patchNacp()` 中显式清零并覆盖 `display_version`（同时清零 `lang.name/author`），避免沿用上游 Moonlight 默认的 `1.6.0` 或宿主游戏版本号。
+- **修复优选边缘节点测速在 Switch 上全记 `999ms` 导致 `pickArea=0`**：
+  - 把测速探测从旧版 `libcurl 7.69.1 CONNECT_ONLY` 改为直接非阻塞 BSD socket + `poll()` TCP 三次握手，优先直连 `dialpoints` 返回的 `rtt_ping_address` IPv4（跳过额外 DNS 查询与解析劫持），超时放宽到 900 ms（对齐 `go-client`），并在 `union/apply` 中同时上报次选区域 `try_area_type`。
+  - 修复 `mergeDialCache()` 覆盖测速条目时误清 `live_rtt` / 丢包 / 拒绝惩罚的缺陷，以及 `unionApply` 回包 `area=0` 时误记一次拒绝的缺陷。
+- **串流鼠标新增「鼠标锁定」模式与不遮挡底部轻提示**：
+  - 触屏鼠标模式扩展为三档轮换：**点击模式** → **触控板模式** → **鼠标锁定**（锁定后触屏操作不传递到云端游戏，仅响应左上「虚拟键盘」与右上「鼠标模式切换」两个悬浮按钮），并同步接入大厅设置与串流暂停菜单。
+  - 切换模式后的提示改为串流画面**底部居中非交互轻提示**（1.9s 自动淡出），不再使用右上角系统通知条遮挡切换按钮，支持连续点按切换。
+- **彻底修复 Switch 退出期 `[FATAL] std::terminate` / 「由于发生错误，软件已关闭」**：
+  - 查明 `libnx` 下 `pthread_detach()` 恒返回 `ENOSYS`，导致 `std::thread::detach()` 一定会抛出异常并在析构时触发 `std::terminate()`。`exit_guard` 改用 `libnx` 原生 `Thread` + `svcExitProcess()` 兜底、正常退出调用 `finishExitGuard()` 回收线程，并将 `rtc_session` 的 `graveyard` 改为进程常驻堆分配以避免 `__cxa_finalize` 析构 `libdatachannel` 全局态再次调用 `detach()`。
+
 #### v0.3.2（2026-11-26，**实验性** / pre-release）
 
 - **串流画面悬浮触控栏（点击屏幕显示，3 秒无操作自动隐藏）**：
@@ -170,7 +195,7 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 1. 从 [Releases](https://github.com/John-L-CN/levelup-switch/releases) 下载 `LevelUp-NX-vX.Y.Z.nro`，拷到 SD 卡：`sdmc:/switch/LevelUp-NX/`
    （文件名带版本号，方便保留旧版回滚；放进去的文件名随意，程序会在 `sdmc:/switch/levelup-nx/` 建自己的配置目录。）
-2. 桌面图标（可选）：启动客户端后 `+` 进设置 → **安装到 Switch 主界面（桌面图标）**，返回桌面即可看到入口（需要大气层签名补丁 / `sys-patch`）。
+2. 桌面图标（可选）：启动客户端后 `+` 进设置 → **安装到 Switch 主界面（桌面图标）**，返回桌面即可看到入口（需要大气层签名补丁 / `sys-patch`）。自 `v0.3.3` 起，快捷方式通过内置 `sdmc:/switch/levelup-nx/launcher.nro` 动态查找最新 `LevelUp-NX-v*.nro`，安装一次后**后续升级删除旧版 `.nro`、放入新版 `.nro` 无需重建快捷方式**（若之前装过 `v0.3.2` 或更早版本的旧桌面图标，删掉旧图标并在新版里重装一次即可）。
 3. **必须以 Title Override（全内存）模式运行**：按住 `R` 键点开任意已安装游戏进入 `hbmenu`，再启动本程序。
    直接用相册（Album Applet）启动内存不够，大厅顶部会弹橙色提示，串流会失败。
 
@@ -208,7 +233,8 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 | | 掌机分辨率 (底座固定1080p) | 720p (默认) / 1080p (超采样更清晰)；仅掌机生效，底座始终 1080p |
 | | 画质 | **固定「高清」**，不可调（云端档位 2）；弱网下云端会自动降码率 |
 | | 画质优先模式 (VQ_FIRST) | 开启后云端按画质优先分配码率，静态画面不会被压糊（默认开） |
-| | 默认显示性能 HUD | 起流后默认叠加帧率/码率/丢包等信息 |
+| | 默认显示性能 HUD | 起流后默认叠加单行性能条（分辨率 / 帧率 / 码率 / 网络 RTT / 解码耗时 / 实时丢包率） |
+| | 触屏鼠标模式 | 点击模式（触屏绝对坐标直点）/ 触控板模式（滑动移动 + 轻点左键 + 双指右键与滚轮）/ 鼠标锁定（触屏不传给云端，只响应悬浮按钮） |
 | | 反转摇杆 Y 轴 | 个别游戏上下反了再开 |
 | | Xbox 按键布局 | 把 `A↔B`、`X↔Y` 互换（默认关，Switch 语义与云端一致） |
 | | 串流音频音量 | 0 / 25 / 50 / 75 / 100 % |
@@ -220,7 +246,7 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 ### 6. 串流中操作
 
-- 手柄按键原生直通云端，无需任何映射设置；触屏可当鼠标/触控板用。
+- 手柄按键原生直通云端，无需任何映射设置；触屏可当鼠标/触控板用。点击屏幕左上「虚拟键盘」呼出系统软键盘，右上按钮在 **点击模式 → 触控板模式 → 鼠标锁定** 之间轮换（每次切换在画面底部弹一条 1.9 s 的轻提示，不遮挡按钮）。
 - **呼出串流菜单**：长按 `-` + `+` 400 ms，或同时按 `L` + `R` + `-` + `+`（立即触发）。
   菜单项：继续游戏 / 切换性能 HUD / 请求关键帧（画面花屏、卡顿时手动刷新参考帧）/ 开关震动 / 安全退出。
 - **安全退出**会按序停媒体 → BE `cmd=43`（回收 vPad）→ `cmd=9`（退出游戏）→ `stopGame`（释放云端实例），最后才拆 WebRTC 传输层；顺序这么排是为了任何一步异常都不会跳过云端释放。直接关程序偶发会残留实例，客户端会在 `pending-release.txt` 里留下标记，下次启动先强制回收。
@@ -244,7 +270,7 @@ python scripts/ci/publish_release.py --tag v0.2.0 --apply
 
 | 文件 | 作用 |
 | --- | --- |
-| `config.json` | `deviceId`（设备指纹，**不要随便清空**）、登录态（`sessionKey` / `ciKey`）、账号信息与全部设置项（含 `handheldResolution` 掌机分辨率）；v0.3.0 起还存 `lpUuid` / `lastPkgName`（大厅预热测速用，学到后自动写入） |
+| `config.json` | `deviceId`（设备指纹，**不要随便清空**）、登录态（`sessionKey` / `ciKey`）、账号信息与全部设置项（含 `handheldResolution` 掌机分辨率、`touchMouseMode` 触屏鼠标模式）；v0.3.0 起还存 `lpUuid` / `lastPkgName`（大厅预热测速用，学到后自动写入） |
 | `recent_<uid>.json` | 该账号的最近游戏（最多 12 条，按账号隔离） |
 | `games_library.json` | 在线目录落盘缓存（离线时展示用；程序内置一份 romfs 兜底库） |
 | `covers/` | 游戏封面缓存 |

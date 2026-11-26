@@ -3,9 +3,11 @@
 #include "levelup/video_pipeline.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <thread>
 #include <vector>
 
 using namespace levelup::video;
@@ -226,6 +228,31 @@ int main() {
         assert(std::fabs(crop1088To720.uvData[1] - 0.0f) < 1e-5f);
         assert(std::fabs(crop1088To720.uvData[2] - 1.0f) < 1e-5f);
         assert(std::fabs(crop1088To720.uvData[3] - (1080.0f / 1088.0f)) < 1e-5f);
+    }
+
+    // 6. VideoPipeline stats：默认 decodeTimeUs=0，出帧后更新 decodeTimeUs >= 1
+    {
+        PipelineStatsSnapshot emptySnap;
+        assert(emptySnap.decodeTimeUs == 0);
+
+        VideoPipeline pipe;
+        assert(pipe.stats().decodeTimeUs == 0);
+        pipe.start(1280, 720, 60);
+
+        const std::vector<uint8_t> idr = {0x65, 0x88, 0x84, 0x21};
+        pipe.pushRtp(1, 96, idr.data(), idr.size(), true, 90000);
+
+        PipelineStatsSnapshot st{};
+        for (int i = 0; i < 100; ++i) {
+            st = pipe.stats();
+            if (st.decodedFrames >= 1) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        assert(st.decodedFrames == 1);
+        assert(st.decodeTimeUs >= 1);
+        pipe.stop();
     }
 
     std::cout << "test_m3_video_rtp: ALL PASSED\n";

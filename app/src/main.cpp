@@ -46,7 +46,9 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 
 #ifdef LEVELUP_ENABLE_WEBRTC
 #include <curl/curl.h>
+#include "forwarder_maker.hpp"
 #include "levelup/exit_guard.hpp"
+#include "levelup/rtc_session.hpp"
 #include "levelup/rumble_switch.hpp"
 #include "levelup/ui/lobby_activity.hpp"
 #include "levelup/webrtc_probe.hpp"
@@ -134,6 +136,13 @@ void closeLevelupLogFile() {
         }
     }
     std::fflush(out);
+#ifdef __SWITCH__
+    if (levelup::isExiting()) {
+        levelup::net::silenceRtcLoggingForExit();
+        appletUnlockExit();
+        svcExitProcess();
+    }
+#endif
     std::abort();
 }
 
@@ -254,6 +263,12 @@ int main(int argc, char* argv[]) {
     Settings::instance().set_working_dir(home);
     Settings::instance().set_launch_path(argc > 0 ? argv[0] : "");
     brls::Logger::info("Working dir, {}", home);
+#if defined(__SWITCH__) && defined(LEVELUP_ENABLE_WEBRTC)
+    syncLevelUpLauncherOnStartup(Settings::instance().launch_path());
+    brls::Logger::info("[BOOT] version={} launchPath={}",
+                       APP_VERSION,
+                       Settings::instance().launch_path());
+#endif
 
     // Have the application register an action on every activity that will quit
     // when you press BUTTON_START
@@ -326,6 +341,9 @@ int main(int argc, char* argv[]) {
 
 #ifdef LEVELUP_ENABLE_WEBRTC
     brls::Logger::info("[EXIT] main loop returned, tearing down");
+    levelup::net::silenceRtcLoggingForExit();
+    levelup::input::stopIdleVibrationGuard();
+    levelup::finishExitGuard();
 #endif
 
 #ifdef LEVELUP_ENABLE_WEBRTC
@@ -335,7 +353,17 @@ int main(int argc, char* argv[]) {
             std::fprintf(g_levelupLogFile, "[FATAL] unhandled exception in main: %s\n", e.what());
             std::fflush(g_levelupLogFile);
         }
+        levelup::net::silenceRtcLoggingForExit();
+        levelup::input::stopIdleVibrationGuard();
+        levelup::finishExitGuard();
         closeLevelupLogFile();
+        std::fflush(nullptr);
+#ifdef __SWITCH__
+        if (levelup::isExiting() || levelup::net::hasActiveRtcRuntime()) {
+            appletUnlockExit();
+            svcExitProcess();
+        }
+#endif
         curl_global_cleanup();
         return EXIT_FAILURE;
     } catch (...) {
@@ -344,11 +372,33 @@ int main(int argc, char* argv[]) {
             std::fprintf(g_levelupLogFile, "[FATAL] unhandled non-std exception in main\n");
             std::fflush(g_levelupLogFile);
         }
+        levelup::net::silenceRtcLoggingForExit();
+        levelup::input::stopIdleVibrationGuard();
+        levelup::finishExitGuard();
         closeLevelupLogFile();
+        std::fflush(nullptr);
+#ifdef __SWITCH__
+        if (levelup::isExiting() || levelup::net::hasActiveRtcRuntime()) {
+            appletUnlockExit();
+            svcExitProcess();
+        }
+#endif
         curl_global_cleanup();
         return EXIT_FAILURE;
     }
     closeLevelupLogFile();
+    std::fflush(nullptr);
+#ifdef __SWITCH__
+    // 收到系统退出请求（OnExitRequest）或本次运行启用过 libdatachannel（后台 PollService/
+    // ThreadPool/juice/usrsctp 线程常驻）时，绝不让 main() 返回到 __call_exitprocs /
+    // userAppExit(socketExit) / hbloader 卸载 NRO 代码页，否则后台线程访问已卸载的 bsd:u 或
+    // 代码段必触发「由于发生错误，软件已关闭」。此时所有云端实例、日志与配置均已落盘收尾，
+    // 直接解锁退出并由内核原子结束整个进程。
+    if (levelup::isExiting() || levelup::net::hasActiveRtcRuntime()) {
+        appletUnlockExit();
+        svcExitProcess();
+    }
+#endif
     curl_global_cleanup();
 #endif
 

@@ -5,6 +5,7 @@
 
 #include <borealis.hpp>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -51,6 +52,8 @@ class LevelUpStreamView : public brls::Box {
     void drawTouchOverlayControls(NVGcontext* vg, float alphaFactor);
     void openVirtualKeyboard();
     void toggleTouchMouseMode();
+    void applyTouchMouseMode(int nextMode, bool showToast);
+    void drawModeToast(NVGcontext* vg, float x, float y, float width, float height);
     std::pair<int, int> detectTargetResolution() const;
 
     GameEntry m_game;
@@ -86,11 +89,24 @@ class LevelUpStreamView : public brls::Box {
     int m_videoSurfaceW = 0;
     int m_videoSurfaceH = 0;
 
+    struct LossBucket {
+        uint64_t lost = 0;
+        uint64_t recv = 0;
+    };
+    static constexpr size_t kLossWindowBuckets = 10; // 10 x 500ms = 5s 实时丢包窗口
+
     std::chrono::steady_clock::time_point m_lastHudUpdate{};
     uint64_t m_prevDecodedFrames = 0;
+    uint64_t m_prevRtpBytesRecv = 0;
     double m_fpsEstimate = 0.0;
-    std::string m_hudLine1;
-    std::string m_hudLine2;
+    double m_bitrateKbps = 0.0;
+    std::array<LossBucket, kLossWindowBuckets> m_lossWindow{};
+    size_t m_lossWindowIdx = 0;
+    uint64_t m_prevRtpPacketsLost = 0;
+    uint64_t m_prevRtpPacketsRecv = 0;
+    uint64_t m_recentPacketsLost = 0;
+    uint64_t m_recentPacketsRecv = 0;
+    std::string m_hudLine;
 
     // 串流界面左上/右上半透明悬浮按钮（点击屏幕显示，3 秒无操作自动隐藏）
     bool m_touchControlsVisible = false;
@@ -101,6 +117,8 @@ class LevelUpStreamView : public brls::Box {
     std::chrono::steady_clock::time_point m_lastTouchActivity{};
     input::TouchHitRect m_kbBtnRect{};
     input::TouchHitRect m_mouseBtnRect{};
+    std::string m_modeToastText;
+    std::chrono::steady_clock::time_point m_modeToastTime{};
 };
 
 } // namespace levelup::ui

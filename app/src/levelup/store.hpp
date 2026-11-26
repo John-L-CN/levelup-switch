@@ -41,9 +41,10 @@ struct AppConfig {
     /// 掌机模式可选的流分辨率高度（底座模式始终固定 1080p）。
     static constexpr int kHandheldRes720 = 720;
     static constexpr int kHandheldRes1080 = 1080;
-    /// 串流触屏鼠标模式：0=点击模式（绝对坐标直点），1=触控板模式（相对移动+轻触点击）。
+    /// 串流触屏鼠标模式：0=点击模式（绝对坐标直点），1=触控板模式（相对移动+轻触点击），2=鼠标锁定（触屏不传递到游戏，仅响应悬浮按钮）。
     static constexpr int kTouchMouseClick = 0;
     static constexpr int kTouchMouseTrackpad = 1;
+    static constexpr int kTouchMouseLocked = 2;
 
     std::string deviceId;
     api::Credentials cred;
@@ -71,7 +72,7 @@ std::vector<GameEntry> matchGames(const std::vector<GameEntry>& games, std::stri
 /// 归一化掌机分辨率高度（仅接受 720 / 1080，其余值回落为 720）。
 int normalizeHandheldResolution(int res);
 
-/// 归一化触屏鼠标模式（仅接受 0=点击 / 1=触控板，其余值回落为 0）。
+/// 归一化触屏鼠标模式（仅接受 0=点击 / 1=触控板 / 2=鼠标锁定，其余值回落为 0）。
 int normalizeTouchMouseMode(int mode);
 
 /// 根据是否底座模式与掌机分辨率设置，决定向云端申请的目标分辨率（底座固定 1920x1080）。

@@ -78,6 +78,12 @@ set(VERSION_MAJOR "1")
 set(VERSION_MINOR "6")
 set(VERSION_ALTER "0")
 set(VERSION_BUILD "1")
+set(LEVELUP_VERSION "0.3.3") # 必须与对外发布的 git tag（vX.Y.Z）一致
+if (LEVELUP_ENABLE_WEBRTC)
+    set(MOONLIGHT_APP_VERSION "${LEVELUP_VERSION}")
+else ()
+    set(MOONLIGHT_APP_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}")
+endif ()
 set(PACKAGE_NAME "ru.xitrix.Moonlight")
 set(PSN_TITLE_ID  "MNTL00000")
 set(PSN_VERSION  "01.06")
@@ -142,7 +148,7 @@ if (DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
 endif ()
 
 add_definitions(
-        -DAPP_VERSION="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}"
+        -DAPP_VERSION="${MOONLIGHT_APP_VERSION}"
         -Dcimg_display=0
         -Dcimg_use_png
         -Dcimg_no_system_calls
@@ -425,20 +431,43 @@ elseif (PLATFORM_SWITCH)
     set(MOONLIGHT_NRO_NAME "${PROJECT_NAME}")
     set(MOONLIGHT_NACP_NAME "${PROJECT_NAME}")
     set(MOONLIGHT_NACP_AUTHOR "${PROJECT_AUTHOR}")
-    set(MOONLIGHT_NACP_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}")
+    set(MOONLIGHT_NACP_VERSION "${MOONLIGHT_APP_VERSION}")
+    set(_moonlight_nro_deps ${PROJECT_NAME})
+    set(_moonlight_copy_launcher_cmd)
     if (PLATFORM_SWITCH2)
         set(MOONLIGHT_NRO_NAME "Moonlight-Switch")
     elseif (LEVELUP_ENABLE_WEBRTC)
         set(MOONLIGHT_NRO_NAME "LevelUp-NX")
         set(MOONLIGHT_NACP_NAME "LevelUp-NX")
         set(MOONLIGHT_NACP_AUTHOR "LevelUp-Switch")
-        set(MOONLIGHT_NACP_VERSION "0.3.2") # 必须与对外发布的 git tag（vX.Y.Z）一致
+        set(MOONLIGHT_NACP_VERSION "${LEVELUP_VERSION}") # 必须与对外发布的 git tag（vX.Y.Z）一致
+
+        add_executable(levelup-launcher
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/launcher/main.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/launcher/nro_picker.c
+        )
+        target_link_libraries(levelup-launcher PRIVATE nx)
+        set(_levelup_launcher_nacp "${CMAKE_CURRENT_BINARY_DIR}/levelup-launcher.nacp")
+        set(_levelup_launcher_nro "${CMAKE_CURRENT_BINARY_DIR}/levelup-launcher.nro")
+        add_custom_command(
+            OUTPUT "${_levelup_launcher_nro}"
+            DEPENDS levelup-launcher "${PROJECT_ICON}"
+            COMMAND ${NX_NACPTOOL_EXE} --create "LevelUp-NX Launcher" "LevelUp-Switch" "${LEVELUP_VERSION}" "${_levelup_launcher_nacp}"
+            COMMAND ${NX_ELF2NRO_EXE} "$<TARGET_FILE:levelup-launcher>" "${_levelup_launcher_nro}" --icon=${PROJECT_ICON} --nacp=${_levelup_launcher_nacp}
+        )
+        add_custom_target(levelup-launcher.nro DEPENDS "${_levelup_launcher_nro}")
+        list(APPEND _moonlight_nro_deps levelup-launcher.nro)
+        set(_moonlight_copy_launcher_cmd
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/resources/levelup
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_levelup_launcher_nro}" "${CMAKE_BINARY_DIR}/resources/levelup/launcher.nro"
+        )
     endif ()
-    add_custom_target(${MOONLIGHT_NRO_NAME}.nro DEPENDS ${PROJECT_NAME}
+    add_custom_target(${MOONLIGHT_NRO_NAME}.nro DEPENDS ${_moonlight_nro_deps}
         COMMAND ${NX_NACPTOOL_EXE} --create "${MOONLIGHT_NACP_NAME}" "${MOONLIGHT_NACP_AUTHOR}" "${MOONLIGHT_NACP_VERSION}" ${PROJECT_NAME}.nacp --titleid=${PROJECT_TITLEID}
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/resources
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_RESOURCES} ${CMAKE_BINARY_DIR}/resources
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/resources/font
+        ${_moonlight_copy_launcher_cmd}
         COMMAND ${NX_ELF2NRO_EXE} ${PROJECT_NAME}.elf ${MOONLIGHT_NRO_NAME}.nro --icon=${PROJECT_ICON} --nacp=${PROJECT_NAME}.nacp --romfsdir=${CMAKE_BINARY_DIR}/resources
     )
     if (PLATFORM_SWITCH2)

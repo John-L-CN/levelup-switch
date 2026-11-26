@@ -7,8 +7,8 @@
 //   4. apply 响应解析：area_type / idc / area_stun_* / spare_address / uuid / client_info
 //
 // 编译（host，Linux）：
-//   g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src \
-//       tests/test_m7_dial_rtt.cpp app/src/levelup/crypto_util.cpp \
+//   g++ -std=c++20 -DLEVELUP_NO_CURL -DLEVELUP_NO_RTC -Iapp/src
+//       tests/test_m7_dial_rtt.cpp app/src/levelup/crypto_util.cpp
 //       app/src/levelup/proto_lite.cpp app/src/levelup/ytcx_client.cpp -o t_m7 -lpthread
 #include "levelup/crypto_util.hpp"
 #include "levelup/ytcx_client.hpp"
@@ -19,6 +19,13 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+
+#if !defined(_WIN32)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 using namespace levelup;
 using namespace levelup::ytcx;
@@ -362,6 +369,165 @@ int main() {
         assert(bad[0].areaType == 0);
         assert(bad[0].rtt95 == kDialFailMs);
     }
+
+    // 11. resolveDialEndpoint：优先用 rtt_ping_address 的 IPv4 + rtt_ws_url 的端口
+    {
+        DialSample s;
+        s.rttWsUrl = "wss://lt-zj-9077-st-point.yuntiancloud.com:18256/v1/dialpoint";
+        s.rttPingUrl = "221.204.53.137";
+        std::string host;
+        int port = 0;
+        assert(resolveDialEndpoint(s, host, port));
+        assert(host == "221.204.53.137");
+        assert(port == 18256);
+
+        s.rttPingUrl.clear();
+        assert(resolveDialEndpoint(s, host, port));
+        assert(host == "lt-zj-9077-st-point.yuntiancloud.com");
+        assert(port == 18256);
+
+        s.rttWsUrl.clear();
+        s.rttPingUrl = "116.136.46.148:18088";
+        assert(resolveDialEndpoint(s, host, port));
+        assert(host == "116.136.46.148");
+        assert(port == 18088);
+
+        DialSample empty;
+        assert(!resolveDialEndpoint(empty, host, port));
+    }
+
+    // 12. pickPreferredAreas：主/备双区域选取与单可信区域回退
+    {
+        const int64_t now = 1700000000000LL;
+        std::vector<DialSample> cache = {
+            makeSample("1.1.1.1", 4090, 9077, 25, now),
+            makeSample("1.1.1.1", 4100, 9505, 42, now),
+            makeSample("1.1.1.1", 4110, 9600, kDialFailMs, now),
+        };
+        int primary = -1;
+        int secondary = -1;
+        int score = 0;
+        pickPreferredAreas(cache, now, primary, secondary, &score);
+        assert(primary == 4090);
+        assert(secondary == 4100);
+        assert(score == 25);
+
+        std::vector<DialSample> single = {makeSample("1.1.1.1", 4090, 9077, 30, now)};
+        pickPreferredAreas(single, now, primary, secondary, &score);
+        assert(primary == 4090);
+        assert(secondary == 0);
+    }
+
+    // 13. mergeDialCache：新测速写入时保留已学习的 live 质量与调度反馈字段
+    {
+        const int64_t now = 1700000000000LL;
+        DialSample prev = makeSample("1.1.1.1", 4090, 9077, 40, now - 5000);
+        prev.liveRttMs = 19;
+        prev.lossPermille = 4;
+        prev.firstFrameMs = 2100;
+        prev.liveOk = true;
+        prev.liveTs = now - 4000;
+        prev.rejects = 1;
+        prev.queueRank = 2;
+
+        DialSample fresh = makeSample("1.1.1.1", 4090, 9077, 22, now);
+        const auto merged = mergeDialCache({prev}, {fresh});
+        assert(merged.size() == 1);
+        assert(merged[0].rtt95 == 22);
+        assert(merged[0].ts == now);
+        assert(merged[0].liveRttMs == 19);
+        assert(merged[0].lossPermille == 4);
+        assert(merged[0].firstFrameMs == 2100);
+        assert(merged[0].liveTs == now - 4000);
+        assert(merged[0].rejects == 1);
+        assert(merged[0].queueRank == 2);
+    }
+
+    // 14. parseUnionApplyResponse：body / dialpoint 兜底 area_type 与 null 防护
+    {
+        const std::string resp = R"({
+          "ret": {"code": 0, "msg": "ok"},
+          "body": {
+            "flow_id": "flow-1",
+            "token": "a-123-b",
+            "area_type": 4090,
+            "idc": 9077,
+            "access_info": {
+              "access_ipv4_address": "203.0.113.20",
+              "access_ipv4_port": 18000,
+              "area_type": null,
+              "idc": 0
+            },
+            "dialpoint": {"rtt_ws_url": "ws://203.0.113.20:18256/probe"}
+          }
+        })";
+        ApplyResult res;
+        assert(parseUnionApplyResponse(resp, res));
+        assert(res.areaType == 4090);
+        assert(res.idc == 9077);
+
+        // 字符串形式的 area_type / idc（如 "4090" / "9077"）也能正确解析；同时 schema 打印原始值
+        const std::string strResp = R"({
+          "ret": {"code": 0, "msg": "ok"},
+          "body": {
+            "flow_id": "flow-2",
+            "token": "a-456-b",
+            "access_info": {
+              "access_ipv4_address": "203.0.113.21",
+              "access_ipv4_port": 18000,
+              "area_type": "4090",
+              "idc": "9077"
+            }
+          }
+        })";
+        ApplyResult strRes;
+        assert(parseUnionApplyResponse(strResp, strRes));
+        assert(strRes.areaType == 4090);
+        assert(strRes.idc == 9077);
+
+        const std::string zeroSchema = describeApplySchema(R"({
+          "access_info": {"access_ipv4_address": "1.2.3.4", "area_type": 0, "idc": 0}
+        })");
+        assert(zeroSchema.find("ai.area_type=0") != std::string::npos);
+        assert(zeroSchema.find("ai.idc=0") != std::string::npos);
+    }
+
+#if !defined(_WIN32)
+    // 15. 回环 TCP 测速验证：开放端口返回 [1, kDialFailMs - 1]，关闭端口失败并给出错误原因
+    {
+        const int listenFd = ::socket(AF_INET, SOCK_STREAM, 0);
+        assert(listenFd >= 0);
+        int reuse = 1;
+        ::setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        struct sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = htons(0);
+        assert(::bind(listenFd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) == 0);
+        assert(::listen(listenFd, 4) == 0);
+        socklen_t addrLen = sizeof(addr);
+        assert(::getsockname(listenFd, reinterpret_cast<struct sockaddr*>(&addr), &addrLen) == 0);
+        const int openPort = static_cast<int>(ntohs(addr.sin_port));
+        assert(openPort > 0);
+
+        std::string err;
+        const int openMs = dialProbeOnceMs("127.0.0.1", openPort, 500, &err);
+        assert(openMs >= 1 && openMs < kDialFailMs);
+
+        DialSample sample = makeSample("127.0.0.1", 4090, 9077, kDialFailMs, 0);
+        sample.rttPingUrl = "127.0.0.1";
+        sample.rttWsUrl = "wss://unused.invalid:" + std::to_string(openPort) + "/v1/dialpoint";
+        const auto probed = dialProbe({sample}, 2, 500, nullptr, 1);
+        assert(probed.size() == 1);
+        assert(probed[0].rtt95 >= 1 && probed[0].rtt95 < kDialFailMs);
+
+        ::close(listenFd);
+        err.clear();
+        const int closedMs = dialProbeOnceMs("127.0.0.1", openPort, 500, &err);
+        assert(closedMs < 0);
+        assert(!err.empty());
+    }
+#endif
 
     std::cout << "test_m7_dial_rtt: all assertions passed\n";
     return 0;

@@ -17,14 +17,12 @@
 #include "levelup/exit_guard.hpp"
 
 #include "levelup/log.hpp"
+#include "levelup/rtc_session.hpp"
 #include "levelup/rumble_switch.hpp"
 
 #include <atomic>
-#include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <string>
-#include <thread>
 
 #if defined(__SWITCH__)
 #include <switch.h>
@@ -42,10 +40,38 @@ constexpr int kExitDeadlineMs = 3000;
 
 #if defined(__SWITCH__)
 AppletHookCookie g_exitCookie;
+Thread g_deadlineThread{};
+std::atomic<bool> g_deadlineThreadCreated{false};
+std::atomic<bool> g_exitFinished{false};
+constexpr int kExitPollSliceMs = 50;
 
 void flushAllStreams()
 {
     std::fflush(nullptr);
+}
+
+void hardExitThreadEntry(void* arg)
+{
+    (void)arg;
+    for (int elapsed = 0; elapsed < kExitDeadlineMs; elapsed += kExitPollSliceMs) {
+        if (g_exitFinished.load()) {
+            return;
+        }
+        svcSleepThread(static_cast<s64>(kExitPollSliceMs) * 1000000LL);
+    }
+    if (g_exitFinished.load()) {
+        return;
+    }
+    // 走到这里说明正常退出流程没在 3 秒内结束（线程 join / 网络 / deko3d 卡住）。
+    // 直接用内核 syscall 结束进程：Horizon 看到进程退出就认为「软件已关闭」，不再弹关闭失败。
+    // 绝不能从后台线程调 std::_Exit(0)（会跳到 __nx_exit 切回主线程栈指针），
+    // 也绝不能用 std::thread::detach()（libnx 下 pthread_detach 恒返回 ENOSYS 必触 std::terminate）。
+    logWarn("[EXIT] graceful shutdown exceeded " + std::to_string(kExitDeadlineMs) +
+            "ms, forcing svcExitProcess");
+    levelup::net::silenceRtcLoggingForExit();
+    flushAllStreams();
+    appletUnlockExit();
+    svcExitProcess();
 }
 
 void armHardExitDeadline()
@@ -53,15 +79,27 @@ void armHardExitDeadline()
     if (g_deadlineArmed.exchange(true)) {
         return;
     }
-    std::thread([]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(kExitDeadlineMs));
-        // 走到这里说明正常退出流程没在 3 秒内结束（线程 join / 网络 / deko3d 卡住）。
-        // 直接结束进程：Horizon 看到进程退出就认为「软件已关闭」，不再弹关闭失败。
-        logWarn("[EXIT] graceful shutdown exceeded " + std::to_string(kExitDeadlineMs) +
-                "ms, forcing process exit");
-        flushAllStreams();
-        std::_Exit(0);
-    }).detach();
+    if (g_exitFinished.load()) {
+        return;
+    }
+    Result rc = threadCreate(&g_deadlineThread,
+                             hardExitThreadEntry,
+                             nullptr,
+                             nullptr,
+                             0x10000,
+                             0x3B,
+                             -2);
+    if (R_FAILED(rc)) {
+        logWarn("[EXIT] hard-exit watchdog threadCreate failed rc=" + std::to_string(rc));
+        return;
+    }
+    rc = threadStart(&g_deadlineThread);
+    if (R_FAILED(rc)) {
+        logWarn("[EXIT] hard-exit watchdog threadStart failed rc=" + std::to_string(rc));
+        threadClose(&g_deadlineThread);
+        return;
+    }
+    g_deadlineThreadCreated.store(true);
 }
 
 void onExitAppletHook(AppletHookType hook, void* arg)
@@ -94,6 +132,20 @@ void installExitGuard()
     appletHook(&g_exitCookie, onExitAppletHook, nullptr);
     logInfo("[EXIT] exit guard installed (hard-exit deadline " +
             std::to_string(kExitDeadlineMs) + "ms)");
+#endif
+}
+
+void finishExitGuard()
+{
+#if defined(__SWITCH__)
+    g_exitFinished.store(true);
+    if (g_hookInstalled.exchange(false)) {
+        appletUnhook(&g_exitCookie);
+    }
+    if (g_deadlineThreadCreated.exchange(false)) {
+        threadWaitForExit(&g_deadlineThread);
+        threadClose(&g_deadlineThread);
+    }
 #endif
 }
 

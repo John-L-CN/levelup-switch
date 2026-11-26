@@ -170,17 +170,26 @@ bool RtcSession::sendControlPacket(const std::vector<uint8_t>&) { return false; 
 bool RtcSession::isControlConnected() const { return false; }
 bool RtcSession::isDead(std::string*) const { return false; }
 RtcStatsSnapshot RtcSession::stats() const { return {}; }
+void silenceRtcLoggingForExit() {}
+bool hasActiveRtcRuntime() { return false; }
 
 #else
 
 namespace {
 
+std::atomic<bool> g_rtcLogSilenced{false};
+std::atomic<bool> g_rtcRuntimeActive{false};
+
 void initRtcLoggingOnce() {
+    g_rtcRuntimeActive.store(true, std::memory_order_relaxed);
     static std::once_flag s_once;
     std::call_once(s_once, []() {
         // Info level preserves ICE/DTLS/SCTP/DataChannel lifecycle logs while avoiding
         // per-heartbeat Debug spam on Switch SD card.
         rtc::InitLogger(rtc::LogLevel::Info, [](rtc::LogLevel level, std::string message) {
+            if (g_rtcLogSilenced.load(std::memory_order_relaxed)) {
+                return;
+            }
             while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
                 message.pop_back();
             }
@@ -221,17 +230,21 @@ void initRtcLoggingOnce() {
 namespace {
 
 std::mutex& graveyardMu() {
-    static std::mutex mu;
-    return mu;
+    static auto* mu = new std::mutex();
+    return *mu;
 }
 
 std::vector<std::shared_ptr<void>>& graveyard() {
-    static std::vector<std::shared_ptr<void>> parked;
-    return parked;
+    // Intentionally heap-allocated and leaked: __cxa_finalize must never
+    // destroy retired libdatachannel objects at process exit, because
+    // rtc::impl::Init teardown calls std::thread::detach() -> ENOSYS -> std::terminate on Switch.
+    static auto* parked = new std::vector<std::shared_ptr<void>>();
+    return *parked;
 }
 
 template <typename T>
 void retire(std::shared_ptr<T> obj) {
+    g_rtcRuntimeActive.store(true, std::memory_order_relaxed);
     if (!obj) {
         return;
     }
@@ -1901,11 +1914,15 @@ RtcStatsSnapshot RtcSession::stats() const {
     RtcStatsSnapshot snap;
     if (auto rh = m_impl->getRtcpHandler()) {
         snap.rtpPacketsRecv = rh->packetsReceived();
+        snap.rtpBytesRecv = rh->bytesReceived();
         snap.rtpPacketsLost = rh->totalLostEstimate();
         snap.nackSent = rh->nackSent();
         snap.pliSent = rh->pliSent();
         snap.firSent = rh->firSent();
         snap.videoSsrc = rh->videoSsrc();
+    }
+    if (auto arh = m_impl->getAudioRtcpHandler()) {
+        snap.rtpBytesRecv += arh->bytesReceived();
     }
     snap.dcRecvCount = m_impl->dcRecvCount.load();
     snap.rttMs = m_impl->lastRttMs.load();
@@ -1914,6 +1931,14 @@ RtcStatsSnapshot RtcSession::stats() const {
     snap.signalingReconnects = m_impl->reconnectAttempts.load();
     snap.mediaAlive = m_impl->gotFirstFrame.load() && !m_impl->dead.load();
     return snap;
+}
+
+void silenceRtcLoggingForExit() {
+    g_rtcLogSilenced.store(true, std::memory_order_relaxed);
+}
+
+bool hasActiveRtcRuntime() {
+    return g_rtcRuntimeActive.load(std::memory_order_relaxed) || graveyardSize() > 0;
 }
 
 #endif // LEVELUP_NO_RTC

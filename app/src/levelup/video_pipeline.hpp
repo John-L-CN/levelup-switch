@@ -47,6 +47,7 @@ struct PipelineStatsSnapshot {
     uint64_t decoderResets = 0;
     uint64_t keyRequests = 0;
     uint64_t queueFullDrops = 0;
+    uint32_t decodeTimeUs = 0;
     int width = 0;
     int height = 0;
     bool needKey = false;
@@ -129,6 +130,7 @@ class VideoPipeline {
     std::atomic<uint64_t> m_decoderResets{0};
     std::atomic<uint64_t> m_keyRequests{0};
     std::atomic<uint64_t> m_queueFullDrops{0};
+    std::atomic<uint32_t> m_decodeTimeUs{0};
     std::atomic<int> m_width{0};
     std::atomic<int> m_height{0};
 };

@@ -702,6 +702,10 @@ void LevelUpLobbyActivity::onResume() {
         std::shared_ptr<std::atomic<bool>> alive = m_alive;
         brls::sync([this, alive]() {
             if (!alive->load()) return;
+            if (!isForegroundActivity()) {
+                m_needsGridRebuild = true;
+                return;
+            }
             rebuildCategoryStrip();
             rebuildGameGrid();
         });
@@ -910,8 +914,17 @@ void LevelUpLobbyActivity::updateHeaderUi() {
     }
 }
 
+bool LevelUpLobbyActivity::isForegroundActivity() const {
+    const auto& stack = brls::Application::getActivitiesStack();
+    return stack.empty() || stack.back() == this;
+}
+
 void LevelUpLobbyActivity::rebuildCategoryStrip() {
     if (!m_categoryStrip) {
+        return;
+    }
+    if (!isForegroundActivity()) {
+        m_needsGridRebuild = true;
         return;
     }
     m_categoryStrip->clearViews();
@@ -994,6 +1007,10 @@ std::vector<GameEntry> LevelUpLobbyActivity::currentFilteredGames() const {
 
 void LevelUpLobbyActivity::rebuildGameGrid() {
     if (!m_scrollFrame) {
+        return;
+    }
+    if (!isForegroundActivity()) {
+        m_needsGridRebuild = true;
         return;
     }
 
@@ -1802,7 +1819,7 @@ void LevelUpLobbyActivity::openSettingsModal() {
     panel->setAlignItems(brls::AlignItems::STRETCH);
 
     auto* title = new brls::Label();
-    title->setText("LevelUp-NX 设置");
+    title->setText(std::string("LevelUp-NX 设置  v") + APP_VERSION);
     title->setFontSize(24.0f);
     title->setTextColor(theme["brls/text"]);
     title->setHorizontalAlign(brls::HorizontalAlign::CENTER);
@@ -1965,6 +1982,17 @@ void LevelUpLobbyActivity::openSettingsModal() {
     });
     list->addView(xboxCell);
 
+    auto* mouseModeCell = new brls::SelectorCell();
+    mouseModeCell->init(
+        "触屏鼠标模式",
+        {"点击模式（触屏直点）", "触控板模式（滑动/轻点）", "鼠标锁定（仅响应悬浮按钮）"},
+        normalizeTouchMouseMode(m_cfg.touchMouseMode),
+        [this](int idx) {
+            m_cfg.touchMouseMode = normalizeTouchMouseMode(idx);
+            m_store.saveConfig(m_cfg);
+        });
+    list->addView(mouseModeCell);
+
     auto* volCell = new brls::SelectorCell();
     volCell->init(
         "串流音频音量",
@@ -2020,7 +2048,7 @@ void LevelUpLobbyActivity::openSettingsModal() {
             const int rc = makeAppForwarder("LevelUp-NX", "LevelUp-Switch");
             if (rc == 0) {
                 logInfo("[Forwarder] installed LevelUp-NX home menu forwarder");
-                brls::Application::notify("已安装到 Switch 主界面，请返回桌面查看");
+                brls::Application::notify("已安装到 Switch 主界面（后续升级 NRO 无需重建），请返回桌面查看");
             } else {
                 char buf[128];
                 std::snprintf(buf, sizeof(buf), "主界面安装失败 (0x%X)，需确认大气层签名补丁/sys-patch", rc);

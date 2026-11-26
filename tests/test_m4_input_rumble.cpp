@@ -265,6 +265,38 @@ int main() {
         assert(sent.size() == 2);
         assert(sent[0][11] == 0x05 && sent[0][12] == kMouseButtonDown && sent[0][16] == kMouseRight);
         assert(sent[1][11] == 0x05 && sent[1][12] == kMouseButtonUp && sent[1][16] == kMouseRight);
+
+        // Locked mode: single tap, drag, two-finger tap/scroll emit nothing
+        sent.clear();
+        proc.setMode(TouchMouseMode::Locked, 1600, sendFn, seqFn);
+        proc.process(&tapPt, 1, 1610, sendFn, seqFn);
+        proc.process(&tpMove, 1, 1630, sendFn, seqFn);
+        proc.process(nullptr, 0, 1660, sendFn, seqFn);
+        TouchPoint twoScroll[2] = {{600, 460}, {650, 460}};
+        proc.process(twoPts, 2, 1700, sendFn, seqFn);
+        proc.process(twoScroll, 2, 1720, sendFn, seqFn);
+        proc.process(nullptr, 0, 1760, sendFn, seqFn);
+        assert(sent.empty());
+
+        // Switching Locked -> Click mid-touch suppresses stray clicks until lift
+        proc.process(&tapPt, 1, 1800, sendFn, seqFn);
+        proc.setMode(TouchMouseMode::Click, 1810, sendFn, seqFn);
+        proc.process(&tapPt, 1, 1820, sendFn, seqFn);
+        assert(sent.empty());
+        proc.process(nullptr, 0, 1840, sendFn, seqFn);
+        assert(sent.empty());
+        proc.process(&p1, 1, 1860, sendFn, seqFn);
+        assert(sent.size() == 2);
+
+        // Switching Click -> Locked mid-touch cleanly releases left mouse button
+        sent.clear();
+        proc.setMode(TouchMouseMode::Locked, 1900, sendFn, seqFn);
+        assert(sent.size() == 1);
+        assert(sent[0][11] == 0x23 && sent[0][14] == kMouseButtonUp);
+        proc.process(&p1, 1, 1910, sendFn, seqFn);
+        assert(sent.size() == 1);
+        proc.process(nullptr, 0, 1930, sendFn, seqFn);
+        assert(sent.size() == 1);
     }
 
     std::cout << "test_m4_input_rumble: ALL PASSED\n";

@@ -90,6 +90,7 @@ void TouchMouseProcessor::reset(int64_t nowMs, const SendPacketFn& sendFn, const
     m_hadTwoFingers = false;
     m_twoFingerScrolled = false;
     m_suppressed = false;
+    m_anyTouchDown = false;
     m_accumX = 0.0f;
     m_accumY = 0.0f;
 }
@@ -101,7 +102,7 @@ void TouchMouseProcessor::setMode(TouchMouseMode mode,
     if (m_mode == mode) {
         return;
     }
-    const bool wasTouching = m_clickActive || m_trackpadActive;
+    const bool wasTouching = m_clickActive || m_trackpadActive || m_anyTouchDown;
     reset(nowMs, sendFn, nextSeq);
     m_mode = mode;
     if (wasTouching) {
@@ -115,6 +116,7 @@ void TouchMouseProcessor::process(const TouchPoint* touches,
                                   const SendPacketFn& sendFn,
                                   const NextSeqFn& nextSeq) {
     if (!touches || count == 0) {
+        m_anyTouchDown = false;
         if (m_suppressed) {
             m_suppressed = false;
         }
@@ -147,7 +149,13 @@ void TouchMouseProcessor::process(const TouchPoint* touches,
         return;
     }
 
+    m_anyTouchDown = true;
+
     if (m_suppressed) {
+        return;
+    }
+
+    if (m_mode == TouchMouseMode::Locked) {
         return;
     }
 

@@ -14,6 +14,18 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 
+#if !defined(_WIN32)
+#include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 #ifndef LEVELUP_NO_CURL
 #include <curl/curl.h>
 #endif
@@ -29,6 +41,187 @@ std::string truncateMsg(std::string_view s, size_t n = 220) {
     if (s.size() <= n) return std::string(s);
     return std::string(s.substr(0, n)) + "...";
 }
+
+int jsonIntOr(const nlohmann::json& obj, const char* key, int defVal = 0) {
+    if (!obj.is_object() || !obj.contains(key)) return defVal;
+    const auto& v = obj[key];
+    if (v.is_number_integer()) return v.get<int>();
+    if (v.is_number_unsigned()) return static_cast<int>(v.get<uint64_t>());
+    if (v.is_string()) {
+        const std::string& s = v.get_ref<const std::string&>();
+        if (s.empty()) return defVal;
+        char* end = nullptr;
+        const long parsed = std::strtol(s.c_str(), &end, 10);
+        if (end != s.c_str() && *end == '\0') {
+            return static_cast<int>(parsed);
+        }
+    }
+    return defVal;
+}
+
+bool isValidIpv4Literal(std::string_view s) {
+    if (s.empty() || s.size() > 15) return false;
+    int parts = 0;
+    size_t i = 0;
+    while (i < s.size()) {
+        if (parts >= 4) return false;
+        const size_t start = i;
+        int val = 0;
+        int digits = 0;
+        while (i < s.size() && s[i] >= '0' && s[i] <= '9') {
+            val = val * 10 + (s[i] - '0');
+            ++digits;
+            ++i;
+            if (digits > 3 || val > 255) return false;
+        }
+        if (digits == 0) return false;
+        if (digits > 1 && s[start] == '0') return false;
+        ++parts;
+        if (i < s.size()) {
+            if (s[i] != '.') return false;
+            ++i;
+            if (i == s.size()) return false;
+        }
+    }
+    return parts == 4;
+}
+
+#if !defined(_WIN32)
+bool resolveHostIpv4(std::string_view host, struct in_addr& outAddr, std::string* errOut) {
+    if (host.empty()) {
+        if (errOut) *errOut = "empty host";
+        return false;
+    }
+    const std::string hostStr(host);
+    if (::inet_pton(AF_INET, hostStr.c_str(), &outAddr) == 1) {
+        return true;
+    }
+    struct addrinfo hints{};
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    struct addrinfo* res = nullptr;
+    const int rc = ::getaddrinfo(hostStr.c_str(), nullptr, &hints, &res);
+    if (rc != 0 || !res) {
+        if (errOut) {
+            *errOut = "resolve rc=" + std::to_string(rc);
+        }
+        if (res) ::freeaddrinfo(res);
+        return false;
+    }
+    bool found = false;
+    for (struct addrinfo* p = res; p != nullptr; p = p->ai_next) {
+        if (p->ai_family == AF_INET && p->ai_addr &&
+            p->ai_addrlen >= sizeof(struct sockaddr_in)) {
+            const auto* sin = reinterpret_cast<const struct sockaddr_in*>(p->ai_addr);
+            outAddr = sin->sin_addr;
+            found = true;
+            break;
+        }
+    }
+    ::freeaddrinfo(res);
+    if (!found && errOut) {
+        *errOut = "no IPv4 address";
+    }
+    return found;
+}
+
+int dialProbeIpv4OnceMs(const struct in_addr& addr,
+                        int port,
+                        int timeoutMs,
+                        const std::atomic<bool>* stopFlag,
+                        std::string* errOut) {
+    if (port <= 0 || port >= 65536) {
+        if (errOut) *errOut = "invalid port";
+        return -1;
+    }
+    if (timeoutMs <= 0) timeoutMs = kDialTimeoutMs;
+    if ((stopFlag && stopFlag->load()) || isExiting()) {
+        if (errOut) *errOut = "aborted";
+        return -1;
+    }
+
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        if (errOut) *errOut = "socket errno=" + std::to_string(errno);
+        return -1;
+    }
+
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        if (errOut) *errOut = "fcntl errno=" + std::to_string(errno);
+        ::close(fd);
+        return -1;
+    }
+
+    struct sockaddr_in sin{};
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(static_cast<uint16_t>(port));
+    sin.sin_addr = addr;
+
+    const auto t0 = std::chrono::steady_clock::now();
+    const int rc = ::connect(fd, reinterpret_cast<const struct sockaddr*>(&sin), sizeof(sin));
+    if (rc == 0) {
+        const int elapsed = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0).count());
+        ::close(fd);
+        return std::clamp(elapsed, 1, kDialFailMs - 1);
+    }
+    if (errno != EINPROGRESS && errno != EWOULDBLOCK) {
+        if (errOut) *errOut = "connect errno=" + std::to_string(errno);
+        ::close(fd);
+        return -1;
+    }
+
+    while (true) {
+        if ((stopFlag && stopFlag->load()) || isExiting()) {
+            if (errOut) *errOut = "aborted";
+            ::close(fd);
+            return -1;
+        }
+        const int elapsedSoFar = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0).count());
+        const int remaining = timeoutMs - elapsedSoFar;
+        if (remaining <= 0) {
+            if (errOut) *errOut = "timeout >" + std::to_string(timeoutMs) + "ms";
+            ::close(fd);
+            return -1;
+        }
+        const int slice = std::min(remaining, 50);
+        struct pollfd pfd{};
+        pfd.fd = fd;
+        pfd.events = POLLOUT;
+        const int prc = ::poll(&pfd, 1, slice);
+        if (prc < 0) {
+            if (errno == EINTR) continue;
+            if (errOut) *errOut = "poll errno=" + std::to_string(errno);
+            ::close(fd);
+            return -1;
+        }
+        if (prc == 0) {
+            continue;
+        }
+        int soErr = 0;
+        socklen_t len = sizeof(soErr);
+        if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) < 0) {
+            if (errOut) *errOut = "getsockopt errno=" + std::to_string(errno);
+            ::close(fd);
+            return -1;
+        }
+        if (soErr != 0) {
+            if (errOut) *errOut = "so_error=" + std::to_string(soErr);
+            ::close(fd);
+            return -1;
+        }
+        const int elapsed = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0).count());
+        ::close(fd);
+        return std::clamp(elapsed, 1, kDialFailMs - 1);
+    }
+}
+#endif
 
 #ifndef LEVELUP_NO_CURL
 struct CurlBuffer {
@@ -356,8 +549,8 @@ bool parseUnionApplyResponse(std::string_view rawJson, ApplyResult& out, std::st
         out.accessIp = ai.value("access_ipv4_address", "");
         out.accessPort = ai.value("access_ipv4_port", 0);
         // 调度回显：服务端最终命中的区域/机房，以及该区域专用 STUN 和备用接入地址
-        out.areaType = ai.value("area_type", 0);
-        out.idc = ai.value("idc", 0);
+        out.areaType = jsonIntOr(ai, "area_type", 0);
+        out.idc = jsonIntOr(ai, "idc", 0);
         out.areaStunAddress = ai.value("area_stun_address", "");
         out.areaStunPort = ai.value("area_stun_port", 0);
         if (ai.contains("spare_address") && ai["spare_address"].is_array()) {
@@ -371,6 +564,12 @@ bool parseUnionApplyResponse(std::string_view rawJson, ApplyResult& out, std::st
             }
         }
     }
+    if (out.areaType == 0) {
+        out.areaType = jsonIntOr(body, "area_type", 0);
+    }
+    if (out.idc == 0) {
+        out.idc = jsonIntOr(body, "idc", 0);
+    }
     if (body.contains("client_info") && body["client_info"].is_object()) {
         out.clientAddress = body["client_info"].value("address", "");
     }
@@ -380,7 +579,14 @@ bool parseUnionApplyResponse(std::string_view rawJson, ApplyResult& out, std::st
         out.queueTotal = body["queue_info"].value("total", 0);
     }
     if (body.contains("dialpoint") && body["dialpoint"].is_object()) {
-        out.currentDialWsUrl = body["dialpoint"].value("rtt_ws_url", "");
+        const auto& dp = body["dialpoint"];
+        out.currentDialWsUrl = dp.value("rtt_ws_url", "");
+        if (out.areaType == 0) {
+            out.areaType = jsonIntOr(dp, "area_type", 0);
+        }
+        if (out.idc == 0) {
+            out.idc = jsonIntOr(dp, "idc", 0);
+        }
     }
     auto readNumericId = [](const nlohmann::json& j) -> std::string {
         if (j.is_string()) return j.get<std::string>();
@@ -439,12 +645,27 @@ std::vector<DialSample> mergeDialCache(std::vector<DialSample> cache,
                                       size_t maxEntries) {
     for (const auto& f : fresh) {
         const std::string key = dialCacheKey(f.clientIp, f.areaType, f.idc);
+        DialSample merged = f;
+        for (const auto& prev : cache) {
+            if (dialCacheKey(prev.clientIp, prev.areaType, prev.idc) == key) {
+                if (merged.liveTs == 0) {
+                    merged.liveRttMs = prev.liveRttMs;
+                    merged.lossPermille = prev.lossPermille;
+                    merged.firstFrameMs = prev.firstFrameMs;
+                    merged.liveOk = prev.liveOk;
+                    merged.liveTs = prev.liveTs;
+                    merged.rejects = prev.rejects;
+                    merged.queueRank = prev.queueRank;
+                }
+                break;
+            }
+        }
         cache.erase(std::remove_if(cache.begin(), cache.end(),
                                    [&key](const DialSample& s) {
                                        return dialCacheKey(s.clientIp, s.areaType, s.idc) == key;
                                    }),
                     cache.end());
-        cache.push_back(f);
+        cache.push_back(std::move(merged));
     }
     return trimDialCache(std::move(cache), maxEntries);
 }
@@ -480,10 +701,18 @@ int dialScore(const DialSample& s, int64_t nowMs) {
     return score;
 }
 
-int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs, int* outScoreMs) {
+void pickPreferredAreas(const std::vector<DialSample>& cache,
+                        int64_t nowMs,
+                        int& outPrimaryArea,
+                        int& outSecondaryArea,
+                        int* outPrimaryScoreMs) {
+    outPrimaryArea = 0;
+    outSecondaryArea = 0;
+
     int best = kDialScoreNoData;
     int bestArea = 0;
     for (const auto& s : cache) {
+        if (s.areaType <= 0) continue;
         const int sc = dialScore(s, nowMs);
         if (sc == kDialScoreNoData) continue;
         if (sc < best) {
@@ -491,11 +720,31 @@ int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs, int* 
             bestArea = s.areaType;
         }
     }
-    if (outScoreMs) *outScoreMs = best;
+    if (outPrimaryScoreMs) *outPrimaryScoreMs = best;
     if (bestArea <= 0 || best > kDialScoreTrustLimit) {
-        return 0;  // 数据不足/全部不可信 → 不指定，交给服务端（等价官方行为）
+        return;  // 数据不足/全部不可信 → 不指定，交给服务端（等价官方行为）
     }
-    return bestArea;
+    outPrimaryArea = bestArea;
+
+    int secondBest = kDialScoreNoData;
+    int secondArea = 0;
+    for (const auto& s : cache) {
+        if (s.areaType <= 0 || s.areaType == outPrimaryArea) continue;
+        const int sc = dialScore(s, nowMs);
+        if (sc == kDialScoreNoData || sc > kDialScoreTrustLimit) continue;
+        if (sc < secondBest) {
+            secondBest = sc;
+            secondArea = s.areaType;
+        }
+    }
+    outSecondaryArea = secondArea;
+}
+
+int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs, int* outScoreMs) {
+    int primary = 0;
+    int secondary = 0;
+    pickPreferredAreas(cache, nowMs, primary, secondary, outScoreMs);
+    return primary;
 }
 
 static DialSample* findDialSample(std::vector<DialSample>& cache, int areaType, int idc) {
@@ -642,9 +891,124 @@ bool parseWsEndpoint(std::string_view url, std::string& host, int& port) {
     return port > 0 && port < 65536;
 }
 
+bool resolveDialEndpoint(const DialSample& s, std::string& outHost, int& outPort) {
+    outHost.clear();
+    outPort = 0;
+
+    std::string wsHost;
+    int wsPort = 0;
+    bool wsHasExplicitPort = false;
+    if (parseWsEndpoint(s.rttWsUrl, wsHost, wsPort)) {
+        const auto schemeEnd = s.rttWsUrl.find("://");
+        std::string_view rest = std::string_view(s.rttWsUrl).substr(schemeEnd + 3);
+        const auto slash = rest.find('/');
+        if (slash != std::string_view::npos) rest = rest.substr(0, slash);
+        wsHasExplicitPort = (rest.rfind(':') != std::string_view::npos);
+    } else {
+        wsHost.clear();
+        wsPort = 0;
+    }
+
+    std::string pingHost;
+    int pingPort = 0;
+    bool pingHasExplicitPort = false;
+    {
+        std::string_view p = s.rttPingUrl;
+        while (!p.empty() && (p.front() == ' ' || p.front() == '\t')) p.remove_prefix(1);
+        while (!p.empty() && (p.back() == ' ' || p.back() == '\t')) p.remove_suffix(1);
+        if (!p.empty()) {
+            if (p.find("://") != std::string_view::npos) {
+                std::string tmpHost;
+                int tmpPort = 0;
+                if (parseWsEndpoint(p, tmpHost, tmpPort)) {
+                    pingHost = std::move(tmpHost);
+                    const auto schemeEnd = p.find("://");
+                    std::string_view rest = p.substr(schemeEnd + 3);
+                    const auto slash = rest.find('/');
+                    if (slash != std::string_view::npos) rest = rest.substr(0, slash);
+                    if (rest.rfind(':') != std::string_view::npos) {
+                        pingPort = tmpPort;
+                        pingHasExplicitPort = true;
+                    }
+                }
+            } else {
+                const auto colon = p.rfind(':');
+                if (colon != std::string_view::npos) {
+                    pingHost = std::string(p.substr(0, colon));
+                    const std::string portStr(p.substr(colon + 1));
+                    const int parsed = std::atoi(portStr.c_str());
+                    if (parsed > 0 && parsed < 65536) {
+                        pingPort = parsed;
+                        pingHasExplicitPort = true;
+                    }
+                } else {
+                    pingHost = std::string(p);
+                }
+            }
+        }
+    }
+
+    // 优先使用 rtt_ping_address 里的直连 IPv4，跳过 Switch 端域名解析/劫持干扰。
+    if (!pingHost.empty() && isValidIpv4Literal(pingHost)) {
+        outHost = pingHost;
+    } else if (!wsHost.empty()) {
+        outHost = wsHost;
+    } else {
+        outHost = pingHost;
+    }
+
+    if (wsPort > 0 && (wsHasExplicitPort || !pingHasExplicitPort)) {
+        outPort = wsPort;
+    } else if (pingPort > 0) {
+        outPort = pingPort;
+    } else if (wsPort > 0) {
+        outPort = wsPort;
+    } else if (!outHost.empty()) {
+        outPort = 443;
+    }
+
+    return !outHost.empty() && outPort > 0 && outPort < 65536;
+}
+
 std::string buildDialPointsUrl(std::string_view uuid, int64_t ugid, std::string_view flowId) {
     return std::string(kUnionDialPointsURL) + "?uuid=" + urlEncodeStrict(uuid) +
            "&ugid=" + std::to_string(ugid) + "&flow_id=" + urlEncodeStrict(flowId);
+}
+
+std::string describeApplySchema(std::string_view rawBodyJson) {
+    if (rawBodyJson.empty()) return {};
+    try {
+        const nlohmann::json body = nlohmann::json::parse(rawBodyJson.begin(), rawBodyJson.end());
+        if (!body.is_object()) return {};
+        std::string out;
+        auto appendKeys = [&out](const char* name, const nlohmann::json& obj) {
+            if (!obj.is_object()) return;
+            if (!out.empty()) out += ' ';
+            out += name;
+            out += '{';
+            bool first = true;
+            for (auto it = obj.begin(); it != obj.end(); ++it) {
+                if (!first) out += ',';
+                first = false;
+                out += it.key();
+            }
+            out += '}';
+        };
+        if (body.contains("access_info") && body["access_info"].is_object()) {
+            const auto& ai = body["access_info"];
+            appendKeys("access_info", ai);
+            if (ai.contains("area_type")) {
+                out += " ai.area_type=" + ai["area_type"].dump();
+            }
+            if (ai.contains("idc")) {
+                out += " ai.idc=" + ai["idc"].dump();
+            }
+        }
+        if (body.contains("dialpoint")) appendKeys("dialpoint", body["dialpoint"]);
+        return out;
+    } catch (...) {
+        return {};
+    }
 }
 
 std::vector<DialSample> loadDialCache(const std::string& path) {
@@ -1048,36 +1412,19 @@ bool dialFetchPoints(std::string_view lpUuid,
 #endif
 }
 
-int dialProbeOnceMs(std::string_view host, int port, int timeoutMs) {
-#ifdef LEVELUP_NO_CURL
+int dialProbeOnceMs(std::string_view host, int port, int timeoutMs, std::string* errOut) {
+#if defined(_WIN32)
     (void)host;
     (void)port;
     (void)timeoutMs;
+    if (errOut) *errOut = "probe disabled in win32 host test build";
     return -1;
 #else
-    if (host.empty() || port <= 0) return -1;
-    CURL* curl = curl_easy_init();
-    if (!curl) return -1;
-    const std::string url = "http://" + std::string(host) + ":" + std::to_string(port) + "/";
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(timeoutMs));
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeoutMs));
-    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 600L);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, curlAbortOnExitCb);
-    const CURLcode rc = curl_easy_perform(curl);
-    int ms = -1;
-    if (rc == CURLE_OK) {
-        double connectTime = 0.0;
-        if (curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME, &connectTime) == CURLE_OK) {
-            ms = static_cast<int>(connectTime * 1000.0 + 0.5);
-        }
-        if (ms < 0) ms = 0;
+    struct in_addr addr{};
+    if (!resolveHostIpv4(host, addr, errOut)) {
+        return -1;
     }
-    curl_easy_cleanup(curl);
-    return ms;
+    return dialProbeIpv4OnceMs(addr, port, timeoutMs, nullptr, errOut);
 #endif
 }
 
@@ -1092,32 +1439,65 @@ std::vector<DialSample> dialProbe(std::vector<DialSample> points,
     auto probeOne = [attempts, timeoutMs, stopFlag](DialSample& p) {
         std::string host;
         int port = 0;
-        if (!parseWsEndpoint(p.rttWsUrl, host, port)) {
-            // 兜底：rtt_ping_address 形如 "ip:port"
-            const auto colon = p.rttPingUrl.rfind(':');
-            if (colon == std::string::npos) {
-                p.rtt95 = kDialFailMs;
-                p.ts = unixMillisNow();
-                return;
-            }
-            host = p.rttPingUrl.substr(0, colon);
-            port = std::atoi(p.rttPingUrl.c_str() + static_cast<long>(colon) + 1);
+        if (!resolveDialEndpoint(p, host, port)) {
+            p.rtt95 = kDialFailMs;
+            p.ts = unixMillisNow();
+            logWarn("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
+                    " invalid endpoint p95=999ms");
+            return;
         }
+        std::string lastErr;
         std::vector<int> samples;
         samples.reserve(static_cast<size_t>(attempts));
+#if !defined(_WIN32)
+        struct in_addr addr{};
+        if (!resolveHostIpv4(host, addr, &lastErr)) {
+            p.rtt95 = kDialFailMs;
+            p.ts = unixMillisNow();
+            logWarn("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
+                    " " + host + ":" + std::to_string(port) + " p95=999ms err=" + lastErr);
+            return;
+        }
         for (int i = 0; i < attempts; ++i) {
             if (stopFlag && stopFlag->load()) break;
-            const int ms = dialProbeOnceMs(host, port, timeoutMs);
+            std::string err;
+            const int ms = dialProbeIpv4OnceMs(addr, port, timeoutMs, stopFlag, &err);
+            const bool sockErr = (ms < 0 && err.rfind("socket errno=", 0) == 0);
+            if (ms < 0 && !err.empty()) {
+                lastErr = std::move(err);
+            }
             samples.push_back(ms < 0 || ms >= kDialFailMs ? kDialFailMs : ms);
             if (i + 1 < attempts) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(60));
+                std::this_thread::sleep_for(std::chrono::milliseconds(sockErr ? 200 : 60));
             }
         }
+#else
+        for (int i = 0; i < attempts; ++i) {
+            if (stopFlag && stopFlag->load()) break;
+            std::string err;
+            const int ms = dialProbeOnceMs(host, port, timeoutMs, &err);
+            const bool sockErr = (ms < 0 && err.rfind("socket errno=", 0) == 0);
+            if (ms < 0 && !err.empty()) {
+                lastErr = std::move(err);
+            }
+            samples.push_back(ms < 0 || ms >= kDialFailMs ? kDialFailMs : ms);
+            if (i + 1 < attempts) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(sockErr ? 200 : 60));
+            }
+        }
+#endif
         p.rtt95 = dialP95(std::move(samples));
         p.ts = unixMillisNow();
-        logInfo("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
-                " " + host + ":" + std::to_string(port) + " p95=" +
-                std::to_string(p.rtt95) + "ms");
+        if (p.rtt95 < kDialFailMs) {
+            logInfo("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
+                    " " + host + ":" + std::to_string(port) + " p95=" +
+                    std::to_string(p.rtt95) + "ms");
+        } else {
+            logWarn("[Dial] area=" + std::to_string(p.areaType) + " idc=" + std::to_string(p.idc) +
+                    " " + host + ":" + std::to_string(port) + " p95=" +
+                    std::to_string(p.rtt95) + "ms" +
+                    (lastErr.empty() ? std::string() : (" err=" + lastErr)));
+        }
     };
 
     if (parallel == 1 || points.size() <= 1) {

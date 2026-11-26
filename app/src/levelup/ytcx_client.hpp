@@ -37,7 +37,7 @@ constexpr const char* kUnionReleaseURL =
     "http://union-access.yuntiancloud.com:18108/v3/union/release";
 
 // 官方多区域测速常量（qualityReport/collection/e.java + areaping_socket/d.java）
-constexpr int kDialTimeoutMs = 200;       // 单次探测 >200ms 记失败
+constexpr int kDialTimeoutMs = 900;       // 单次探测 >900ms 记失败（对齐 go-client DefaultProbeTO）
 constexpr int kDialFailMs = 999;          // 官方失败哨兵值
 constexpr size_t kDialCacheEntries = 10;  // 本地缓存只留最近 10 条
 constexpr int kDialAttemptsDefault = 3;   // 每点采样次数（3 次时 p95≈最大值，足够排序）
@@ -177,7 +177,9 @@ std::vector<DialSample> trimDialCache(std::vector<DialSample> samples, size_t ma
 std::string dialCacheToJson(const std::vector<DialSample>& samples);
 bool dialCacheFromJson(std::string_view json, std::vector<DialSample>& out);
 bool parseWsEndpoint(std::string_view url, std::string& host, int& port);
+bool resolveDialEndpoint(const DialSample& s, std::string& outHost, int& outPort);
 std::string buildDialPointsUrl(std::string_view uuid, int64_t ugid, std::string_view flowId);
+std::string describeApplySchema(std::string_view rawBodyJson);
 
 std::vector<DialSample> loadDialCache(const std::string& path);
 bool saveDialCache(const std::string& path, const std::vector<DialSample>& samples);
@@ -191,6 +193,12 @@ int dialScore(const DialSample& s, int64_t nowMs);
 // 返回 0 表示「不主动指定 area_type，交给服务端」；否则返回首选区域号
 int pickPreferredArea(const std::vector<DialSample>& cache, int64_t nowMs,
                       int* outScoreMs = nullptr);
+// 同时选出主/备两个可信且不重复的区域（0 表示没有）
+void pickPreferredAreas(const std::vector<DialSample>& cache,
+                        int64_t nowMs,
+                        int& outPrimaryArea,
+                        int& outSecondaryArea,
+                        int* outPrimaryScoreMs = nullptr);
 // 真实会话质量回流到对应 area/idc 条目（没有则新建）
 std::vector<DialSample> recordLiveResult(std::vector<DialSample> cache,
                                         std::string_view clientIp,
@@ -244,9 +252,12 @@ bool dialFetchPoints(std::string_view lpUuid,
                      std::string* clientInfoOut = nullptr,
                      std::string* errOut = nullptr);
 
-// 单点探测一次 TCP 建连耗时（毫秒），失败返回 -1。走 libcurl CONNECT_ONLY，
-// 复用与 BE/边缘 /launch 完全相同的网络栈（Switch 上没有裸 socket 依赖）。
-int dialProbeOnceMs(std::string_view host, int port, int timeoutMs = kDialTimeoutMs);
+// 单点探测一次 TCP 三次握手耗时（毫秒），失败返回 -1。直接用非阻塞 BSD socket + poll，
+// 避免旧版 libcurl CONNECT_ONLY 在 Switch 上的超时/兼容坑。
+int dialProbeOnceMs(std::string_view host,
+                    int port,
+                    int timeoutMs = kDialTimeoutMs,
+                    std::string* errOut = nullptr);
 
 // 逐点探测 attempts 次、丢 >=999 的超时样本后取 p95，写回 sample.rtt95。
 // parallel 路并发（默认 2），stopFlag 非空时每轮检查一次，退出流程可立刻打断。

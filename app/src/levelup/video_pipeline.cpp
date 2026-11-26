@@ -4,6 +4,7 @@
 #include "levelup/log.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 
 #if defined(__SWITCH__) && !defined(LEVELUP_HOST_TEST)
@@ -140,6 +141,8 @@ void VideoPipeline::start(int initialWidth, int initialHeight, int targetFps) {
     m_decoderResets.store(0);
     m_keyRequests.store(0);
     m_queueFullDrops.store(0);
+    m_decodeTimeUs.store(0);
+    m_width.store(initialWidth);
 
 #if defined(__SWITCH__) && !defined(LEVELUP_HOST_TEST) && defined(BOREALIS_USE_DEKO3D)
     Settings::instance().set_frames_queue_size(2);
@@ -391,6 +394,7 @@ PipelineStatsSnapshot VideoPipeline::stats() const {
     snap.decoderResets = m_decoderResets.load();
     snap.keyRequests = m_keyRequests.load();
     snap.queueFullDrops = m_queueFullDrops.load();
+    snap.decodeTimeUs = m_decodeTimeUs.load(std::memory_order_relaxed);
     snap.width = m_width.load();
     snap.height = m_height.load();
     return snap;
@@ -399,6 +403,7 @@ PipelineStatsSnapshot VideoPipeline::stats() const {
 void VideoPipeline::decodeLoop() {
 #if !defined(__SWITCH__) || defined(LEVELUP_HOST_TEST) || !defined(BOREALIS_USE_DEKO3D)
     // Host test path: drain queue without FFmpeg NVDEC
+    uint64_t decodeEmaUs = 0;
     while (m_running.load()) {
         FrameItem item;
         {
@@ -408,8 +413,14 @@ void VideoPipeline::decodeLoop() {
             item = std::move(m_frameQueue.front());
             m_frameQueue.pop_front();
         }
+        const auto decodeStart = std::chrono::steady_clock::now();
         m_fedFrames.fetch_add(1);
         m_decodedFrames.fetch_add(1);
+        const auto elapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - decodeStart).count();
+        const uint64_t sampleUs = static_cast<uint64_t>(std::clamp<int64_t>(elapsedUs, 1, 999999));
+        decodeEmaUs = (decodeEmaUs == 0) ? sampleUs : ((decodeEmaUs * 7ULL + sampleUs) / 8ULL);
+        m_decodeTimeUs.store(static_cast<uint32_t>(decodeEmaUs), std::memory_order_relaxed);
         if (!m_firstFrameFired.exchange(true)) {
             FirstFrameCallback cb;
             {
@@ -426,6 +437,7 @@ void VideoPipeline::decodeLoop() {
     std::vector<uint8_t> paddedBuf;
     std::vector<uint8_t> curSps;
     int64_t ptsCounter = 0;
+    uint64_t decodeEmaUs = 0;
 
     auto closeCodec = [&]() {
         if (codecCtx) {
@@ -583,6 +595,7 @@ void VideoPipeline::decodeLoop() {
             }
         };
 
+        const auto decodeStart = std::chrono::steady_clock::now();
         int sendErr = avcodec_send_packet(codecCtx, pkt);
         int drained = 0;
         if (sendErr == AVERROR(EAGAIN)) {
@@ -608,6 +621,12 @@ void VideoPipeline::decodeLoop() {
         } else if (totalOut == 0) {
             m_noOutputFrames.fetch_add(1);
         } else {
+            const auto elapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - decodeStart).count();
+            const uint64_t sampleUs = static_cast<uint64_t>(
+                std::clamp<int64_t>(elapsedUs / std::max(1, totalOut), 0, 999999));
+            decodeEmaUs = (decodeEmaUs == 0) ? sampleUs : ((decodeEmaUs * 7ULL + sampleUs) / 8ULL);
+            m_decodeTimeUs.store(static_cast<uint32_t>(decodeEmaUs), std::memory_order_relaxed);
             m_decodedFrames.fetch_add(static_cast<uint64_t>(totalOut));
             if (!m_firstFrameFired.exchange(true)) {
                 logInfo("[NVDEC] first decoded frame delivered!");

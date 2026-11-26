@@ -45,6 +45,14 @@ int main() {
         assert(c2.handheldResolution == AppConfig::kHandheldRes1080);
         assert(c2.touchMouseMode == AppConfig::kTouchMouseTrackpad);
 
+        // 第三种触屏鼠标模式：鼠标锁定（2）持久化和越界值回落
+        assert(normalizeTouchMouseMode(AppConfig::kTouchMouseLocked) == AppConfig::kTouchMouseLocked);
+        assert(normalizeTouchMouseMode(99) == AppConfig::kTouchMouseClick);
+        c2.touchMouseMode = AppConfig::kTouchMouseLocked;
+        assert(store.saveConfig(c2));
+        auto cLocked = store.loadConfig();
+        assert(cLocked.touchMouseMode == AppConfig::kTouchMouseLocked);
+
         // 非法数字或类型错误的 handheldResolution 回落到 720p，且不破坏其余字段
         {
             std::ofstream ofs(store.configPath(), std::ios::binary | std::ios::trunc);

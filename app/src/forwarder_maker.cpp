@@ -84,12 +84,15 @@ void showShortcutsAlert() {
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <span>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 
 #pragma GCC diagnostic push
@@ -483,6 +486,7 @@ struct NpdmPatch {
 struct NacpPatch {
     std::string name;
     std::string author;
+    std::string version;
     u64 tid = 0;
 };
 
@@ -801,14 +805,21 @@ void patchNpdm(std::vector<u8>& npdm_data, const NpdmPatch& patch) {
 void patchNacp(NacpStruct& nacp, const NacpPatch& patch) {
     if (!patch.name.empty()) {
         for (auto& lang : nacp.lang) {
+            std::memset(lang.name, 0, sizeof(lang.name));
             std::strncpy(lang.name, patch.name.c_str(), sizeof(lang.name) - 1);
         }
     }
 
     if (!patch.author.empty()) {
         for (auto& lang : nacp.lang) {
+            std::memset(lang.author, 0, sizeof(lang.author));
             std::strncpy(lang.author, patch.author.c_str(), sizeof(lang.author) - 1);
         }
+    }
+
+    if (!patch.version.empty()) {
+        std::memset(nacp.display_version, 0, sizeof(nacp.display_version));
+        std::snprintf(nacp.display_version, sizeof(nacp.display_version), "%s", patch.version.c_str());
     }
 
     nacp.startup_user_account = 0x00;
@@ -1435,11 +1446,141 @@ NacpStruct getBaseNacp() {
     return nacp;
 }
 
+constexpr const char* kLevelUpDataDir = "sdmc:/switch/levelup-nx";
+constexpr const char* kLevelUpLauncherSdPath = "sdmc:/switch/levelup-nx/launcher.nro";
+constexpr const char* kLevelUpLauncherRomfsPath = "romfs:/levelup/launcher.nro";
+constexpr const char* kLevelUpNroDirPath = "sdmc:/switch/levelup-nx/nro_dir.txt";
+
+bool equalsIgnoreCaseAscii(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) !=
+            std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool writeFileAtomic(const std::string& path, const void* data, size_t size) {
+    const std::string tmp = path + ".tmp";
+    std::FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) {
+        return false;
+    }
+    const size_t written = size > 0 ? std::fwrite(data, 1, size, f) : 0;
+    const int flushRc = std::fflush(f);
+    std::fclose(f);
+    if (written != size || flushRc != 0) {
+        std::remove(tmp.c_str());
+        return false;
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        std::filesystem::remove(path, ec);
+        ec.clear();
+        std::filesystem::rename(tmp, path, ec);
+    }
+    if (ec) {
+        std::remove(tmp.c_str());
+        return false;
+    }
+    return true;
+}
+
+std::string extractLaunchParentDir(std::string path) {
+    while (!path.empty() && (path.back() == '\n' || path.back() == '\r' || path.back() == ' ')) {
+        path.pop_back();
+    }
+    if (path.size() >= 2 && path.front() == '"' && path.back() == '"') {
+        path = path.substr(1, path.size() - 2);
+    }
+    if (path.empty()) {
+        return {};
+    }
+    const size_t slash = path.find_last_of("/\\");
+    if (slash == std::string::npos) {
+        return {};
+    }
+    const std::string base = path.substr(slash + 1);
+    if (base.empty() ||
+        equalsIgnoreCaseAscii(base, "launcher.nro") ||
+        equalsIgnoreCaseAscii(base, "levelup-launcher.nro")) {
+        return {};
+    }
+    std::string dir = path.substr(0, slash);
+    if (dir.empty()) {
+        dir = "/";
+    }
+    if (dir == "sdmc:") {
+        dir = "sdmc:/";
+    } else if (!dir.starts_with("sdmc:")) {
+        if (dir.front() == '/') {
+            dir = "sdmc:" + dir;
+        } else {
+            dir = "sdmc:/" + dir;
+        }
+    }
+    return dir;
+}
+
+bool syncEmbeddedLauncherAndNroDir(const std::string& launchPath, bool installIfMissing) {
+    mkdir("sdmc:/switch", 0777);
+    mkdir(kLevelUpDataDir, 0777);
+
+    const std::string parentDir = extractLaunchParentDir(launchPath);
+    if (!parentDir.empty()) {
+        const std::string desired = parentDir + "\n";
+        const auto curBytes = readFileBytes(kLevelUpNroDirPath);
+        const std::string curStr(curBytes.begin(), curBytes.end());
+        if (curStr != desired) {
+            writeFileAtomic(kLevelUpNroDirPath, desired.data(), desired.size());
+        }
+    }
+
+    const auto embedded = readFileBytes(kLevelUpLauncherRomfsPath);
+    if (!embedded.empty()) {
+        const auto existing = readFileBytes(kLevelUpLauncherSdPath);
+        const bool exists = !existing.empty();
+        if ((installIfMissing && !exists) || (exists && existing != embedded)) {
+            writeFileAtomic(kLevelUpLauncherSdPath, embedded.data(), embedded.size());
+        }
+    }
+
+    struct stat st{};
+    return stat(kLevelUpLauncherSdPath, &st) == 0 && st.st_size > 0;
+}
+
+u64 computeForwarderTid(const std::string& raw_nro_path, const std::string& extra_args) {
+    const std::string nro_path = formatNroPathForForwarder(raw_nro_path);
+    if (nro_path.empty()) {
+        return 0;
+    }
+    std::string args = extra_args.empty() ? nro_path : (nro_path + ' ' + extra_args);
+    u64 hash_data[SHA256_HASH_SIZE / sizeof(u64)]{};
+    const auto hash_path = nro_path + args;
+    sha256CalculateHash(hash_data, hash_path.data(), hash_path.length());
+    return 0x0500000000000000ULL | (hash_data[0] & 0x00FFFFFFFFFFF000ULL);
+}
+
+u64 computeStableAppForwarderTid() {
+    static constexpr std::string_view kKey = "LevelUp-NX-App-Forwarder";
+    u64 hash_data[SHA256_HASH_SIZE / sizeof(u64)]{};
+    sha256CalculateHash(hash_data, kKey.data(), kKey.size());
+    return 0x0500000000000000ULL | (hash_data[0] & 0x00FFFFFFFFFFF000ULL);
+}
+
 Result installForwarderImpl(const std::string& raw_nro_path,
                            const std::string& extra_args,
                            const std::string& app_name,
                            const std::string& author_name,
-                           const std::vector<u8>& icon) {
+                           const std::vector<u8>& icon,
+                           const std::string& version = APP_VERSION,
+                           u64 forced_tid = 0,
+                           u64 extra_cleanup_tid = 0) {
     const std::string nro_path = formatNroPathForForwarder(raw_nro_path);
     if (nro_path.empty()) {
         return MAKERESULT(Module_Libnx, LibnxError_BadInput);
@@ -1487,11 +1628,14 @@ Result installForwarderImpl(const std::string& raw_nro_path,
         args = nro_path + ' ' + args;
     }
 
-    u64 hash_data[SHA256_HASH_SIZE / sizeof(u64)]{};
-    const auto hash_path = nro_path + args;
-    sha256CalculateHash(hash_data, hash_path.data(), hash_path.length());
-    const u64 old_tid = 0x0100000000000000ULL | (hash_data[0] & 0x00FFFFFFFFFFF000ULL);
-    const u64 tid = 0x0500000000000000ULL | (hash_data[0] & 0x00FFFFFFFFFFF000ULL);
+    u64 tid = forced_tid;
+    if (tid == 0) {
+        u64 hash_data[SHA256_HASH_SIZE / sizeof(u64)]{};
+        const auto hash_path = nro_path + args;
+        sha256CalculateHash(hash_data, hash_path.data(), hash_path.length());
+        tid = 0x0500000000000000ULL | (hash_data[0] & 0x00FFFFFFFFFFF000ULL);
+    }
+    const u64 old_tid = 0x0100000000000000ULL | (tid & 0x00FFFFFFFFFFF000ULL);
 
     std::vector<NcaEntry> nca_entries;
 
@@ -1514,6 +1658,7 @@ Result installForwarderImpl(const std::string& raw_nro_path,
     NacpPatch nacp_patch{
         .name = app_name,
         .author = author_name,
+        .version = version,
         .tid = tid,
     };
     patchNacp(nacp, nacp_patch);
@@ -1607,6 +1752,12 @@ Result installForwarderImpl(const std::string& raw_nro_path,
     if (R_FAILED(delete_old_rc) && delete_old_rc != 0x410) {
         std::printf("Failed to remove old forwarder: 0x%X\n", delete_old_rc);
     }
+    if (extra_cleanup_tid != 0 && extra_cleanup_tid != tid && extra_cleanup_tid != old_tid) {
+        const Result delete_legacy_rc = nsDeleteApplicationCompletely(extra_cleanup_tid);
+        if (R_FAILED(delete_legacy_rc) && delete_legacy_rc != 0x410) {
+            std::printf("Failed to remove legacy forwarder: 0x%X\n", delete_legacy_rc);
+        }
+    }
 
     nsDeleteApplicationEntity(tid);
 
@@ -1642,12 +1793,25 @@ int makeAppForwarder(const std::string& appName, const std::string& author) {
         return static_cast<int>(MAKERESULT(Module_Libnx, LibnxError_NotFound));
     }
     const auto icon = normalizeForwarderIcon(raw_icon, false);
+
+    const bool has_launcher = syncEmbeddedLauncherAndNroDir(launch_path, true);
+    const std::string target_nro = has_launcher ? std::string(kLevelUpLauncherSdPath) : launch_path;
+    const u64 fixed_tid = computeStableAppForwarderTid();
+    const u64 legacy_tid = computeForwarderTid(launch_path, "");
+
     return static_cast<int>(installForwarderImpl(
-        launch_path,
+        target_nro,
         "",
         appName.empty() ? "LevelUp-NX" : appName,
         author.empty() ? "LevelUp-Switch" : author,
-        icon));
+        icon,
+        APP_VERSION,
+        has_launcher ? fixed_tid : 0,
+        has_launcher ? legacy_tid : 0));
+}
+
+void syncLevelUpLauncherOnStartup(const std::string& launchPath) {
+    syncEmbeddedLauncherAndNroDir(launchPath, false);
 }
 
 #elif defined(PLATFORM_IOS)
@@ -1664,6 +1828,8 @@ int makeAppForwarder(const std::string&, const std::string&) {
     return EXIT_FAILURE;
 }
 
+void syncLevelUpLauncherOnStartup(const std::string&) {}
+
 #else
 
 int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
@@ -1676,5 +1842,7 @@ int makeForwarder(const Host& host, const App& app, bool add_moonlight_logo) {
 int makeAppForwarder(const std::string&, const std::string&) {
     return EXIT_FAILURE;
 }
+
+void syncLevelUpLauncherOnStartup(const std::string&) {}
 
 #endif
