@@ -13,7 +13,7 @@ Nintendo Switch 1（Horizon OS / Atmosphere + libnx）上的 **LevelUp 云游戏
 - **输入**：Joy-Con / Pro 手柄原生 Nintendo 语义直通（**无 ABXY 反转**）、单指触屏绝对坐标映射、HD 震动（比例振幅，60 Hz 合批 + 3 s 归零）。
 - **大厅**：顶栏账号 / VIP 到期 / HP·MP 时长，分类切换、中文搜索、最近游戏、游戏详情、设置面板；封面异步下载并缓存到 SD 卡，**按卡片在屏上的实际像素解码**（掌机 720p / 底座 1080p 自动切换预算，插拔底座会重解码），不再被固定小尺寸拉伸糊掉。最上方固定展示 **B站 UP主「牛巨眼」** 署名条。
 - **健壮性**：BE 心跳双保活、首帧上报、丢包后自动补 PLI/FIR、解码异常自动重建；**信令 WebSocket 断开不再中断串流**（媒体走 SRTP/UDP 独立通道，后台自动重连信令）；退出/掉线均先释放云端实例再拆传输层，**退出游戏不再闪退**；上次残留实例靠落盘标记在下次启动时强制回收。
-- **边缘节点选路（v0.2.0 起，v0.3.0 实验版加强）**：开流稳定后后台对「除当前节点外」的各区域机房做延迟探测（`/v1/speed/dialpoints` 拉表 → 逐点建连测 RTT → p95），结果落盘 `dial_rtt.json`（最多 10 条），下一次申请实例时随 `dialtest_history_data` 上报给调度；v0.3.0 起还会在**大厅空闲时预热测速**（无实例、无 flow，不消耗时长），并把上一局真实的 WebRTC RTT / 丢包 / 首帧耗时回流进缓存给区域打分，apply 时按打分带上 `area_type`。同时解析 `spare_address`（主接入地址连不上时按序尝试）与 `area_stun_address`（作为首个 ICE STUN），退出时补上 `/v3/union/release`。
+- **边缘节点选路（v0.2.0 起，v0.3.3 正式版定型）**：开流稳定后后台对「除当前节点外」的各区域机房做延迟探测（`/v1/speed/dialpoints` 拉表 → 逐点用**非阻塞 socket + poll 计 TCP 握手**测 RTT，900 ms 超时、取 p95），结果落盘 `dial_rtt.json`（最多 10 条），下一次申请实例时随 `dialtest_history_data` 上报给调度；v0.3.0 起还会在**大厅空闲时预热测速**（无实例、无 flow，不消耗时长），并把上一局真实的 WebRTC RTT / 丢包 / 首帧耗时回流进缓存给区域打分，apply 时按打分带上首选 `area_type` 与次选 `try_area_type`。同时解析 `spare_address`（主接入地址连不上时按序尝试）与 `area_stun_address`（作为首个 ICE STUN），退出时补上 `/v3/union/release`。
 
 ---
 
