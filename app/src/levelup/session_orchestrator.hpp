@@ -91,6 +91,7 @@ class SessionOrchestrator {
 
     void requestKeyFrame();
     void setPausedForOverlay(bool paused);
+    void setBackgroundPowerSave(bool enabled);
     void setRumbleEnabled(bool enabled);
     void setRumbleStrengthPercent(int percent);
     void setInvertStickY(bool invert);

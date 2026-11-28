@@ -151,6 +151,7 @@ void VideoPipeline::start(int initialWidth, int initialHeight, int targetFps) {
     (void)targetFps;
 #endif
 
+    m_paused.store(false, std::memory_order_relaxed);
     m_running.store(true);
     m_decodeThread = std::thread([this]() { decodeLoop(); });
     m_watchdogThread = std::thread([this]() { watchdogLoop(); });
@@ -158,6 +159,7 @@ void VideoPipeline::start(int initialWidth, int initialHeight, int targetFps) {
 
 void VideoPipeline::stop() {
     m_running.store(false);
+    m_paused.store(false, std::memory_order_relaxed);
     m_queueCv.notify_all();
     m_wdCv.notify_all();
     if (m_decodeThread.joinable()) {
@@ -199,7 +201,37 @@ void VideoPipeline::requestRecoveryKeyFrame(const std::string& reason) {
     triggerKeyFrameRequest();
 }
 
+void VideoPipeline::setPaused(bool paused) {
+    const bool prev = m_paused.exchange(paused, std::memory_order_relaxed);
+    if (prev == paused) {
+        return;
+    }
+    if (paused) {
+        {
+            std::lock_guard lock(m_queueMu);
+            m_frameQueue.clear();
+        }
+        logInfo("[Video] background power-save: decoding paused");
+    } else {
+        {
+            std::lock_guard lock(m_rtpMu);
+            m_depack.reset();
+            m_reorder.reset();
+            m_paramPrefix.clear();
+        }
+        {
+            std::lock_guard lock(m_queueMu);
+            m_frameQueue.clear();
+        }
+        logInfo("[Video] background power-save: decoding resumed (requesting IDR)");
+        requestRecoveryKeyFrame("resume from background");
+    }
+}
+
 void VideoPipeline::onTransportLoss(int64_t lossDelta) {
+    if (m_paused.load(std::memory_order_relaxed)) {
+        return;
+    }
     bool shouldRequest = false;
     {
         std::lock_guard lock(m_healMu);
@@ -223,6 +255,9 @@ void VideoPipeline::pushRtp(uint16_t seq,
         if (!loggedStopped.exchange(true)) {
             logWarn("[Video] pushRtp dropped: m_running=false seq=" + std::to_string(seq));
         }
+        return;
+    }
+    if (m_paused.load(std::memory_order_relaxed)) {
         return;
     }
 
@@ -341,6 +376,12 @@ void VideoPipeline::watchdogLoop() {
     int ticks = 0;
     while (m_running.load()) {
         ticks++;
+        if (m_paused.load(std::memory_order_relaxed)) {
+            std::unique_lock lock(m_wdMu);
+            m_wdCv.wait_for(lock, std::chrono::milliseconds(1000),
+                            [this]() { return !m_running.load() || !m_paused.load(std::memory_order_relaxed); });
+            continue;
+        }
         if (!m_firstFrameFired.load() && (ticks % 3) == 0) {
             const auto st = stats();
             logInfo("[Video] waiting first frame: rtp=" + std::to_string(st.rtpPackets) +

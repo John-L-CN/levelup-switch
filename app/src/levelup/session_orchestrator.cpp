@@ -900,6 +900,11 @@ void SessionOrchestrator::setPausedForOverlay(bool paused) {
     }
 }
 
+void SessionOrchestrator::setBackgroundPowerSave(bool enabled) {
+    m_video.setPaused(enabled);
+    m_audio.setPaused(enabled);
+}
+
 void SessionOrchestrator::setRumbleEnabled(bool enabled) {
     m_rumble.setEnabled(enabled);
 }

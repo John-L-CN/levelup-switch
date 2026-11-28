@@ -77,6 +77,8 @@ class VideoPipeline {
     void pushRtp(uint16_t seq, uint8_t pt, const uint8_t* payload, size_t len, bool marker, uint32_t ts);
     void onTransportLoss(int64_t lossDelta);
     void requestRecoveryKeyFrame(const std::string& reason);
+    void setPaused(bool paused);
+    bool isPaused() const { return m_paused.load(std::memory_order_relaxed); }
 
     PipelineStatsSnapshot stats() const;
 
@@ -113,6 +115,7 @@ class VideoPipeline {
     BeforeCodecCloseCallback m_beforeCodecCloseCb;
 
     std::atomic<bool> m_running{false};
+    std::atomic<bool> m_paused{false};
     std::atomic<bool> m_firstFrameFired{false};
     std::thread m_decodeThread;
     std::thread m_watchdogThread;

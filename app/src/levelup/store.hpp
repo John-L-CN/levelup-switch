@@ -36,9 +36,6 @@ struct GamesLibrary {
 };
 
 struct AppConfig {
-    /// 画质档位不再暴露给用户：固定"高清"（云端口径 0=流畅 1=标清 2=高清 3=超清 4=原画）。
-    static constexpr int kFixedVideoLevel = 2;
-    /// 掌机模式可选的流分辨率高度（底座模式始终固定 1080p）。
     static constexpr int kHandheldRes720 = 720;
     static constexpr int kHandheldRes1080 = 1080;
     /// 串流触屏鼠标模式：0=点击模式（绝对坐标直点），1=触控板模式（相对移动+轻触点击），2=鼠标锁定（触屏不传递到游戏，仅响应悬浮按钮）。
@@ -52,7 +49,7 @@ struct AppConfig {
     // 两者都是大厅预热测速（/v1/speed/dialpoints）的必要参数，学到后持久化。
     std::string lpUuid;
     int64_t lastPkgName = 0;
-    int videoLevel = kFixedVideoLevel; // 固定值，见 kFixedVideoLevel
+    int videoLevelOverride = 0;
     int handheldResolution = kHandheldRes720; // 720 或 1080；仅掌机模式生效，底座固定 1080p
     bool vqFirst = true;         // default true (VQ_FIRST)
     bool rumbleEnabled = true;   // default true
@@ -77,6 +74,13 @@ int normalizeTouchMouseMode(int mode);
 
 /// 根据是否底座模式与掌机分辨率设置，决定向云端申请的目标分辨率（底座固定 1920x1080）。
 std::pair<int, int> resolveTargetResolution(bool docked, int handheldResolution);
+
+inline int resolveEffectiveVideoLevel(int targetHeight, int videoLevelOverride) {
+    if (videoLevelOverride == 2 || videoLevelOverride == 3) {
+        return videoLevelOverride;
+    }
+    return targetHeight >= AppConfig::kHandheldRes1080 ? 2 : 3;
+}
 
 class Store {
   public:

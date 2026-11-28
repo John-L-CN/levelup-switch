@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -36,7 +37,8 @@ constexpr int kTargetQueuedMs = 40;
 constexpr int kPrebufferMs = 20;
 
 constexpr size_t kMaxPayloadBytes = 1500;
-constexpr int kFeederSleepMs = 2;
+constexpr int kFeederQueueFullWaitMs = 6;
+constexpr int kFeederEmptyWaitMs = 10;
 
 constexpr uint8_t kSinkChannels[2] = {0, 1};
 
@@ -79,6 +81,7 @@ struct AudioPlayer::Impl {
 
     // Jitter buffer: network thread pushes, feeder thread pulls (see audio_jitter.hpp).
     mutable std::mutex qmu;
+    std::condition_variable qcv;
     JitterBuffer jitter;
     uint64_t audrenDrops = 0;
 
@@ -163,6 +166,15 @@ struct AudioPlayer::Impl {
         payload.reserve(kMaxPayloadBytes);
 
         while (feederRunning.load(std::memory_order_relaxed)) {
+            if (owner && owner->m_paused.load(std::memory_order_relaxed)) {
+                std::unique_lock lock(qmu);
+                qcv.wait(lock, [this]() {
+                    return !feederRunning.load(std::memory_order_relaxed) ||
+                           !owner->m_paused.load(std::memory_order_relaxed);
+                });
+                continue;
+            }
+
             audrvUpdate(&driver);
 
             // Opportunistic counter mirror for the HUD/perf line.
@@ -172,18 +184,23 @@ struct AudioPlayer::Impl {
             }
 
             if (queuedMs() >= kTargetQueuedMs) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(kFeederSleepMs));
+                std::unique_lock lock(qmu);
+                qcv.wait_for(lock, std::chrono::milliseconds(kFeederQueueFullWaitMs), [this]() {
+                    return !feederRunning.load(std::memory_order_relaxed);
+                });
                 continue;
             }
 
             JitterBuffer::Take action = JitterBuffer::Take::None;
             {
-                std::lock_guard lock(qmu);
+                std::unique_lock lock(qmu);
                 action = jitter.take(steadyMs(), payload);
-            }
-            if (action == JitterBuffer::Take::None) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(kFeederSleepMs));
-                continue;
+                if (action == JitterBuffer::Take::None) {
+                    qcv.wait_for(lock, std::chrono::milliseconds(kFeederEmptyWaitMs), [this]() {
+                        return !feederRunning.load(std::memory_order_relaxed) || jitter.size() > 0;
+                    });
+                    continue;
+                }
             }
 
             s16* pcm = pcmScratch.data();
@@ -213,6 +230,7 @@ struct AudioPlayer::Impl {
 
     void teardown() {
         feederRunning.store(false, std::memory_order_relaxed);
+        qcv.notify_all();
         if (feeder.joinable()) {
             feeder.join();
         }
@@ -335,6 +353,7 @@ bool AudioPlayer::start() {
     impl->feeder = std::thread([impl]() { impl->feederLoop(); });
 
     m_impl = impl;
+    m_paused.store(false, std::memory_order_relaxed);
     m_running.store(true);
     logInfo("[Audio] Audren 48kHz stereo Opus player started (jitter 80-140ms, audren target " +
             std::to_string(kTargetQueuedMs) + "ms)");
@@ -343,6 +362,7 @@ bool AudioPlayer::start() {
 
 void AudioPlayer::stop() {
     m_running.store(false);
+    m_paused.store(false, std::memory_order_relaxed);
     std::lock_guard lock(m_mu);
     if (m_impl) {
         m_impl->teardown();
@@ -351,12 +371,42 @@ void AudioPlayer::stop() {
     }
 }
 
+void AudioPlayer::setPaused(bool paused) {
+    const bool prev = m_paused.exchange(paused, std::memory_order_relaxed);
+    if (prev == paused) {
+        return;
+    }
+    std::lock_guard lock(m_mu);
+    Impl* impl = m_impl;
+    if (!impl) {
+        return;
+    }
+    if (paused) {
+        {
+            std::lock_guard ringLock(impl->qmu);
+            impl->jitter.reset();
+            impl->syncCountersLocked();
+        }
+        if (impl->driverOpen) {
+            audrvVoiceStop(&impl->driver, 0);
+            audrvUpdate(&impl->driver);
+        }
+        m_latencyMs.store(0, std::memory_order_relaxed);
+        logInfo("[Audio] background power-save: audio paused");
+    } else {
+        logInfo("[Audio] background power-save: audio resumed");
+    }
+    impl->qcv.notify_all();
+}
+
 void AudioPlayer::setVolume(int volumePercent) {
     m_volume.store(std::clamp(volumePercent, 0, 100));
 }
 
 void AudioPlayer::pushOpusPacket(const uint8_t* data, size_t len, uint16_t rtpSeq, uint32_t) {
-    if (!m_running.load(std::memory_order_relaxed) || !data || len == 0) {
+    if (!m_running.load(std::memory_order_relaxed) ||
+        m_paused.load(std::memory_order_relaxed) ||
+        !data || len == 0) {
         return;
     }
     // m_mu guards the Impl lifetime against a concurrent stop() (which joins the feeder
@@ -369,9 +419,12 @@ void AudioPlayer::pushOpusPacket(const uint8_t* data, size_t len, uint16_t rtpSe
     if (len > kMaxPayloadBytes) {
         return;
     }
-    std::lock_guard ringLock(impl->qmu);
-    impl->jitter.push(rtpSeq, data, len, steadyMs());
-    impl->syncCountersLocked();
+    {
+        std::lock_guard ringLock(impl->qmu);
+        impl->jitter.push(rtpSeq, data, len, steadyMs());
+        impl->syncCountersLocked();
+    }
+    impl->qcv.notify_one();
 }
 
 #else
@@ -381,12 +434,18 @@ struct AudioPlayer::Impl {};
 AudioPlayer::~AudioPlayer() = default;
 
 bool AudioPlayer::start() {
+    m_paused.store(false, std::memory_order_relaxed);
     m_running.store(true);
     return true;
 }
 
 void AudioPlayer::stop() {
     m_running.store(false);
+    m_paused.store(false, std::memory_order_relaxed);
+}
+
+void AudioPlayer::setPaused(bool paused) {
+    m_paused.store(paused, std::memory_order_relaxed);
 }
 
 void AudioPlayer::setVolume(int volumePercent) {
@@ -394,7 +453,7 @@ void AudioPlayer::setVolume(int volumePercent) {
 }
 
 void AudioPlayer::pushOpusPacket(const uint8_t* data, size_t len, uint16_t, uint32_t) {
-    if (m_running.load() && data && len > 0) {
+    if (m_running.load() && !m_paused.load(std::memory_order_relaxed) && data && len > 0) {
         m_decoded.fetch_add(1);
     }
 }

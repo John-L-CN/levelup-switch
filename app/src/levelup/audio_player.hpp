@@ -29,6 +29,8 @@ class AudioPlayer {
 
     /// rtpSeq 用于抖动缓冲排序（缺省 0 表示不考虑顺序，按到达顺序播放）。
     void pushOpusPacket(const uint8_t* data, size_t len, uint16_t rtpSeq = 0, uint32_t rtpTs = 0);
+    void setPaused(bool paused);
+    bool isPaused() const { return m_paused.load(std::memory_order_relaxed); }
     void setVolume(int volumePercent); // 0..100
     int volume() const { return m_volume.load(); }
 
@@ -43,6 +45,7 @@ class AudioPlayer {
     Impl* m_impl = nullptr;
     std::mutex m_mu;
     std::atomic<bool> m_running{false};
+    std::atomic<bool> m_paused{false};
     std::atomic<int> m_volume{100};
     std::atomic<uint64_t> m_dropped{0};
     std::atomic<uint64_t> m_decoded{0};

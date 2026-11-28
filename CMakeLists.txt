@@ -78,7 +78,7 @@ set(VERSION_MAJOR "1")
 set(VERSION_MINOR "6")
 set(VERSION_ALTER "0")
 set(VERSION_BUILD "1")
-set(LEVELUP_VERSION "0.3.3") # 必须与对外发布的 git tag（vX.Y.Z）一致
+set(LEVELUP_VERSION "0.3.4") # 必须与对外发布的 git tag（vX.Y.Z）一致
 if (LEVELUP_ENABLE_WEBRTC)
     set(MOONLIGHT_APP_VERSION "${LEVELUP_VERSION}")
 else ()

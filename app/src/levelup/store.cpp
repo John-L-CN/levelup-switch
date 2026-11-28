@@ -406,10 +406,8 @@ AppConfig Store::loadConfig() const {
                 cfg.cred.mobile = j.value("mobile", "");
                 cfg.lpUuid = j.value("lpUuid", "");
                 cfg.lastPkgName = j.value("lastPkgName", int64_t{0});
-                // 画质档位已固定为「高清」，旧配置里的数值一律忽略（保持索引不变，
-                // 免得旧 version 的 JSON 反复被覆写）。
-                (void)j.value("videoLevel", AppConfig::kFixedVideoLevel);
-                cfg.videoLevel = AppConfig::kFixedVideoLevel;
+                const int vlOv = j.value("vlOverride", 0);
+                cfg.videoLevelOverride = (vlOv == 2 || vlOv == 3) ? vlOv : 0;
                 int hhRes = AppConfig::kHandheldRes720;
                 if (j.contains("handheldResolution") && j["handheldResolution"].is_number_integer()) {
                     hhRes = j["handheldResolution"].get<int>();
@@ -451,7 +449,7 @@ bool Store::saveConfig(const AppConfig& cfg) const {
         {"mobile", cfg.cred.mobile},
         {"lpUuid", cfg.lpUuid},
         {"lastPkgName", cfg.lastPkgName},
-        {"videoLevel", AppConfig::kFixedVideoLevel},
+        {"vlOverride", (cfg.videoLevelOverride == 2 || cfg.videoLevelOverride == 3) ? cfg.videoLevelOverride : 0},
         {"handheldResolution", normalizeHandheldResolution(cfg.handheldResolution)},
         {"vqFirst", cfg.vqFirst},
         {"rumbleEnabled", cfg.rumbleEnabled},

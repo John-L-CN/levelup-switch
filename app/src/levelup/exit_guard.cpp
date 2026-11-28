@@ -149,6 +149,24 @@ void finishExitGuard()
 #endif
 }
 
+void setBackgroundSuspendAllowed(bool allow)
+{
+#if defined(__SWITCH__)
+    static int s_lastMode = -1;
+    const int want = allow ? 1 : 0;
+    if (s_lastMode == want) {
+        return;
+    }
+    s_lastMode = want;
+    appletSetFocusHandlingMode(allow ? AppletFocusHandlingMode_SuspendHomeSleep
+                                     : AppletFocusHandlingMode_NoSuspend);
+    logInfo(std::string("[POWER] focus handling mode = ") +
+            (allow ? "SuspendHomeSleep (lobby)" : "NoSuspend (stream)"));
+#else
+    (void)allow;
+#endif
+}
+
 void installBackgroundFrameLimiter()
 {
     static bool installed = false;
@@ -156,11 +174,13 @@ void installBackgroundFrameLimiter()
         return;
     }
     installed = true;
+    // 默认处于大厅，允许系统在切到 HOME 时直接挂起进程以零功耗待机。
+    setBackgroundSuspendAllowed(true);
     brls::Application::getWindowFocusChangedEvent()->subscribe([](bool focused) {
-        // 前台保持 vsync（0 = 不额外限帧），后台压到 5 fps。
-        brls::Application::setLimitedFPS(focused ? 0 : 5);
+        // 前台保持 vsync（0 = 不额外限帧），后台（NoSuspend 串流期间）压到 2 fps。
+        brls::Application::setLimitedFPS(focused ? 0 : 2);
         logInfo(std::string("[EXIT] window focus ") + (focused ? "gained" : "lost") +
-                (focused ? ", frame limit = vsync" : ", frame limit = 5fps"));
+                (focused ? ", frame limit = vsync" : ", frame limit = 2fps"));
     });
 }
 

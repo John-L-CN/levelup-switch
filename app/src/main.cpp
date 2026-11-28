@@ -51,6 +51,7 @@ unsigned int sceLibcHeapSize             = 24 * 1024 * 1024;
 #include "levelup/rtc_session.hpp"
 #include "levelup/rumble_switch.hpp"
 #include "levelup/ui/lobby_activity.hpp"
+#include "levelup/ui/lobby_theme.hpp"
 #include "levelup/webrtc_probe.hpp"
 #endif
 
@@ -247,7 +248,9 @@ int main(int argc, char* argv[]) {
             new SwitchMoonlightSessionDecoderAndRenderProvider());
 
 #ifdef LEVELUP_ENABLE_WEBRTC
+    levelup::ui::installLevelUpBorealisThemes();
     brls::Application::createWindow("LevelUp-NX");
+    levelup::ui::syncSystemDarkTheme();
     brls::Logger::info("[BOOT] 5. createWindow ok");
 
     // 后台关不掉的兜底：退出请求 → 3 秒内必结束进程；失焦时降帧，避免主循环卡在 present。

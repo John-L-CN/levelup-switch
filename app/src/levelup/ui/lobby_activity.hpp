@@ -2,6 +2,7 @@
 
 #include "levelup/api_client.hpp"
 #include "levelup/store.hpp"
+#include "levelup/ui/lobby_theme.hpp"
 
 #include <borealis.hpp>
 
@@ -44,6 +45,8 @@ class LevelUpLobbyActivity : public brls::Activity {
     void coverWorkerLoop();
     void enqueueCover(const GameEntry& game, uint64_t gen, brls::Image* target, int texMaxW, int texMaxH);
 
+    void syncThemeFromSystem(bool forceRebuild);
+    void applyChromeTheme();
     void updateHeaderUi();
     bool isForegroundActivity() const;
     void rebuildCategoryStrip();
@@ -57,7 +60,9 @@ class LevelUpLobbyActivity : public brls::Activity {
     void launchGame(const GameEntry& game);
     void openQrLoginModal();
     void openAccountModal();
+    void openQuickMenuModal();
     void openSettingsModal();
+    void openControlsGuideModal();
     void refreshOnlineDataAsync(bool notifyResult);
 
     std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
@@ -76,18 +81,35 @@ class LevelUpLobbyActivity : public brls::Activity {
     static constexpr size_t kGamesPerPage = 24;
     std::atomic<uint64_t> m_gridGeneration{0};
     bool m_needsGridRebuild = false;
+    bool m_isDarkTheme = false;
+    int m_creditTapCount = 0;
+    std::chrono::steady_clock::time_point m_lastCreditTap{};
+    bool m_qMenuUnlocked = false;
 
     // Owned by Borealis View tree (valid while this Activity is alive)
     brls::Box* m_root = nullptr;
+    brls::Box* m_creditBar = nullptr;
+    brls::Label* m_creditPrefix = nullptr;
+    brls::Label* m_creditName = nullptr;
+    brls::Label* m_creditSuffix = nullptr;
+    brls::Box* m_header = nullptr;
+    brls::Label* m_brandLabel = nullptr;
+    StyledSurfaceBox* m_modeBadgeBox = nullptr;
     brls::Label* m_modeBadge = nullptr;
-    brls::Box* m_searchBox = nullptr;
-    brls::Box* m_accountBox = nullptr;
-    brls::Label* m_accountLabel = nullptr;
-    brls::Label* m_hintLabel = nullptr;
+    StyledSurfaceBox* m_searchBox = nullptr;
+    VectorIconView* m_searchIcon = nullptr;
     brls::Label* m_searchChip = nullptr;
-    brls::Label* m_countLabel = nullptr;
+    StyledSurfaceBox* m_accountBox = nullptr;
+    VectorIconView* m_accountIcon = nullptr;
+    brls::Label* m_accountLabel = nullptr;
+    StyledSurfaceBox* m_menuBox = nullptr;
+    VectorIconView* m_menuIcon = nullptr;
+    brls::Label* m_menuLabel = nullptr;
     brls::Box* m_categoryStrip = nullptr;
     brls::ScrollingFrame* m_scrollFrame = nullptr;
+    brls::Box* m_footer = nullptr;
+    brls::Label* m_hintLabel = nullptr;
+    brls::Label* m_countLabel = nullptr;
 
     // Joinable CoverLoader worker (NO detached threads)
     std::thread m_coverThread;
@@ -115,9 +137,11 @@ class LevelUpLobbyActivity : public brls::Activity {
     // 上次重建封面网格时的 UI 缩放（掌机 1.0 / 底座 1.5），用于插拔底座后按新尺寸重解码
     float m_coverTexScale = 0.0f;
 
-    // 窗口尺寸/UI 缩放变化事件订阅（borealis 的 Activity::onWindowSizeChanged 不是虚函数）
+    // 窗口尺寸/UI 缩放变化与焦点恢复（用于检测浅/深系统主题切换）事件订阅
     brls::VoidEvent::Subscription m_windowSizeSub;
     bool m_windowSizeSubValid = false;
+    brls::Event<bool>::Subscription m_windowFocusSub;
+    bool m_windowFocusSubValid = false;
 };
 
 } // namespace levelup::ui

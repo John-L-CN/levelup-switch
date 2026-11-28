@@ -48,8 +48,13 @@ void installExitGuard();
 /// 提前返回、回收其线程资源。
 void finishExitGuard();
 
-/// 失焦（后台）时把帧率压到 5 fps。这样 applet 消息（含退出请求）仍能被及时处理，
-/// 同时不会把 deko3d 的三缓冲全部写满后把主循环卡死在 presentImage 上。
+/// 失焦（后台）时把帧率压到 2 fps。这样在串流（NoSuspend）模式下 applet 消息（含退出请求）
+/// 仍能被及时处理，同时不会把 deko3d 的三缓冲全部写满后把主循环卡死在 presentImage 上。
 void installBackgroundFrameLimiter();
+
+/// 控制 Horizon OS 在切到 HOME 桌面时是否允许直接挂起（冻结）本进程：
+///   - true（大厅）：AppletFocusHandlingMode_SuspendHomeSleep，后台零功耗零发热
+///   - false（串流）：AppletFocusHandlingMode_NoSuspend，保持 WebRTC/心跳不断连
+void setBackgroundSuspendAllowed(bool allow);
 
 } // namespace levelup

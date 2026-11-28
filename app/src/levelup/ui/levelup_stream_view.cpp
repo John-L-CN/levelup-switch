@@ -1,7 +1,9 @@
 #include "levelup/ui/levelup_stream_view.hpp"
 
+#include "levelup/exit_guard.hpp"
 #include "levelup/log.hpp"
 #include "levelup/rumble_switch.hpp"
+#include "levelup/ui/lobby_theme.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -146,6 +148,7 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
     // nvgEndFrame() AFTER DKVideoRenderer::draw() flushes deko3d, which would cover live video.
 
     brls::Application::getPlatform()->disableScreenDimming(true);
+    levelup::setBackgroundSuspendAllowed(false);
 #ifdef __SWITCH__
     appletSetMediaPlaybackState(true);
 #endif
@@ -156,6 +159,28 @@ LevelUpStreamView::LevelUpStreamView(GameEntry game,
 
     m_windowFocusSub = brls::Application::getWindowFocusChangedEvent()->subscribe(
         [this](bool focused) { onWindowFocusChanged(focused); });
+
+    m_runLoopSub = brls::Application::getRunLoopEvent()->subscribe([this]() {
+        if (m_windowFocused || m_exiting || m_popRequested) {
+            return;
+        }
+        if (m_backgroundLostTime.time_since_epoch().count() == 0) {
+            return;
+        }
+        constexpr auto kBackgroundKeepaliveTimeout = std::chrono::minutes(5);
+        const auto elapsed = std::chrono::steady_clock::now() - m_backgroundLostTime;
+        if (elapsed < kBackgroundKeepaliveTimeout) {
+            return;
+        }
+        m_backgroundLostTime = {};
+        logInfo("[StreamView] background keepalive timeout (5m): disconnecting back to lobby");
+        if (m_overlayOpen || m_errorDialogOpen) {
+            m_overlayOpen = false;
+            m_errorDialogOpen = false;
+            brls::Application::popActivity(brls::TransitionAnimation::NONE);
+        }
+        exitStream();
+    });
 
     registerAction(
         "取消连接",
@@ -263,6 +288,7 @@ LevelUpStreamView::~LevelUpStreamView() {
     m_stopping->store(true);
 
     brls::Application::getWindowFocusChangedEvent()->unsubscribe(m_windowFocusSub);
+    brls::Application::getRunLoopEvent()->unsubscribe(m_runLoopSub);
     setBorealisInputsBlocked(false);
 
     try {
@@ -288,6 +314,7 @@ LevelUpStreamView::~LevelUpStreamView() {
 #ifdef __SWITCH__
     appletSetMediaPlaybackState(false);
 #endif
+    levelup::setBackgroundSuspendAllowed(true);
 }
 
 std::pair<int, int> LevelUpStreamView::detectTargetResolution() const {
@@ -347,7 +374,7 @@ void LevelUpStreamView::startSession() {
     lcfg.width = m_targetWidth;
     lcfg.height = m_targetHeight;
     lcfg.maxFps = 60;
-    lcfg.videoLevel = m_cfg.videoLevel;
+    lcfg.videoLevel = resolveEffectiveVideoLevel(m_targetHeight, m_cfg.videoLevelOverride);
     lcfg.vqFirst = m_cfg.vqFirst;
     lcfg.rumbleEnabled = m_cfg.rumbleEnabled;
     lcfg.rumbleStrengthPercent = m_cfg.rumbleStrength;
@@ -401,9 +428,19 @@ void LevelUpStreamView::onWindowFocusChanged(bool focused) {
     logInfo(std::string("[StreamView] window focus ") + (focused ? "gained" : "lost"));
 
     if (!focused) {
+        m_backgroundLostTime = std::chrono::steady_clock::now();
         m_orchestrator.setPausedForOverlay(true);
+        m_orchestrator.setBackgroundPowerSave(true);
+#ifdef __SWITCH__
+        appletSetMediaPlaybackState(false);
+#endif
     } else {
+        m_backgroundLostTime = {};
         m_invalidateRendererPending = true;
+#ifdef __SWITCH__
+        appletSetMediaPlaybackState(true);
+#endif
+        m_orchestrator.setBackgroundPowerSave(false);
         if (!m_overlayOpen && !m_errorDialogOpen && !m_exiting) {
             m_orchestrator.setPausedForOverlay(false);
         }
@@ -553,7 +590,7 @@ void LevelUpStreamView::draw(NVGcontext* vg,
             char infoBuf[128];
             std::snprintf(infoBuf,
                           sizeof(infoBuf),
-                          "目标分辨率 %dx%d@60fps  |  画质 高清  |  按 B 取消",
+                          "目标分辨率 %dx%d@60fps  |  按 B 取消",
                           m_targetWidth,
                           m_targetHeight);
             nvgFontSize(vg, 18.0f);
@@ -1014,38 +1051,62 @@ void LevelUpStreamView::openPauseOverlay() {
     setBorealisInputsBlocked(false);
     m_orchestrator.setPausedForOverlay(true);
 
+    const bool isDark = syncSystemDarkTheme();
+    const LobbyPalette& pal = currentLobbyPalette(isDark);
+
     auto* backdrop = new brls::Box(brls::Axis::COLUMN);
     backdrop->setJustifyContent(brls::JustifyContent::CENTER);
     backdrop->setAlignItems(brls::AlignItems::CENTER);
-    backdrop->setBackgroundColor(nvgRGBA(8, 12, 20, 195));
+    backdrop->setBackgroundColor(pal.modalBackdrop);
 
-    auto* panel = new brls::Box(brls::Axis::COLUMN);
+    auto* panel = new StyledSurfaceBox(brls::Axis::COLUMN);
     panel->setWidth(560.0f);
-    panel->setPadding(24.0f);
-    panel->setCornerRadius(16.0f);
-    panel->setBackgroundColor(nvgRGB(24, 32, 48));
+    panel->setPadding(24.0f, 26.0f, 22.0f, 26.0f);
+    panel->setSurfaceRadius(20.0f);
+    panel->setSurfaceColors(pal.modalBg, pal.modalBorder);
+    panel->setSurfaceBorderWidth(1.0f);
+    panel->setSurfaceShadow(true, pal.modalShadowInner, nvgRGBA(0, 0, 0, 0), 10.0f, 28.0f, 2.0f);
     panel->setAlignItems(brls::AlignItems::STRETCH);
+
+    auto* titleRow = new brls::Box(brls::Axis::ROW);
+    titleRow->setAlignItems(brls::AlignItems::CENTER);
+    titleRow->setJustifyContent(brls::JustifyContent::CENTER);
+    titleRow->setMarginBottom(10.0f);
+
+    auto* menuIcon = new VectorIconView(VectorIconKind::Menu, 19.0f, pal.accent);
+    menuIcon->setMarginRight(9.0f);
+    titleRow->addView(menuIcon);
 
     auto* title = new brls::Label();
     title->setText(m_game.name + " · 串流菜单");
-    title->setFontSize(24.0f);
-    title->setTextColor(nvgRGB(248, 250, 252));
-    title->setHorizontalAlign(brls::HorizontalAlign::CENTER);
-    title->setMarginBottom(6.0f);
-    panel->addView(title);
+    title->setFontSize(22.0f);
+    title->setSingleLine(true);
+    title->setTextColor(pal.inkPrimary);
+    titleRow->addView(title);
+    panel->addView(titleRow);
 
     const auto snap = m_orchestrator.stats();
     const int subW = snap.video.width > 0 ? snap.video.width : m_targetWidth;
     const int subH = snap.video.height > 0 ? snap.video.height : m_targetHeight;
 
+    auto* statsCard = new StyledSurfaceBox(brls::Axis::ROW);
+    statsCard->setPadding(8.0f, 12.0f, 8.0f, 12.0f);
+    statsCard->setMarginBottom(14.0f);
+    statsCard->setJustifyContent(brls::JustifyContent::CENTER);
+    statsCard->setAlignItems(brls::AlignItems::CENTER);
+    statsCard->setSurfaceRadius(11.0f);
+    statsCard->setSurfaceColors(pal.modalSurface, pal.hairline);
+    statsCard->setSurfaceBorderWidth(1.0f);
+
     auto* subtitle = new brls::Label();
     subtitle->setText(formatCompactHud(
         snap, subW, subH, m_fpsEstimate, m_bitrateKbps, m_recentPacketsLost, m_recentPacketsRecv));
-    subtitle->setFontSize(15.0f);
-    subtitle->setTextColor(nvgRGB(148, 163, 184));
+    subtitle->setFontSize(13.5f);
+    subtitle->setSingleLine(true);
+    subtitle->setTextColor(pal.inkSecondary);
     subtitle->setHorizontalAlign(brls::HorizontalAlign::CENTER);
-    subtitle->setMarginBottom(16.0f);
-    panel->addView(subtitle);
+    statsCard->addView(subtitle);
+    panel->addView(statsCard);
 
     LevelUpStreamView* self = this;
     std::shared_ptr<std::atomic<bool>> alive = m_alive;
@@ -1054,8 +1115,8 @@ void LevelUpStreamView::openPauseOverlay() {
         auto* btn = new brls::Button();
         btn->setStyle(style);
         btn->setText(label);
-        btn->setHeight(46.0f);
-        btn->setMargins(5.0f, 0.0f, 5.0f, 0.0f);
+        btn->setHeight(44.0f);
+        btn->setMargins(4.0f, 0.0f, 4.0f, 0.0f);
         return btn;
     };
 
@@ -1149,7 +1210,7 @@ void LevelUpStreamView::openPauseOverlay() {
     panel->addView(mouseModeBtn);
 
     auto* exitBtn = makeButton("退出云游戏（安全释放实例）", &brls::BUTTONSTYLE_DEFAULT);
-    exitBtn->setTextColor(nvgRGB(248, 113, 113));
+    exitBtn->setTextColor(pal.dangerText);
     exitBtn->registerClickAction([self, alive](brls::View*) {
         brls::sync([self, alive]() {
             if (alive->load()) {
@@ -1225,31 +1286,36 @@ void LevelUpStreamView::showFailureDialog(const std::string& stageText, const st
         msg += "\n" + errText;
     }
 
+    const bool isDark = syncSystemDarkTheme();
+    const LobbyPalette& pal = currentLobbyPalette(isDark);
+
     auto* backdrop = new brls::Box(brls::Axis::COLUMN);
     backdrop->setJustifyContent(brls::JustifyContent::CENTER);
     backdrop->setAlignItems(brls::AlignItems::CENTER);
-    backdrop->setBackgroundColor(nvgRGBA(8, 12, 20, 205));
+    backdrop->setBackgroundColor(pal.modalBackdrop);
 
-    auto* panel = new brls::Box(brls::Axis::COLUMN);
+    auto* panel = new StyledSurfaceBox(brls::Axis::COLUMN);
     panel->setWidth(560.0f);
-    panel->setPadding(24.0f);
-    panel->setCornerRadius(16.0f);
-    panel->setBackgroundColor(nvgRGB(24, 32, 48));
+    panel->setPadding(26.0f, 28.0f, 24.0f, 28.0f);
+    panel->setSurfaceRadius(20.0f);
+    panel->setSurfaceColors(pal.modalBg, pal.modalBorder);
+    panel->setSurfaceBorderWidth(1.0f);
+    panel->setSurfaceShadow(true, pal.modalShadowInner, nvgRGBA(0, 0, 0, 0), 10.0f, 28.0f, 2.0f);
     panel->setAlignItems(brls::AlignItems::STRETCH);
 
     auto* title = new brls::Label();
     title->setText("云游戏连接异常");
-    title->setFontSize(24.0f);
-    title->setTextColor(nvgRGB(248, 113, 113));
+    title->setFontSize(22.0f);
+    title->setTextColor(pal.dangerText);
     title->setHorizontalAlign(brls::HorizontalAlign::CENTER);
     title->setMarginBottom(12.0f);
     panel->addView(title);
 
     auto* msgLabel = new brls::Label();
     msgLabel->setText(msg);
-    msgLabel->setFontSize(17.0f);
+    msgLabel->setFontSize(16.0f);
     msgLabel->setSingleLine(false);
-    msgLabel->setTextColor(nvgRGB(226, 232, 240));
+    msgLabel->setTextColor(pal.inkSecondary);
     msgLabel->setHorizontalAlign(brls::HorizontalAlign::CENTER);
     msgLabel->setMarginBottom(20.0f);
     panel->addView(msgLabel);
@@ -1350,6 +1416,7 @@ void LevelUpStreamView::exitStream() {
 #endif
 
     logInfo("[StreamView] exitStream: popping StreamActivity");
+    levelup::setBackgroundSuspendAllowed(true);
     brls::Application::popActivity(brls::TransitionAnimation::NONE);
 }
 

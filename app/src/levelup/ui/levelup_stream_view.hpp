@@ -76,8 +76,10 @@ class LevelUpStreamView : public brls::Box {
     bool m_exiting = false;
     bool m_popRequested = false;
     bool m_errorDialogOpen = false;
+    std::chrono::steady_clock::time_point m_backgroundLostTime{};
 
     brls::Event<bool>::Subscription m_windowFocusSub;
+    brls::Event<>::Subscription m_runLoopSub;
 
     SessionPhase m_uiPhase = SessionPhase::Idle;
     std::string m_uiStageText = "正在初始化云游戏...";
